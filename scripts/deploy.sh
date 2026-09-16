@@ -3,7 +3,6 @@ set -euo pipefail
 
 # LIVE PRODUCTION CI/CD. See note.md and CICD.md.
 # GitHub (SiddharthVaniya/sadbhavnadham-laravel) is the code source.
-# This script syncs live to GitHub, builds assets, and refreshes caches.
 # Never: artisan down, migrate, db:seed, or delete public/vite before build.
 
 APP_DIR="${APP_DIR:-/home/sadbhavnadham-admin/htdocs/admin.sadbhavnadham.org}"
@@ -11,20 +10,28 @@ APP_USER="${DEPLOY_APP_USER:-sadbhavnadham-admin}"
 BRANCH="${DEPLOY_BRANCH:-main}"
 REMOTE="${DEPLOY_GIT_REMOTE:-github}"
 GITHUB_URL="git@github.com:SiddharthVaniya/sadbhavnadham-laravel.git"
+NODE_BIN_DIR="/root/.nvm/versions/node/v24.19.0/bin"
 
-if [ "$(id -un)" != "$APP_USER" ]; then
-    if [ "$(id -u)" -eq 0 ]; then
-        exec runuser -u "$APP_USER" -- env \
-            APP_DIR="$APP_DIR" \
-            DEPLOY_APP_USER="$APP_USER" \
-            DEPLOY_BRANCH="$BRANCH" \
-            DEPLOY_GIT_REMOTE="$REMOTE" \
-            bash "$0" "$@"
+as_app() {
+    if [ "$(id -un)" = "$APP_USER" ]; then
+        "$@"
+    else
+        runuser -u "$APP_USER" -- env HOME="/home/${APP_USER}" "$@"
+    fi
+}
+
+load_node() {
+    if [ -x "${NODE_BIN_DIR}/node" ]; then
+        export PATH="${NODE_BIN_DIR}:$PATH"
+        return
     fi
 
-    echo "Deploy must run as $APP_USER (or root)."
-    exit 1
-fi
+    if [ -s "${HOME}/.nvm/nvm.sh" ]; then
+        # shellcheck disable=SC1091
+        . "${HOME}/.nvm/nvm.sh"
+        nvm use default >/dev/null 2>&1 || nvm use --lts >/dev/null 2>&1 || true
+    fi
+}
 
 cd "$APP_DIR"
 
@@ -65,37 +72,40 @@ if ! git remote get-url "$REMOTE" >/dev/null 2>&1; then
 fi
 
 echo "==> Fetch ${REMOTE}/${BRANCH}"
-git fetch --prune "$REMOTE" "$BRANCH"
+as_app git fetch --prune "$REMOTE" "$BRANCH"
 
 echo "==> Sync live files to GitHub ${REMOTE}/${BRANCH} (tracked files only; .env kept)"
-git checkout -B "$BRANCH"
-git reset --hard "${REMOTE}/${BRANCH}"
+as_app git checkout -B "$BRANCH"
+as_app git reset --hard "${REMOTE}/${BRANCH}"
 
 echo "==> Composer (production)"
-composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+as_app composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
 
 if [ -f package.json ]; then
-    echo "==> npm build (existing Vite files stay until the new build replaces them)"
+    echo "==> npm build with Node $(load_node; node -v) (existing Vite files stay until replaced)"
+    load_node
+    echo "    node=$(command -v node) $(node -v)"
     if [ -f package-lock.json ]; then
         npm ci --no-audit --no-fund
     else
         npm install --no-audit --no-fund
     fi
     npm run build
+    chown -R "${APP_USER}:${APP_USER}" node_modules public/vite 2>/dev/null || true
 fi
 
 echo "==> Delete Laravel caches"
-php artisan optimize:clear
-php artisan cache:clear
+as_app php artisan optimize:clear
+as_app php artisan cache:clear
 
 echo "==> Rebuild Laravel caches"
-php artisan config:cache
-php artisan route:cache
-php artisan view:cache
+as_app php artisan config:cache
+as_app php artisan route:cache
+as_app php artisan view:cache
 
 echo "==> Reload queue workers after in-flight jobs"
-php artisan queue:restart || true
+as_app php artisan queue:restart || true
 
 echo "==> Deploy finished: live now matches GitHub ${REMOTE}/${BRANCH}"
-git log -1 --oneline
+as_app git log -1 --oneline
 exit 0
