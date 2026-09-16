@@ -28,6 +28,8 @@ class AdminReportsData
     public const DURATION_OPTIONS = [
         'today' => 'Today (daywise)',
         'yesterday' => 'Yesterday (daywise)',
+        'this_week' => 'This week',
+        'last_week' => 'Previous week',
         'this_month' => 'This month (monthwise)',
         'last_month' => 'Last month (monthwise)',
         'this_fy' => 'Current financial year (Apr–Mar)',
@@ -229,6 +231,10 @@ class AdminReportsData
      */
     public static function rangeForDuration(string $duration): array
     {
+        if ($calendar = PeriodRange::forKey($duration)) {
+            return $calendar;
+        }
+
         $now = now();
 
         return match ($duration) {
@@ -236,21 +242,6 @@ class AdminReportsData
                 'start' => $now->copy()->startOfDay(),
                 'end' => $now->copy()->endOfDay(),
                 'label' => 'Today · '.$now->format('d M Y'),
-            ],
-            'yesterday' => [
-                'start' => $now->copy()->subDay()->startOfDay(),
-                'end' => $now->copy()->subDay()->endOfDay(),
-                'label' => 'Yesterday · '.$now->copy()->subDay()->format('d M Y'),
-            ],
-            'this_month' => [
-                'start' => $now->copy()->startOfMonth(),
-                'end' => $now->copy()->endOfDay(),
-                'label' => $now->format('F Y'),
-            ],
-            'last_month' => [
-                'start' => $now->copy()->subMonthNoOverflow()->startOfMonth(),
-                'end' => $now->copy()->subMonthNoOverflow()->endOfMonth(),
-                'label' => $now->copy()->subMonthNoOverflow()->format('F Y'),
             ],
             'this_fy' => self::financialYearRange($now),
             'last_fy' => self::financialYearRange($now->copy()->subYear()),

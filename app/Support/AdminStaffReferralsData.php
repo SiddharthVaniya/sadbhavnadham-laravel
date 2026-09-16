@@ -18,6 +18,9 @@ class AdminStaffReferralsData
      * @var array<string, string>
      */
     public const DURATION_OPTIONS = [
+        'yesterday' => 'Yesterday',
+        'this_week' => 'This week',
+        'last_week' => 'Previous week',
         'this_month' => 'This month',
         'last_month' => 'Last month',
         'this_fy' => 'This financial year',
@@ -496,15 +499,18 @@ class AdminStaffReferralsData
 
         $now = now();
 
-        return match ($duration) {
-            'last_month' => [
-                'key' => 'last_month',
-                'label' => self::DURATION_OPTIONS['last_month'],
-                'start' => $now->copy()->subMonthNoOverflow()->startOfMonth(),
-                'end' => $now->copy()->subMonthNoOverflow()->endOfMonth(),
+        if ($calendar = PeriodRange::forKey($duration)) {
+            return [
+                'key' => $duration,
+                'label' => self::DURATION_OPTIONS[$duration],
+                'start' => $calendar['start'],
+                'end' => $calendar['end'],
                 'from_date' => null,
                 'to_date' => null,
-            ],
+            ];
+        }
+
+        return match ($duration) {
             'this_fy' => self::financialYearWindow($now),
             'all' => [
                 'key' => 'all',

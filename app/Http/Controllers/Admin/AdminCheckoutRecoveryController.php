@@ -11,6 +11,7 @@ use App\Models\DonationOrder;
 use App\Services\DonationWhatsAppPolicy;
 use App\Support\AdminInertiaData;
 use App\Support\DonationVisibility;
+use App\Support\PeriodRange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Carbon;
@@ -55,6 +56,11 @@ class AdminCheckoutRecoveryController extends Controller
             'duration' => $duration,
             'durationOptions' => [
                 'today' => 'Today',
+                'yesterday' => 'Yesterday',
+                'this_week' => 'This week',
+                'last_week' => 'Previous week',
+                'this_month' => 'This month',
+                'last_month' => 'Previous month',
                 'last_7_days' => 'Last 7 days',
                 'last_30_days' => 'Last 30 days',
                 'last_90_days' => 'Last 90 days',
@@ -192,6 +198,12 @@ class AdminCheckoutRecoveryController extends Controller
 
         if ($duration === 'today') {
             $query->whereBetween('created_at', [$now->copy()->startOfDay(), $now->copy()->endOfDay()]);
+
+            return;
+        }
+
+        if ($calendar = PeriodRange::forKey($duration)) {
+            $query->whereBetween('created_at', [$calendar['start'], $calendar['end']]);
 
             return;
         }

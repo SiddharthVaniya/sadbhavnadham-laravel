@@ -18,6 +18,8 @@ class MarketerPerformanceData
     public const DURATION_OPTIONS = [
         'today' => 'Today',
         'yesterday' => 'Yesterday',
+        'this_week' => 'This week',
+        'last_week' => 'Previous week',
         'this_month' => 'This month',
         'last_month' => 'Last month',
         '7d' => 'Last 7 days',
@@ -405,7 +407,7 @@ class MarketerPerformanceData
      */
     private static function resolveMarketerRange(Request $request, string $duration): array
     {
-        if (in_array($duration, ['yesterday', 'this_month', 'last_month'], true)) {
+        if (in_array($duration, PeriodRange::CALENDAR_KEYS, true)) {
             return AdminReportsData::rangeForDuration($duration);
         }
 

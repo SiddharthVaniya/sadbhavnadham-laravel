@@ -24,6 +24,11 @@ class AdminAnalyticsData
 {
     public const DURATION_OPTIONS = [
         'today' => 'Today',
+        'yesterday' => 'Yesterday',
+        'this_week' => 'This week',
+        'last_week' => 'Previous week',
+        'this_month' => 'This month',
+        'last_month' => 'Previous month',
         '7d' => 'Last 7 days',
         '30d' => 'Last 30 days',
         '90d' => 'Last 90 days',
@@ -111,6 +116,10 @@ class AdminAnalyticsData
      */
     public static function rangeForDuration(string $duration): array
     {
+        if ($calendar = PeriodRange::forKey($duration)) {
+            return $calendar;
+        }
+
         $end = now()->endOfDay();
 
         return match ($duration) {

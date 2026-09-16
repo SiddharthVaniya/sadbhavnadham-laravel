@@ -17,6 +17,8 @@ class AdminPartnerReportsData
     public const DURATION_OPTIONS = [
         'today' => 'Today (daywise)',
         'yesterday' => 'Yesterday',
+        'this_week' => 'This week',
+        'last_week' => 'Previous week',
         'this_month' => 'This month',
         'last_month' => 'Last month',
         'custom' => 'Custom range',
@@ -376,40 +378,25 @@ class AdminPartnerReportsData
             ];
         }
 
-        return match ($duration) {
-            'yesterday' => [
-                'key' => 'yesterday',
-                'label' => self::DURATION_OPTIONS['yesterday'],
-                'start' => $now->copy()->subDay()->startOfDay(),
-                'end' => $now->copy()->subDay()->endOfDay(),
-                'from_date' => $now->copy()->subDay()->toDateString(),
-                'to_date' => $now->copy()->subDay()->toDateString(),
-            ],
-            'last_month' => [
-                'key' => 'last_month',
-                'label' => self::DURATION_OPTIONS['last_month'],
-                'start' => $now->copy()->subMonthNoOverflow()->startOfMonth(),
-                'end' => $now->copy()->subMonthNoOverflow()->endOfMonth(),
-                'from_date' => $now->copy()->subMonthNoOverflow()->startOfMonth()->toDateString(),
-                'to_date' => $now->copy()->subMonthNoOverflow()->endOfMonth()->toDateString(),
-            ],
-            'this_month' => [
-                'key' => 'this_month',
-                'label' => self::DURATION_OPTIONS['this_month'],
-                'start' => $now->copy()->startOfMonth(),
-                'end' => $now->copy()->endOfMonth(),
-                'from_date' => $now->copy()->startOfMonth()->toDateString(),
-                'to_date' => $now->copy()->endOfMonth()->toDateString(),
-            ],
-            default => [
-                'key' => 'today',
-                'label' => self::DURATION_OPTIONS['today'],
-                'start' => $now->copy()->startOfDay(),
-                'end' => $now->copy()->endOfDay(),
-                'from_date' => $now->toDateString(),
-                'to_date' => $now->toDateString(),
-            ],
-        };
+        if ($calendar = PeriodRange::forKey($duration)) {
+            return [
+                'key' => $duration,
+                'label' => self::DURATION_OPTIONS[$duration],
+                'start' => $calendar['start'],
+                'end' => $calendar['end'],
+                'from_date' => $calendar['start']->toDateString(),
+                'to_date' => $calendar['end']->toDateString(),
+            ];
+        }
+
+        return [
+            'key' => 'today',
+            'label' => self::DURATION_OPTIONS['today'],
+            'start' => $now->copy()->startOfDay(),
+            'end' => $now->copy()->endOfDay(),
+            'from_date' => $now->toDateString(),
+            'to_date' => $now->toDateString(),
+        ];
     }
 
     /**

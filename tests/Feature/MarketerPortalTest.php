@@ -641,6 +641,8 @@ it('exposes yesterday and this month duration options on marketer pages', functi
         ->assertInertia(fn ($page) => $page
             ->component('Marketer/Donations')
             ->where('durationOptions.yesterday', 'Yesterday')
+            ->where('durationOptions.this_week', 'This week')
+            ->where('durationOptions.last_week', 'Previous week')
             ->where('durationOptions.this_month', 'This month')
             ->where('durationOptions.last_month', 'Last month'));
 });

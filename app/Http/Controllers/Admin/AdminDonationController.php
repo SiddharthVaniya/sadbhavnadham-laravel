@@ -19,6 +19,7 @@ use App\Support\AdminInertiaData;
 use App\Support\AdminInertiaResources;
 use App\Support\DonationVisibility;
 use App\Support\PanRequirementService;
+use App\Support\PeriodRange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -113,6 +114,11 @@ class AdminDonationController extends Controller
 
         $durationOptions = [
             'today' => 'Today',
+            'yesterday' => 'Yesterday',
+            'this_week' => 'This week',
+            'last_week' => 'Previous week',
+            'this_month' => 'This month',
+            'last_month' => 'Previous month',
             'last_7_days' => 'Last 7 days',
             'last_30_days' => 'Last 30 days',
             'last_90_days' => 'Last 90 days',
@@ -1103,6 +1109,12 @@ class AdminDonationController extends Controller
                 $now->copy()->startOfDay(),
                 $now->copy()->endOfDay()
             );
+
+            return;
+        }
+
+        if ($calendar = PeriodRange::forKey($duration)) {
+            $this->applyActivityDateRange($query, $calendar['start'], $calendar['end']);
 
             return;
         }

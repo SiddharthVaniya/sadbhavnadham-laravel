@@ -18,7 +18,18 @@ class CheckoutRecoveryIndexRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'duration' => ['nullable', 'string', Rule::in(['today', 'last_7_days', 'last_30_days', 'last_90_days', 'all'])],
+            'duration' => ['nullable', 'string', Rule::in([
+                'today',
+                'yesterday',
+                'this_week',
+                'last_week',
+                'this_month',
+                'last_month',
+                'last_7_days',
+                'last_30_days',
+                'last_90_days',
+                'all',
+            ])],
             'status' => ['nullable', 'string', Rule::in(['pending', 'failed'])],
             'search' => ['nullable', 'string', 'max:255'],
             'nudge' => ['nullable', 'string', Rule::in(['ready', 'sent', 'no_phone'])],
