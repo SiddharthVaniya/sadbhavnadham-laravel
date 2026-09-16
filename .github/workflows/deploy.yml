@@ -1,8 +1,7 @@
-name: Deploy to Hostinger VPS
+name: Production CI/CD
 
-# LIVE PRODUCTION. See note.md.
-# This job must never git pull, migrate, seed, or put the app in maintenance mode.
-# After tests, it only runs npm build + Laravel cache refresh on the live host.
+# Live site: GitHub main -> VPS files -> npm build -> cache clear.
+# Never migrate or take the site down. See CICD.md and note.md.
 
 on:
   push:
@@ -11,15 +10,15 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: production-deploy
+  group: production-cicd
   cancel-in-progress: false
 
 jobs:
-  regression-critical:
+  test:
+    name: Tests (GitHub runner only)
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
@@ -36,10 +35,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-php-
 
-      - name: Install dependencies
+      - name: Install PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Prepare application
+      - name: Prepare test application
         run: |
           cp .env.example .env
           php artisan key:generate --no-interaction
@@ -47,7 +46,7 @@ jobs:
         env:
           APP_ENV: testing
 
-      - name: Run migrations
+      - name: Migrate test SQLite only
         run: php artisan migrate --force --no-interaction
         env:
           APP_ENV: testing
@@ -62,23 +61,29 @@ jobs:
           DB_DATABASE: database/database.sqlite
 
   deploy:
-    needs: regression-critical
+    name: Deploy to live (sync + npm build + cache)
+    needs: test
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy over SSH (npm build + cache only)
+      - name: SSH sync GitHub to live, build, clear cache
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_PORT }}
+          port: ${{ secrets.VPS_PORT || 22 }}
           timeout: 60s
-          command_timeout: 20m
+          command_timeout: 25m
           script_stop: true
           script: |
             set -euo pipefail
-            cd "${{ secrets.APP_DIR }}"
-            export DEPLOY_ALLOW_GIT_PULL=0
+            export APP_DIR="${{ secrets.APP_DIR }}"
+            if [ -z "${APP_DIR}" ]; then
+              APP_DIR="/home/sadbhavnadham-admin/htdocs/admin.sadbhavnadham.org"
+            fi
+            cd "$APP_DIR"
+            export DEPLOY_GIT_REMOTE=github
+            export DEPLOY_BRANCH=main
             export DEPLOY_ALLOW_MIGRATE=0
             export DEPLOY_ALLOW_DOWNTIME=0
             bash scripts/deploy.sh

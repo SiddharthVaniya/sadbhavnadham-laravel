@@ -2,17 +2,12 @@ name: Critical Regression Gate
 
 on:
   pull_request:
-  push:
-    branches:
-      - main
 
 jobs:
   regression-critical:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup PHP
         uses: shivammathur/setup-php@v2
