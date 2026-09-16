@@ -6,6 +6,7 @@ import PageHeader from '@/Components/Admin/PageHeader.vue';
 import StatCard from '@/Components/Admin/StatCard.vue';
 import DataTable from '@/Components/Admin/DataTable.vue';
 import AnalyticsTrendChart from '@/Components/Admin/AnalyticsTrendChart.vue';
+import { mergeDurationOptions } from '@/utils/periodOptions';
 
 const props = defineProps({
     duration: { type: String, required: true },
@@ -44,6 +45,7 @@ const toDate = ref(props.filters.to_date || '');
 const indiaFocus = ref(Boolean(props.filters.india_focus));
 
 const isCustomRange = computed(() => selectedDuration.value === 'custom');
+const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 const formatRate = (rate) => `${Number(rate || 0).toFixed(1)}%`;
@@ -205,10 +207,10 @@ const formatChange = (metric) => {
                 </template>
                 <select
                     v-model="selectedDuration"
-                    class="admin-input !w-auto min-w-[160px] py-2"
+                    class="admin-input !w-auto min-w-[180px] py-2"
                     @change="onDurationChange"
                 >
-                    <option v-for="(label, value) in durationOptions" :key="value" :value="value">
+                    <option v-for="(label, value) in periodOptions" :key="value" :value="value">
                         {{ label }}
                     </option>
                 </select>

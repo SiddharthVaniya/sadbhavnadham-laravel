@@ -7,6 +7,7 @@ import DataTable from '@/Components/Admin/DataTable.vue';
 import Pagination from '@/Components/Admin/Pagination.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/ui/card';
 import { Button } from '@/Components/ui/button';
+import { mergeDurationOptions } from '@/utils/periodOptions';
 
 const props = defineProps({
     code: { type: String, default: null },
@@ -64,6 +65,7 @@ watch(
 );
 
 const isCustomRange = computed(() => form.duration === 'custom');
+const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
 
 const formatMoney = (amount) =>
     `₹ ${Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
@@ -300,7 +302,7 @@ const copyText = async (key, value) => {
                         <label class="admin-label !mb-1 !text-xs">Period</label>
                         <select v-model="form.duration" class="admin-input !py-2" @change="onDurationChange">
                             <option
-                                v-for="(label, key) in durationOptions"
+                                v-for="(label, key) in periodOptions"
                                 :key="key"
                                 :value="key"
                             >

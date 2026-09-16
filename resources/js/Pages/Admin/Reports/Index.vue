@@ -4,6 +4,7 @@ import { Head, router } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
 import DataTable from '@/Components/Admin/DataTable.vue';
+import { mergeDurationOptions } from '@/utils/periodOptions';
 
 const props = defineProps({
     type: { type: String, required: true },
@@ -35,6 +36,7 @@ const partnerUserId = ref(
 );
 
 const isCustomRange = computed(() => selectedDuration.value === 'custom');
+const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -235,7 +237,7 @@ const formatLabel = (format) => ({
                 <div>
                     <label class="admin-label">Period (day / month / custom)</label>
                     <select v-model="selectedDuration" class="admin-input" @change="onDurationChange">
-                        <option v-for="(label, value) in durationOptions" :key="value" :value="value">
+                        <option v-for="(label, value) in periodOptions" :key="value" :value="value">
                             {{ label }}
                         </option>
                     </select>

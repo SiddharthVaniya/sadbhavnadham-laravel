@@ -4,6 +4,7 @@ import { Head, Link, router } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
 import DataTable from '@/Components/Admin/DataTable.vue';
+import { mergeDurationOptions } from '@/utils/periodOptions';
 
 const props = defineProps({
     can_view_all: { type: Boolean, default: false },
@@ -42,6 +43,7 @@ watch(
 );
 
 const isCustomRange = computed(() => form.duration === 'custom');
+const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
 
 const formatMoney = (amount) =>
     `₹ ${Number(amount || 0).toLocaleString('en-IN', {
@@ -181,7 +183,7 @@ const previewRows = computed(() =>
                     <label class="admin-label">Period</label>
                     <select v-model="form.duration" class="admin-input" @change="onDurationChange">
                         <option
-                            v-for="(label, value) in durationOptions"
+                            v-for="(label, value) in periodOptions"
                             :key="value"
                             :value="value"
                         >

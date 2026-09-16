@@ -8,6 +8,7 @@ import Pagination from '@/Components/Admin/Pagination.vue';
 import DataTable from '@/Components/Admin/DataTable.vue';
 import PaymentMethodPieChart from '@/Components/Admin/PaymentMethodPieChart.vue';
 import FormDatePicker from '@/Components/Admin/FormDatePicker.vue';
+import { mergeDurationOptions } from '@/utils/periodOptions';
 
 const page = usePage();
 const canManageDonations = computed(() => page.props.auth.permissions?.includes('manage donations') ?? false);
@@ -96,6 +97,7 @@ const statusTabs = computed(() => [
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const isCustomRange = computed(() => form.duration === 'custom');
+const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
 
 const listQueryParams = (extra = {}) => {
     const payload = { ...form, ...extra };
@@ -226,10 +228,10 @@ const exportUrl = computed(() => {
                 </a>
                 <select
                     v-model="form.duration"
-                    class="admin-input !w-auto min-w-[140px] py-2"
+                    class="admin-input !w-auto min-w-[180px] py-2"
                     @change="onDurationChange"
                 >
-                    <option v-for="(label, value) in durationOptions" :key="value" :value="value">{{ label }}</option>
+                    <option v-for="(label, value) in periodOptions" :key="value" :value="value">{{ label }}</option>
                 </select>
             </template>
         </PageHeader>

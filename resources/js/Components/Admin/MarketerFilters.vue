@@ -2,6 +2,7 @@
 import { computed, reactive } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { Button } from '@/Components/ui/button';
+import { mergeDurationOptions } from '@/utils/periodOptions';
 
 const props = defineProps({
     action: { type: String, required: true },
@@ -18,6 +19,7 @@ const isCampaigns = computed(() => props.variant === 'campaigns');
 const isTracking = computed(() => ! isDonations.value && ! isCampaigns.value);
 const showDeviceFilter = computed(() => isDonationList.value || isDonations.value || isCampaigns.value || isTracking.value);
 const isCustomRange = computed(() => form.duration === 'custom');
+const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
 
 const resolveInitialDuration = () => {
     if (props.filters?.from_date && props.filters?.to_date) {
@@ -169,7 +171,7 @@ const deviceLabel = (value) => {
         <div>
             <label class="admin-label !mb-1 !text-xs">Period</label>
             <select v-model="form.duration" class="admin-input !py-2" @change="onDurationChange">
-                <option v-for="(label, value) in durationOptions" :key="value" :value="value">
+                <option v-for="(label, value) in periodOptions" :key="value" :value="value">
                     {{ label }}
                 </option>
             </select>

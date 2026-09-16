@@ -5,6 +5,7 @@ import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
 import StatCard from '@/Components/Admin/StatCard.vue';
 import DataTable from '@/Components/Admin/DataTable.vue';
+import { mergeDurationOptions } from '@/utils/periodOptions';
 
 const props = defineProps({
     campaign: { type: Object, required: true },
@@ -25,6 +26,7 @@ const fromDate = ref(props.filters.from_date || '');
 const toDate = ref(props.filters.to_date || '');
 
 const isCustomRange = computed(() => selectedDuration.value === 'custom');
+const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
@@ -157,7 +159,7 @@ const copyShareLink = async () => {
             <div>
                 <label class="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">Duration</label>
                 <select v-model="selectedDuration" class="rounded-lg border border-border px-3 py-2 text-sm" @change="onDurationChange">
-                    <option v-for="(label, key) in durationOptions" :key="key" :value="key">{{ label }}</option>
+                    <option v-for="(label, key) in periodOptions" :key="key" :value="key">{{ label }}</option>
                 </select>
             </div>
             <div v-if="isCustomRange">

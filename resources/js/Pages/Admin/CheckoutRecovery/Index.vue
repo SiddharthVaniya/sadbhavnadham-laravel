@@ -9,6 +9,7 @@ import Pagination from '@/Components/Admin/Pagination.vue';
 import StatusBadge from '@/Components/Admin/StatusBadge.vue';
 import FormSelect from '@/Components/Admin/FormSelect.vue';
 import FormInput from '@/Components/Admin/FormInput.vue';
+import { mergeDurationOptions } from '@/utils/periodOptions';
 
 const props = defineProps({
     orders: { type: Object, required: true },
@@ -49,7 +50,9 @@ const rows = computed(() => props.orders.data ?? []);
 const selectableIds = computed(() => rows.value.filter((row) => row.can_nudge).map((row) => row.id));
 const allSelected = computed(() => selectableIds.value.length > 0 && selectableIds.value.every((id) => selected.value.includes(id)));
 
-const durationChoices = computed(() => Object.entries(props.durationOptions).map(([value, label]) => ({ value, label })));
+const durationChoices = computed(() =>
+    Object.entries(mergeDurationOptions(props.durationOptions)).map(([value, label]) => ({ value, label })),
+);
 
 const listQueryParams = (extra = {}) => {
     const payload = { ...form, ...extra };
