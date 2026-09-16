@@ -81,6 +81,8 @@ jobs:
             if [ -z "${APP_DIR}" ]; then
               APP_DIR="/home/sadbhavnadham-admin/htdocs/admin.sadbhavnadham.org"
             fi
+            export NVM_DIR="/root/.nvm"
+            export PATH="/root/.nvm/versions/node/v24.19.0/bin:$PATH"
             cd "$APP_DIR"
             export DEPLOY_GIT_REMOTE=github
             export DEPLOY_BRANCH=main

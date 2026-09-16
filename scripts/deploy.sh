@@ -39,7 +39,12 @@ echo "==> Live deploy in $APP_DIR as $(id -un)"
 echo "==> Source: GitHub ${REMOTE}/${BRANCH}"
 echo "==> No downtime. No migrations. .env is never overwritten."
 
-exec 9>/tmp/sadbhavnadham-deploy.lock
+LOCK=/tmp/sadbhavnadham-deploy.lock
+if [ -e "$LOCK" ] && [ ! -w "$LOCK" ]; then
+    rm -f "$LOCK" || true
+fi
+
+exec 9>"$LOCK"
 if ! flock -n 9; then
     echo "Another deploy is already running. Aborting."
     exit 1

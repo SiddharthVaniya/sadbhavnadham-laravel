@@ -12,7 +12,7 @@ Add these under **Settings → Secrets and variables → Actions**:
 | Secret | Value |
 | --- | --- |
 | `VPS_HOST` | `195.35.23.88` |
-| `VPS_USER` | `sadbhavnadham-admin` |
+| `VPS_USER` | `root` |
 | `VPS_PORT` | `22` |
 | `APP_DIR` | `/home/sadbhavnadham-admin/htdocs/admin.sadbhavnadham.org` |
 | `VPS_SSH_KEY` | Private key from the live server (see below) |
