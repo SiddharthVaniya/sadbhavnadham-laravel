@@ -137,6 +137,11 @@ class AdminNavigation
                 'section' => 'System',
             ],
             [
+                'label' => 'Marketers',
+                'route' => 'admin.marketers.index',
+                'permissions_any' => [AdminPermissions::USER_EDIT, AdminPermissions::MANAGE_USERS],
+            ],
+            [
                 'label' => 'Departments',
                 'route' => 'admin.departments.index',
                 'permissions_any' => [AdminPermissions::DEPARTMENT_MANAGE, AdminPermissions::MANAGE_USERS],

@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\AdminDonationCampaignController;
 use App\Http\Controllers\Admin\AdminDonationController;
 use App\Http\Controllers\Admin\AdminDonorController;
 use App\Http\Controllers\Admin\AdminDonorCrmController;
+use App\Http\Controllers\Admin\AdminMarketerBudgetController;
 use App\Http\Controllers\Admin\AdminPartnerReportsController;
 use App\Http\Controllers\Admin\AdminReportsController;
 use App\Http\Controllers\Admin\AdminSettingController;
@@ -422,6 +423,13 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::put('users/{user}/roles', [UserRoleController::class, 'update'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::ROLE_MANAGE))
         ->name('users.roles.update');
+
+    Route::get('marketers', [AdminMarketerBudgetController::class, 'index'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('marketers.index');
+    Route::put('marketers', [AdminMarketerBudgetController::class, 'update'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('marketers.update');
 
     Route::get('settings', [AdminSettingController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::SETTINGS_VIEW))

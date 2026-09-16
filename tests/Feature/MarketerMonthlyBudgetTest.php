@@ -166,3 +166,48 @@ it('shows this month target and spend on the marketer dashboard', function () {
             ->where('target.period', 'this_month')
             ->where('target.achieved', 2000));
 });
+
+it('lets admins bulk-edit this month target and spend on the marketers page', function () {
+    Permission::firstOrCreate(['name' => 'edit users']);
+    Permission::firstOrCreate(['name' => 'manage users']);
+    $role = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+    $role->syncPermissions(['edit users', 'manage users']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole('admin');
+
+    $marketer = User::factory()->create([
+        'name' => 'Ashvini',
+        'referral_code' => 'ac',
+    ]);
+
+    actingAs($admin)
+        ->get(route('admin.marketers.index'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Marketers/Index')
+            ->has('marketers', 1)
+            ->where('marketers.0.user_id', $marketer->id)
+            ->where('marketers.0.code', 'ac'));
+
+    actingAs($admin)
+        ->put(route('admin.marketers.update'), [
+            'marketers' => [
+                [
+                    'user_id' => $marketer->id,
+                    'target_amount' => 75000,
+                    'spend_amount' => 9200,
+                ],
+            ],
+        ])
+        ->assertRedirect(route('admin.marketers.index'));
+
+    $budget = MarketerMonthlyBudget::query()
+        ->where('user_id', $marketer->id)
+        ->where('year_month', now()->format('Y-m'))
+        ->first();
+
+    expect($budget)->not->toBeNull()
+        ->and($budget->target_amount)->toBe(75000)
+        ->and((float) $budget->spend_amount)->toBe(9200.0);
+});

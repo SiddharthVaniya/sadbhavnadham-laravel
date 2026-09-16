@@ -83,4 +83,51 @@ class MarketerMonthlyBudgetService
 
         return $map;
     }
+
+    /**
+     * Partners/marketers with a referral code, plus this-month target/spend for admin editing.
+     *
+     * @return array{
+     *     year_month: string,
+     *     year_month_label: string,
+     *     marketers: list<array{
+     *         user_id: int,
+     *         name: string,
+     *         email: string,
+     *         code: string,
+     *         target_amount: ?int,
+     *         spend_amount: float
+     *     }>
+     * }
+     */
+    public static function adminIndex(?Carbon $reference = null): array
+    {
+        $reference ??= now();
+        $yearMonth = MarketerMonthlyBudget::currentYearMonth($reference);
+
+        $users = User::query()
+            ->whereNotNull('referral_code')
+            ->where('referral_code', '!=', '')
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'referral_code']);
+
+        $budgetMap = self::mapForUsers($users->pluck('id')->all(), $reference);
+
+        return [
+            'year_month' => $yearMonth,
+            'year_month_label' => $reference->format('F Y'),
+            'marketers' => $users->map(function (User $user) use ($budgetMap): array {
+                $budget = $budgetMap[$user->id] ?? ['target_amount' => null, 'spend_amount' => 0.0];
+
+                return [
+                    'user_id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'code' => (string) $user->referral_code,
+                    'target_amount' => $budget['target_amount'],
+                    'spend_amount' => (float) $budget['spend_amount'],
+                ];
+            })->values()->all(),
+        ];
+    }
 }
