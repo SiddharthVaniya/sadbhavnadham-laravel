@@ -151,12 +151,17 @@ class AdminInertiaResources
 
     public static function user(User $user): array
     {
+        $monthlyBudget = MarketerMonthlyBudgetService::forUserMonth($user);
+
         return [
             'id' => $user->id,
             'name' => $user->name,
             'email' => $user->email,
             'referral_code' => $user->referral_code,
             'donation_target' => $user->donation_target,
+            'monthly_target_amount' => $monthlyBudget['target_amount'],
+            'monthly_spend_amount' => $monthlyBudget['spend_amount'],
+            'monthly_budget_year_month' => $monthlyBudget['year_month'],
             'department_id' => $user->department_id,
             'department_label' => $user->relationLoaded('department')
                 ? $user->department?->name

@@ -57,6 +57,9 @@ class AdminDashboardController extends Controller
             'dailyPartnerReferrals' => AdminInertiaResources::canViewStaffReferrals($user)
                 ? AdminDashboardData::dailyPartnerReferrals()
                 : null,
+            'monthlyPartnerReferrals' => AdminInertiaResources::canViewStaffReferrals($user)
+                ? AdminDashboardData::monthlyPartnerReferrals()
+                : null,
             'monthFilter' => [
                 'options' => AdminDashboardData::monthOptions(),
                 'selectedKey' => $monthRange['key'],

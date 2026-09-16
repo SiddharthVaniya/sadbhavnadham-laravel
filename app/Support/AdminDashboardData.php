@@ -397,15 +397,22 @@ class AdminDashboardData
     /**
      * @return array{
      *     date_label: string,
+     *     from_date: string,
+     *     to_date: string,
      *     total_revenue: float,
      *     total_orders: int,
      *     active_partners: int,
+     *     total_target: float,
+     *     total_spend: float,
+     *     referrals_href: string,
      *     partners: list<array{
      *         user_id: int,
      *         name: string,
      *         code: string,
      *         paid_orders: int,
      *         revenue: float,
+     *         target_amount: ?int,
+     *         spend_amount: float,
      *         referrals_href: string
      *     }>
      * }
@@ -413,15 +420,105 @@ class AdminDashboardData
     public static function dailyPartnerReferrals(?Carbon $day = null): array
     {
         $day ??= now();
-        $start = $day->copy()->startOfDay();
-        $end = $day->copy()->endOfDay();
 
-        $partners = User::query()
+        return self::partnerReferralsForRange(
+            $day->copy()->startOfDay(),
+            $day->copy()->endOfDay(),
+            $day->format('d M Y'),
+            [
+                'duration' => 'custom',
+                'from_date' => $day->toDateString(),
+                'to_date' => $day->toDateString(),
+            ],
+            includeBudgets: false,
+        );
+    }
+
+    /**
+     * @return array{
+     *     date_label: string,
+     *     from_date: string,
+     *     to_date: string,
+     *     total_revenue: float,
+     *     total_orders: int,
+     *     active_partners: int,
+     *     total_target: float,
+     *     total_spend: float,
+     *     referrals_href: string,
+     *     partners: list<array{
+     *         user_id: int,
+     *         name: string,
+     *         code: string,
+     *         paid_orders: int,
+     *         revenue: float,
+     *         target_amount: ?int,
+     *         spend_amount: float,
+     *         referrals_href: string
+     *     }>
+     * }
+     */
+    public static function monthlyPartnerReferrals(?Carbon $reference = null): array
+    {
+        $reference ??= now();
+        $start = $reference->copy()->startOfMonth()->startOfDay();
+        $end = $reference->copy()->endOfDay();
+
+        return self::partnerReferralsForRange(
+            $start,
+            $end,
+            $reference->format('F Y'),
+            [
+                'duration' => 'this_month',
+            ],
+            includeBudgets: true,
+            budgetReference: $reference,
+        );
+    }
+
+    /**
+     * @param  array<string, mixed>  $hrefParams
+     * @return array{
+     *     date_label: string,
+     *     from_date: string,
+     *     to_date: string,
+     *     total_revenue: float,
+     *     total_orders: int,
+     *     active_partners: int,
+     *     total_target: float,
+     *     total_spend: float,
+     *     referrals_href: string,
+     *     partners: list<array{
+     *         user_id: int,
+     *         name: string,
+     *         code: string,
+     *         paid_orders: int,
+     *         revenue: float,
+     *         target_amount: ?int,
+     *         spend_amount: float,
+     *         referrals_href: string
+     *     }>
+     * }
+     */
+    public static function partnerReferralsForRange(
+        Carbon $start,
+        Carbon $end,
+        string $dateLabel,
+        array $hrefParams,
+        bool $includeBudgets = false,
+        ?Carbon $budgetReference = null,
+    ): array {
+        $users = User::query()
             ->whereNotNull('referral_code')
             ->where('referral_code', '!=', '')
             ->orderBy('name')
-            ->get(['id', 'name', 'referral_code'])
-            ->map(function (User $user) use ($start, $end, $day) {
+            ->get(['id', 'name', 'referral_code']);
+
+        $budgetMap = $includeBudgets
+            ? MarketerMonthlyBudgetService::mapForUsers($users->pluck('id')->all(), $budgetReference)
+            : [];
+
+        $partners = $users
+            ->map(function (User $user) use ($start, $end, $hrefParams, $includeBudgets, $budgetMap) {
                 $statsQuery = DonationOrder::query()
                     ->where('status', DonationOrder::STATUS_PAID)
                     ->whereBetween('paid_at', [$start, $end]);
@@ -429,6 +526,9 @@ class AdminDashboardData
                 AdminStaffReferralsData::applyPartnerAttributionFilter($statsQuery, $user);
 
                 $code = (string) $user->referral_code;
+                $budget = $includeBudgets
+                    ? ($budgetMap[$user->id] ?? ['target_amount' => null, 'spend_amount' => 0.0])
+                    : ['target_amount' => null, 'spend_amount' => 0.0];
 
                 return [
                     'user_id' => $user->id,
@@ -436,12 +536,11 @@ class AdminDashboardData
                     'code' => $code,
                     'paid_orders' => (int) (clone $statsQuery)->count(),
                     'revenue' => (float) (clone $statsQuery)->sum('total_amount'),
-                    'referrals_href' => route('admin.referrals.index', [
+                    'target_amount' => $budget['target_amount'],
+                    'spend_amount' => (float) $budget['spend_amount'],
+                    'referrals_href' => route('admin.referrals.index', array_merge($hrefParams, [
                         'partner_user_id' => $user->id,
-                        'duration' => 'custom',
-                        'from_date' => $day->toDateString(),
-                        'to_date' => $day->toDateString(),
-                    ]),
+                    ])),
                 ];
             })
             ->sortByDesc('revenue')
@@ -449,23 +548,28 @@ class AdminDashboardData
             ->all();
 
         // Legacy name matching can match one order to more than one partner, so the
-        // day total is counted over distinct orders instead of summing partner rows.
+        // period total is counted over distinct orders instead of summing partner rows.
         $totals = self::distinctPartnerOrderTotals($start, $end);
-        $totalRevenue = $totals['revenue'];
-        $totalOrders = $totals['orders'];
+
+        $totalTarget = array_sum(array_map(
+            static fn (array $row): float => (float) ($row['target_amount'] ?? 0),
+            $partners,
+        ));
+        $totalSpend = array_sum(array_map(
+            static fn (array $row): float => (float) ($row['spend_amount'] ?? 0),
+            $partners,
+        ));
 
         return [
-            'date_label' => $day->format('d M Y'),
-            'from_date' => $day->toDateString(),
-            'to_date' => $day->toDateString(),
-            'total_revenue' => $totalRevenue,
-            'total_orders' => $totalOrders,
+            'date_label' => $dateLabel,
+            'from_date' => $start->toDateString(),
+            'to_date' => $end->toDateString(),
+            'total_revenue' => $totals['revenue'],
+            'total_orders' => $totals['orders'],
             'active_partners' => count(array_filter($partners, fn (array $row) => $row['paid_orders'] > 0)),
-            'referrals_href' => route('admin.referrals.index', [
-                'duration' => 'custom',
-                'from_date' => $day->toDateString(),
-                'to_date' => $day->toDateString(),
-            ]),
+            'total_target' => $totalTarget,
+            'total_spend' => $totalSpend,
+            'referrals_href' => route('admin.referrals.index', $hrefParams),
             'partners' => $partners,
         ];
     }

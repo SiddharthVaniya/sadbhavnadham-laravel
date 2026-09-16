@@ -68,4 +68,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(DonorTask::class, 'assigned_to');
     }
+
+    public function monthlyBudgets(): HasMany
+    {
+        return $this->hasMany(MarketerMonthlyBudget::class);
+    }
 }

@@ -108,6 +108,7 @@ class MarketerPerformanceData
                 'revenue' => $revenue,
                 'average_donation' => $donations > 0 ? round($revenue / $donations, 2) : 0,
             ],
+            'monthlyBudget' => MarketerMonthlyBudgetService::forUserMonth($user),
             'target' => self::donationTargetProgress($user),
             'dailyTrend' => self::donationDailyCollectionTrend($user, $range, $duration, $filters),
             'campaignRevenueTrend' => self::donationCampaignRevenueTrend($user, $range, $duration, $filters),
@@ -565,16 +566,30 @@ class MarketerPerformanceData
      *     achieved: int,
      *     remaining: ?int,
      *     achieved_percent: ?float,
-     *     remaining_percent: ?float
+     *     remaining_percent: ?float,
+     *     period: 'this_month'|'lifetime'
      * }
      */
     private static function donationTargetProgress(User $user): array
     {
-        $goal = $user->donation_target !== null ? (int) $user->donation_target : null;
-        $achieved = (int) round((float) (self::attributedPaidOrders($user, [
-            'start' => null,
-            'end' => null,
-        ])->sum('total_amount') ?? 0));
+        $monthly = MarketerMonthlyBudgetService::forUserMonth($user);
+        $useMonthly = $monthly['target_amount'] !== null && (int) $monthly['target_amount'] > 0;
+
+        if ($useMonthly) {
+            $goal = (int) $monthly['target_amount'];
+            $achieved = (int) round((float) (self::attributedPaidOrders($user, [
+                'start' => now()->startOfMonth(),
+                'end' => now()->endOfDay(),
+            ])->sum('total_amount') ?? 0));
+            $period = 'this_month';
+        } else {
+            $goal = $user->donation_target !== null ? (int) $user->donation_target : null;
+            $achieved = (int) round((float) (self::attributedPaidOrders($user, [
+                'start' => null,
+                'end' => null,
+            ])->sum('total_amount') ?? 0));
+            $period = 'lifetime';
+        }
 
         if ($goal === null || $goal <= 0) {
             return [
@@ -583,6 +598,7 @@ class MarketerPerformanceData
                 'remaining' => null,
                 'achieved_percent' => null,
                 'remaining_percent' => null,
+                'period' => $period,
             ];
         }
 
@@ -595,6 +611,7 @@ class MarketerPerformanceData
             'remaining' => $remaining,
             'achieved_percent' => $achievedPercent,
             'remaining_percent' => round(100 - $achievedPercent, 1),
+            'period' => $period,
         ];
     }
 

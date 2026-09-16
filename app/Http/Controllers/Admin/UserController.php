@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreUserRequest;
 use App\Http\Requests\Admin\UpdateUserRequest;
 use App\Models\User;
+use App\Models\MarketerMonthlyBudget;
 use App\Support\AdminInertiaResources;
 use App\Support\AdminPermissions;
 use App\Support\AdminRoleGuard;
+use App\Support\MarketerMonthlyBudgetService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -105,6 +107,7 @@ class UserController extends Controller
             'departmentOptions' => AdminInertiaResources::departmentOptions(includeInactive: true),
             'permissionGroups' => AdminPermissions::groupedDefinitions(),
             'isEdit' => false,
+            'currentYearMonth' => MarketerMonthlyBudget::currentYearMonth(),
         ]);
     }
 
@@ -124,6 +127,12 @@ class UserController extends Controller
 
         $user->syncRoles($request->input('roles', []));
         $user->syncPermissions($request->input('permissions', []));
+
+        MarketerMonthlyBudgetService::upsertForCurrentMonth(
+            $user,
+            $request->filled('monthly_target_amount') ? $request->integer('monthly_target_amount') : null,
+            $request->input('monthly_spend_amount'),
+        );
 
         return redirect()->route('admin.users.index')->with('status', 'User created successfully.');
     }
@@ -147,6 +156,7 @@ class UserController extends Controller
             'departmentOptions' => AdminInertiaResources::departmentOptions(includeInactive: true),
             'permissionGroups' => AdminPermissions::groupedDefinitions(),
             'isEdit' => true,
+            'currentYearMonth' => MarketerMonthlyBudget::currentYearMonth(),
         ]);
     }
 
@@ -176,6 +186,12 @@ class UserController extends Controller
         $user->update($data);
         $user->syncRoles($request->input('roles', []));
         $user->syncPermissions($request->input('permissions', []));
+
+        MarketerMonthlyBudgetService::upsertForCurrentMonth(
+            $user,
+            $request->filled('monthly_target_amount') ? $request->integer('monthly_target_amount') : null,
+            $request->input('monthly_spend_amount'),
+        );
 
         return redirect()->route('admin.users.index')->with('status', 'User updated successfully.');
     }

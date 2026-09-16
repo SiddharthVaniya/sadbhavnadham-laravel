@@ -49,6 +49,7 @@ const props = defineProps({
     topCauses: { type: Array, default: () => [] },
     staffLeaderboard: { type: Array, default: () => [] },
     dailyPartnerReferrals: { type: Object, default: null },
+    monthlyPartnerReferrals: { type: Object, default: null },
     monthFilter: { type: Object, default: () => ({ options: [], selectedKey: null, selectedLabel: '' }) },
     todaysBirthdays: { type: Array, default: () => [] },
     upcomingBirthdays: { type: Object, required: true },
@@ -294,6 +295,89 @@ const changeMonth = (value) => {
                         </TableRow>
                         <TableRow v-if="! dailyPartnerReferrals.partners.length">
                             <TableCell colspan="5" class="py-8 text-center text-muted-foreground">
+                                No staff members have referral codes yet.
+                            </TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+
+        <Card v-if="monthlyPartnerReferrals" class="mb-6 shadow-none">
+            <CardHeader class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                    <CardTitle class="flex items-center gap-2">
+                        <TrendingUp class="size-4" />
+                        This month partner referrals
+                    </CardTitle>
+                    <CardDescription>
+                        Paid donations via staff referral links · {{ monthlyPartnerReferrals.date_label }}
+                    </CardDescription>
+                </div>
+                <div class="flex flex-wrap gap-2 text-sm">
+                    <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
+                        {{ formatMoney(monthlyPartnerReferrals.total_revenue) }} collected
+                    </span>
+                    <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
+                        {{ monthlyPartnerReferrals.total_orders }} order{{ monthlyPartnerReferrals.total_orders === 1 ? '' : 's' }}
+                    </span>
+                    <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
+                        {{ monthlyPartnerReferrals.active_partners }} active partner{{ monthlyPartnerReferrals.active_partners === 1 ? '' : 's' }}
+                    </span>
+                    <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
+                        {{ formatMoney(monthlyPartnerReferrals.total_target) }} target
+                    </span>
+                    <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
+                        {{ formatMoney(monthlyPartnerReferrals.total_spend) }} spend
+                    </span>
+                    <Button v-if="can('view staff referrals')" as-child size="sm" variant="outline">
+                        <Link :href="monthlyPartnerReferrals.referrals_href">
+                            Full report
+                            <ArrowRight />
+                        </Link>
+                    </Button>
+                </div>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Partner</TableHead>
+                            <TableHead>Referral code</TableHead>
+                            <TableHead>Orders</TableHead>
+                            <TableHead class="text-right">Collected</TableHead>
+                            <TableHead class="text-right">Target</TableHead>
+                            <TableHead class="text-right">Spend</TableHead>
+                            <TableHead class="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <TableRow v-for="partner in monthlyPartnerReferrals.partners" :key="partner.user_id">
+                            <TableCell class="font-medium">{{ partner.name }}</TableCell>
+                            <TableCell>
+                                <span class="font-mono text-sm text-muted-foreground">{{ partner.code }}</span>
+                            </TableCell>
+                            <TableCell class="tabular-nums">{{ partner.paid_orders }}</TableCell>
+                            <TableCell class="text-right font-medium tabular-nums">
+                                {{ formatMoney(partner.revenue) }}
+                            </TableCell>
+                            <TableCell class="text-right tabular-nums text-muted-foreground">
+                                {{ partner.target_amount == null ? '—' : formatMoney(partner.target_amount) }}
+                            </TableCell>
+                            <TableCell class="text-right tabular-nums text-muted-foreground">
+                                {{ formatMoney(partner.spend_amount) }}
+                            </TableCell>
+                            <TableCell class="text-right">
+                                <Button as-child size="sm" variant="ghost" class="h-8 gap-1.5 text-blue-600 hover:text-blue-700">
+                                    <Link :href="partner.referrals_href">
+                                        <TrendingUp class="size-3.5" />
+                                        Details
+                                    </Link>
+                                </Button>
+                            </TableCell>
+                        </TableRow>
+                        <TableRow v-if="! monthlyPartnerReferrals.partners.length">
+                            <TableCell colspan="7" class="py-8 text-center text-muted-foreground">
                                 No staff members have referral codes yet.
                             </TableCell>
                         </TableRow>

@@ -19,6 +19,8 @@ class StoreUserRequest extends FormRequest
         $this->merge([
             'referral_code' => StaffReferral::normalize($this->input('referral_code')),
             'donation_target' => $this->filled('donation_target') ? $this->integer('donation_target') : null,
+            'monthly_target_amount' => $this->filled('monthly_target_amount') ? $this->integer('monthly_target_amount') : null,
+            'monthly_spend_amount' => $this->filled('monthly_spend_amount') ? $this->input('monthly_spend_amount') : 0,
         ]);
     }
 
@@ -37,6 +39,8 @@ class StoreUserRequest extends FormRequest
             'permissions' => ['nullable', 'array'],
             'permissions.*' => ['string', Rule::in(AdminPermissions::allPermissionNames())],
             'donation_target' => ['nullable', 'integer', 'min:0', 'max:1000000'],
+            'monthly_target_amount' => ['nullable', 'integer', 'min:0', 'max:10000000'],
+            'monthly_spend_amount' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
             ...StaffReferral::validationRules(),
         ];
     }

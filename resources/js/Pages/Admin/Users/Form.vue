@@ -18,6 +18,7 @@ const props = defineProps({
     departmentOptions: { type: Array, default: () => [] },
     permissionGroups: { type: Array, default: () => [] },
     isEdit: { type: Boolean, default: false },
+    currentYearMonth: { type: String, default: '' },
 });
 
 const form = useForm({
@@ -25,6 +26,8 @@ const form = useForm({
     email: props.user?.email ?? '',
     referral_code: props.user?.referral_code ?? '',
     donation_target: props.user?.donation_target ?? '',
+    monthly_target_amount: props.user?.monthly_target_amount ?? '',
+    monthly_spend_amount: props.user?.monthly_spend_amount ?? '',
     department_id: props.user?.department_id ?? '',
     password: '',
     roles: props.user?.roles ?? [],
@@ -142,7 +145,7 @@ const isPermissionChecked = (name) => form.permissions.includes(name);
                         </div>
 
                         <div class="space-y-2">
-                            <Label for="user-donation-target">Rupee target (₹)</Label>
+                            <Label for="user-donation-target">Lifetime target (₹)</Label>
                             <Input
                                 id="user-donation-target"
                                 v-model="form.donation_target"
@@ -154,9 +157,45 @@ const isPermissionChecked = (name) => form.permissions.includes(name);
                                 :aria-invalid="Boolean(form.errors.donation_target)"
                             />
                             <p class="text-xs text-muted-foreground">
-                                Amount in rupees. The marketer pie compares this to Meta/link tracking collected rupees for their share link.
+                                Lifetime rupee goal. Used when no this-month target is set.
                             </p>
                             <p v-if="form.errors.donation_target" class="text-xs text-destructive">{{ form.errors.donation_target }}</p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <Label for="user-monthly-target">This month target (₹)</Label>
+                            <Input
+                                id="user-monthly-target"
+                                v-model="form.monthly_target_amount"
+                                type="number"
+                                min="0"
+                                max="10000000"
+                                step="1"
+                                placeholder="e.g. 50000"
+                                :aria-invalid="Boolean(form.errors.monthly_target_amount)"
+                            />
+                            <p class="text-xs text-muted-foreground">
+                                Collection target for {{ user?.monthly_budget_year_month || currentYearMonth || 'this month' }}.
+                            </p>
+                            <p v-if="form.errors.monthly_target_amount" class="text-xs text-destructive">{{ form.errors.monthly_target_amount }}</p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <Label for="user-monthly-spend">This month spend (₹)</Label>
+                            <Input
+                                id="user-monthly-spend"
+                                v-model="form.monthly_spend_amount"
+                                type="number"
+                                min="0"
+                                max="10000000"
+                                step="0.01"
+                                placeholder="e.g. 12000"
+                                :aria-invalid="Boolean(form.errors.monthly_spend_amount)"
+                            />
+                            <p class="text-xs text-muted-foreground">
+                                Marketer ad spend for the current month.
+                            </p>
+                            <p v-if="form.errors.monthly_spend_amount" class="text-xs text-destructive">{{ form.errors.monthly_spend_amount }}</p>
                         </div>
 
                         <div class="space-y-2">

@@ -23,6 +23,7 @@ const props = defineProps({
     profile: { type: Object, required: true },
     summary: { type: Object, default: () => ({}) },
     target: { type: Object, default: () => ({}) },
+    monthlyBudget: { type: Object, default: () => ({ year_month: '', target_amount: null, spend_amount: 0 }) },
     dailyTrend: { type: Object, default: () => ({ granularity: 'day', points: [] }) },
     campaignRevenueTrend: { type: Object, default: () => ({ labels: [], series: [] }) },
     topCampaigns: { type: Array, default: () => [] },
@@ -62,11 +63,15 @@ const targetPercent = computed(() => {
 });
 const targetHint = computed(() => {
     if (! props.target?.goal) {
-        return 'Ask an admin to set your rupee target.';
+        return 'Ask an admin to set your this-month or lifetime rupee target.';
     }
 
-    return `${formatMoney(props.target.achieved)} of ${formatMoney(props.target.goal)} lifetime`;
+    const period = props.target.period === 'this_month' ? 'this month' : 'lifetime';
+
+    return `${formatMoney(props.target.achieved)} of ${formatMoney(props.target.goal)} ${period}`;
 });
+
+const monthlySpendLabel = computed(() => formatMoney(props.monthlyBudget?.spend_amount || 0));
 
 const recentDonations = computed(() => (props.donations?.data || []).slice(0, 12));
 
@@ -171,7 +176,7 @@ const exportUrl = (format) => {
             :filter-options="filterOptions"
         />
 
-        <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <MarketerStatCard
                 label="Paid donations"
                 :value="formatNumber(donationCount)"
@@ -206,6 +211,15 @@ const exportUrl = (format) => {
             >
                 <template #icon>
                     <Goal class="size-4" />
+                </template>
+            </MarketerStatCard>
+            <MarketerStatCard
+                label="This month spend"
+                :value="monthlySpendLabel"
+                :hint="monthlyBudget.year_month ? `Ad spend · ${monthlyBudget.year_month}` : 'Ad spend for current month'"
+            >
+                <template #icon>
+                    <IndianRupee class="size-4" />
                 </template>
             </MarketerStatCard>
         </div>
@@ -293,11 +307,15 @@ const exportUrl = (format) => {
                     <CardTitle class="text-base font-semibold">Rupee target</CardTitle>
                     <CardDescription v-if="target.goal">
                         Goal {{ formatMoney(target.goal) }}
+                        · {{ target.period === 'this_month' ? 'This month' : 'Lifetime' }}
                     </CardDescription>
-                    <CardDescription v-else>Lifetime progress until a goal is set</CardDescription>
+                    <CardDescription v-else>Progress until a goal is set</CardDescription>
                 </CardHeader>
                 <CardContent class="flex min-h-0 flex-1 flex-col pt-0">
                     <RupeeTargetChart class="min-h-0 flex-1" :target="target" />
+                    <p class="mt-3 text-center text-xs text-muted-foreground">
+                        This month spend: {{ monthlySpendLabel }}
+                    </p>
                 </CardContent>
             </Card>
 
