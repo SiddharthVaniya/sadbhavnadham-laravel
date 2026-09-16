@@ -1,0 +1,15 @@
+---
+description: Never change the database directly; provide ALTER/UPDATE SQL in alter.md only
+alwaysApply: true
+---
+
+# Database changes: alter queries only
+
+- **Do not** run migrations, seeders, `tinker` writes, raw SQL, or Artisan DB commands that modify data/schema unless the user explicitly asks to apply a specific query.
+- **Do not** use `php artisan migrate`, `db:wipe`, `schema:`, or direct `UPDATE`/`INSERT`/`DELETE`/`ALTER` against production or local shared databases on your own.
+- When a DB change is needed, **only**:
+  1. Change application code (models, services, etc.) as required.
+  2. Write the SQL (ALTER / UPDATE / INDEX / etc.) into `alter.md` at the project root (create or append a dated section).
+  3. Tell the user to review and run the queries themselves.
+- Prefer additive, reversible SQL with a short “preview SELECT” before destructive updates.
+- Schema changes for new features still belong in Laravel migrations **files** when the project convention requires them, but **do not execute** those migrations unless the user explicitly requests it; also note the equivalent SQL in `alter.md` when they asked for alter queries.

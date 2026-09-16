@@ -1,0 +1,68 @@
+v:root {
+    --admin-bg: #f5f7fb;
+    --admin-card: #ffffff;
+    --admin-border: #e6e9f2;
+    --admin-text: #1f2937;
+    --admin-muted: #6b7280;
+    --admin-primary: #2563eb;
+    --admin-primary-soft: #e0e7ff;
+}
+
+body {
+    color: var(--admin-text);
+    background: var(--admin-bg);
+}
+
+.navbar {
+    border-bottom-color: var(--admin-border);
+}
+
+aside {
+    background: var(--admin-card);
+}
+
+aside .navbar-brand {
+    font-weight: 700;
+    color: var(--admin-text);
+}
+
+.nav-link {
+    color: var(--admin-muted);
+    border-radius: 10px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.nav-link:hover {
+    background: var(--admin-primary-soft);
+    color: var(--admin-primary);
+}
+
+.nav-link.active {
+    background: var(--admin-primary);
+    color: #000000;
+}
+
+.card {
+    border: 1px solid var(--admin-border);
+    border-radius: 14px;
+}
+
+.btn-primary {
+    background: var(--admin-primary);
+    border-color: var(--admin-primary);
+}
+
+.table thead th {
+    color: var(--admin-muted);
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.table tbody tr:hover {
+    background: #f9fafb;
+}
+
+.alert {
+    border-radius: 12px;
+}

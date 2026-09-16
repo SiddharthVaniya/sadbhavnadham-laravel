@@ -1,0 +1,119 @@
+@keyframes chart-rise {
+    from {
+        opacity: 0.35;
+        transform: scaleY(0);
+    }
+
+    to {
+        opacity: 1;
+        transform: scaleY(1);
+    }
+}
+
+@keyframes chart-donut-segment {
+    from {
+        stroke-dasharray: 0 999;
+    }
+
+    to {
+        stroke-dasharray: var(--donut-target);
+    }
+}
+
+@keyframes chart-line-draw {
+    to {
+        stroke-dashoffset: 0;
+    }
+}
+
+@keyframes chart-dot-in {
+    from {
+        opacity: 0;
+        transform: scale(0);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes chart-fade-up {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes chart-scale-x {
+    from {
+        transform: scaleX(0);
+    }
+
+    to {
+        transform: scaleX(1);
+    }
+}
+
+@keyframes chart-center-pop {
+    from {
+        opacity: 0;
+        transform: scale(0.88);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.chart-bar-animate {
+    transform-origin: bottom center;
+    animation: chart-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.chart-donut-segment {
+    animation: chart-donut-segment 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.chart-line-path {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: chart-line-draw 1.1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.chart-dot-animate {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: chart-dot-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.chart-fade-up {
+    animation: chart-fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.chart-scale-x {
+    transform-origin: left center;
+    animation: chart-scale-x 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.chart-center-pop {
+    animation: chart-center-pop 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .chart-bar-animate,
+    .chart-donut-segment,
+    .chart-line-path,
+    .chart-dot-animate,
+    .chart-fade-up,
+    .chart-scale-x,
+    .chart-center-pop {
+        animation: none !important;
+    }
+}

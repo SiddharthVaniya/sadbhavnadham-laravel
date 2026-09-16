@@ -1,0 +1,20 @@
+---
+description: This Laravel app is the API backend for the Next.js site at sadbhavnadham.org
+alwaysApply: true
+---
+
+# This is the Next.js site's Laravel backend
+
+Public origin: `https://admin.sadbhavnadham.org`
+Frontend: `/home/sadbhavnadham/htdocs/sadbhavnadham.org` (`https://sadbhavnadham.org`)
+
+New or changed APIs go **here**:
+
+- Register JSON routes in `routes/api.php` (prefix `/api` is automatic)
+- Controllers in `app/Http/Controllers/`
+- Checkout/token routes use `EnsureWordPressApiToken` (`X-WP-TOKEN` = `WP_API_TOKEN`)
+- Keep CORS `paths` including `api/*`; allow the Next.js origins in `config/cors.php`
+
+Do not implement donate/payment APIs in the Next.js `src/app/api/` folder. Next only proxies to this app.
+
+Next.js expected donate JSON (add here when building them): `/api/donate/causes`, `/causes/{slug}`, `/config`, `/pincode/{pincode}`, `/bank-details`, `/thank-you/{order}`, `/checkout`, `/checkout/subscription`, `/pan-requirement`, `/otp/send`, `/otp/verify`, `/me`, `/logout`, `/track`.

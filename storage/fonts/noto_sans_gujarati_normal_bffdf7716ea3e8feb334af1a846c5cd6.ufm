@@ -1,0 +1,195 @@
+StartFontMetrics 4.1
+Notice Converted by PHP-font-lib
+Comment https://github.com/dompdf/php-font-lib
+EncodingScheme FontSpecific
+Copyright Copyright 2019 Google Inc. All Rights Reserved.
+FontName Noto Sans Gujarati
+FontSubfamily Regular
+UniqueID 2.101;GOOG;NotoSansGujarati-Regular
+FullName Noto Sans Gujarati Regular
+Version Version 2.101; ttfautohint (v1.8) -l 8 -r 50 -G 200 -x 14 -D gujr -f none -a qsq -X ""
+PostScriptName NotoSansGujarati-Regular
+Trademark Noto is a trademark of Google Inc.
+Manufacturer Monotype Imaging Inc.
+Designer Jelle Bosma - Monotype Design Team, Universal Thirst
+Description Designed by Monotype design team.
+FontVendorURL http://www.google.com/get/noto/
+FontDesignerURL http://www.monotype.com/studio
+LicenseDescription This Font Software is licensed under the SIL Open Font License, Version 1.1. This Font Software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the SIL Open Font License for the specific language, permissions and limitations governing your use of this Font Software.
+LicenseURL http://scripts.sil.org/OFL
+Weight Medium
+ItalicAngle 0
+IsFixedPitch false
+UnderlineThickness 50
+UnderlinePosition -100
+FontHeightOffset 0
+Ascender 896
+Descender -408
+FontBBox -859 -394 1307 896
+StartCharMetrics 830
+U 0 ; WX 0 ; N NULL ; G 1
+U 13 ; WX 299 ; N CR ; G 2
+U 32 ; WX 299 ; N space ; G 3
+U 33 ; WX 383 ; N exclam.gujr ; G 717
+U 34 ; WX 502 ; N quotedbl.gujr ; G 718
+U 35 ; WX 653 ; N numbersign.gujr ; G 719
+U 37 ; WX 828 ; N percent.gujr ; G 720
+U 39 ; WX 326 ; N quotesingle.gujr ; G 721
+U 40 ; WX 354 ; N parenleft.gujr ; G 722
+U 41 ; WX 354 ; N parenright.gujr ; G 723
+U 42 ; WX 607 ; N asterisk.gujr ; G 724
+U 43 ; WX 551 ; N plus.gujr ; G 725
+U 44 ; WX 268 ; N comma.gujr ; G 726
+U 45 ; WX 340 ; N hyphen.gujr ; G 727
+U 46 ; WX 268 ; N period.gujr ; G 728
+U 47 ; WX 429 ; N slash.gujr ; G 729
+U 48 ; WX 551 ; N zero.gujr ; G 730
+U 49 ; WX 551 ; N one.gujr ; G 731
+U 50 ; WX 551 ; N two.gujr ; G 732
+U 51 ; WX 551 ; N three.gujr ; G 733
+U 52 ; WX 551 ; N four.gujr ; G 734
+U 53 ; WX 551 ; N five.gujr ; G 735
+U 54 ; WX 551 ; N six.gujr ; G 736
+U 55 ; WX 551 ; N seven.gujr ; G 737
+U 56 ; WX 551 ; N eight.gujr ; G 738
+U 57 ; WX 551 ; N nine.gujr ; G 739
+U 58 ; WX 294 ; N colon.gujr ; G 740
+U 59 ; WX 294 ; N semicolon.gujr ; G 741
+U 60 ; WX 551 ; N less.gujr ; G 742
+U 61 ; WX 551 ; N equal.gujr ; G 743
+U 62 ; WX 551 ; N greater.gujr ; G 744
+U 63 ; WX 508 ; N question.gujr ; G 745
+U 91 ; WX 356 ; N bracketleft.gujr ; G 746
+U 92 ; WX 429 ; N backslash.gujr ; G 747
+U 93 ; WX 356 ; N bracketright.gujr ; G 748
+U 94 ; WX 551 ; N asciicircum.gujr ; G 749
+U 95 ; WX 411 ; N underscore.gujr ; G 750
+U 123 ; WX 391 ; N braceleft.gujr ; G 751
+U 124 ; WX 540 ; N bar.gujr ; G 752
+U 125 ; WX 376 ; N braceright.gujr ; G 753
+U 126 ; WX 551 ; N asciitilde.gujr ; G 754
+U 160 ; WX 299 ; N uni00A0.gujr ; G 755
+U 173 ; WX 340 ; N sfthyphen.gujr ; G 756
+U 215 ; WX 551 ; N multiply.gujr ; G 764
+U 247 ; WX 551 ; N divide.gujr ; G 765
+U 2385 ; WX 0 ; N uni0951 ; G 768
+U 2386 ; WX 0 ; N uni0952 ; G 769
+U 2404 ; WX 379 ; N danda.gujr ; G 770
+U 2405 ; WX 599 ; N dbldanda.gujr ; G 771
+U 2689 ; WX 0 ; N candrabindugujr ; G 4
+U 2690 ; WX 0 ; N anusvaragujr ; G 5
+U 2691 ; WX 248 ; N visargagujr ; G 6
+U 2693 ; WX 883 ; N agujr ; G 7
+U 2694 ; WX 1148 ; N aagujr ; G 8
+U 2695 ; WX 634 ; N igujr ; G 9
+U 2696 ; WX 634 ; N iigujr ; G 10
+U 2697 ; WX 625 ; N ugujr ; G 11
+U 2698 ; WX 888 ; N uugujr ; G 12
+U 2699 ; WX 831 ; N rvocalicgujr ; G 13
+U 2700 ; WX 697 ; N lvocalicgujr ; G 14
+U 2701 ; WX 883 ; N ecandragujr ; G 15
+U 2703 ; WX 883 ; N egujr ; G 16
+U 2704 ; WX 883 ; N aigujr ; G 17
+U 2705 ; WX 1148 ; N ocandragujr ; G 18
+U 2707 ; WX 1148 ; N ogujr ; G 19
+U 2708 ; WX 1148 ; N augujr ; G 20
+U 2709 ; WX 511 ; N kagujr ; G 21
+U 2710 ; WX 746 ; N khagujr ; G 22
+U 2711 ; WX 654 ; N gagujr ; G 23
+U 2712 ; WX 620 ; N ghagujr ; G 24
+U 2713 ; WX 490 ; N ngagujr ; G 25
+U 2714 ; WX 660 ; N cagujr ; G 26
+U 2715 ; WX 738 ; N chagujr ; G 27
+U 2716 ; WX 822 ; N jagujr ; G 28
+U 2717 ; WX 698 ; N jhagujr ; G 29
+U 2718 ; WX 692 ; N nyagujr ; G 30
+U 2719 ; WX 451 ; N ttagujr ; G 31
+U 2720 ; WX 517 ; N tthagujr ; G 32
+U 2721 ; WX 481 ; N ddagujr ; G 33
+U 2722 ; WX 516 ; N ddhagujr ; G 34
+U 2723 ; WX 821 ; N nnagujr ; G 35
+U 2724 ; WX 572 ; N tagujr ; G 36
+U 2725 ; WX 625 ; N thagujr ; G 37
+U 2726 ; WX 467 ; N dagujr ; G 38
+U 2727 ; WX 606 ; N dhagujr ; G 39
+U 2728 ; WX 546 ; N nagujr ; G 40
+U 2730 ; WX 568 ; N pagujr ; G 41
+U 2731 ; WX 511 ; N phagujr ; G 42
+U 2732 ; WX 734 ; N bagujr ; G 43
+U 2733 ; WX 809 ; N bhagujr ; G 44
+U 2734 ; WX 594 ; N magujr ; G 45
+U 2735 ; WX 594 ; N yagujr ; G 46
+U 2736 ; WX 445 ; N ragujr ; G 47
+U 2738 ; WX 651 ; N lagujr ; G 48
+U 2739 ; WX 750 ; N llagujr ; G 49
+U 2741 ; WX 577 ; N vagujr ; G 50
+U 2742 ; WX 677 ; N shagujr ; G 51
+U 2743 ; WX 578 ; N ssagujr ; G 52
+U 2744 ; WX 711 ; N sagujr ; G 53
+U 2745 ; WX 633 ; N hagujr ; G 54
+U 2748 ; WX 0 ; N nuktagujr ; G 55
+U 2749 ; WX 471 ; N avagrahagujr ; G 56
+U 2750 ; WX 265 ; N aavowelsigngujr ; G 57
+U 2751 ; WX 265 ; N ivowelsigngujr ; G 58
+U 2752 ; WX 265 ; N iivowelsigngujr ; G 59
+U 2753 ; WX 0 ; N uvowelsigngujr ; G 60
+U 2754 ; WX 0 ; N uuvowelsigngujr ; G 61
+U 2755 ; WX 0 ; N rvocalicvowelsigngujr ; G 62
+U 2756 ; WX 0 ; N rrvocalicvowelsigngujr ; G 63
+U 2757 ; WX 0 ; N ecandravowelsigngujr ; G 64
+U 2759 ; WX 0 ; N evowelsigngujr ; G 65
+U 2760 ; WX 0 ; N aivowelsigngujr ; G 66
+U 2761 ; WX 265 ; N ocandravowelsigngujr ; G 67
+U 2763 ; WX 265 ; N ovowelsigngujr ; G 68
+U 2764 ; WX 265 ; N auvowelsigngujr ; G 69
+U 2765 ; WX 0 ; N viramagujr ; G 70
+U 2768 ; WX 890 ; N omgujr ; G 71
+U 2784 ; WX 895 ; N rrvocalicgujr ; G 72
+U 2785 ; WX 697 ; N llvocalicgujr ; G 73
+U 2786 ; WX 0 ; N lvocalicvowelsigngujr ; G 74
+U 2787 ; WX 0 ; N llvocalicvowelsigngujr ; G 75
+U 2790 ; WX 551 ; N zerogujr ; G 76
+U 2791 ; WX 551 ; N onegujr ; G 77
+U 2792 ; WX 551 ; N twogujr ; G 78
+U 2793 ; WX 551 ; N threegujr ; G 79
+U 2794 ; WX 551 ; N fourgujr ; G 80
+U 2795 ; WX 551 ; N fivegujr ; G 81
+U 2796 ; WX 551 ; N sixgujr ; G 82
+U 2797 ; WX 551 ; N sevengujr ; G 83
+U 2798 ; WX 551 ; N eightgujr ; G 84
+U 2799 ; WX 551 ; N ninegujr ; G 85
+U 2800 ; WX 383 ; N uni0AF0 ; G 86
+U 2801 ; WX 819 ; N uni0AF1 ; G 87
+U 2809 ; WX 822 ; N zhagujr ; G 88
+U 2810 ; WX 0 ; N uni0AFA ; G 89
+U 2811 ; WX 0 ; N uni0AFB ; G 90
+U 2812 ; WX 0 ; N uni0AFC ; G 91
+U 2813 ; WX 0 ; N uni0AFD ; G 92
+U 2814 ; WX 0 ; N uni0AFE ; G 93
+U 2815 ; WX 0 ; N uni0AFF ; G 94
+U 8203 ; WX 0 ; N uni200B ; G 783
+U 8204 ; WX 0 ; N uni200C ; G 784
+U 8205 ; WX 0 ; N uni200D ; G 785
+U 8208 ; WX 340 ; N uni2010 ; G 782
+U 8211 ; WX 500 ; N endash.gujr ; G 757
+U 8212 ; WX 1000 ; N emdash.gujr ; G 758
+U 8216 ; WX 312 ; N quoteleft.gujr ; G 759
+U 8217 ; WX 312 ; N quoteright.gujr ; G 760
+U 8220 ; WX 500 ; N quotedblleft.gujr ; G 761
+U 8221 ; WX 500 ; N quotedblright.gujr ; G 762
+U 8230 ; WX 804 ; N ellipsis.gujr ; G 763
+U 8377 ; WX 551 ; N uni20B9.gujr ; G 767
+U 8722 ; WX 551 ; N minus.gujr ; G 766
+U 9676 ; WX 510 ; N uni25CC ; G 786
+U 43056 ; WX 237 ; N uniA830 ; G 772
+U 43057 ; WX 437 ; N uniA831 ; G 773
+U 43058 ; WX 637 ; N uniA832 ; G 774
+U 43059 ; WX 622 ; N uniA833 ; G 775
+U 43060 ; WX 622 ; N uniA834 ; G 776
+U 43061 ; WX 622 ; N uniA835 ; G 777
+U 43062 ; WX 460 ; N uniA836 ; G 778
+U 43063 ; WX 509 ; N uniA837 ; G 779
+U 43064 ; WX 307 ; N uniA838 ; G 780
+U 43065 ; WX 337 ; N uniA839 ; G 781
+EndCharMetrics
+EndFontMetrics
