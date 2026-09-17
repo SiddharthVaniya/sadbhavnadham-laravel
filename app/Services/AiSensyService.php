@@ -198,7 +198,15 @@ class AiSensyService
         $apiKey = $config['key'] ?? null;
         $campaign = $config['receipt_campaign'] ?? null;
         $countryCode = $config['country_code'] ?? '91';
-        $pdfUrl = $this->donationReceiptPdfService->whatsappMediaUrl($order);
+
+        $donorName = trim((string) ($order->donor_name ?? ''));
+        if ($donorName === '') {
+            $donorName = 'Donor';
+        }
+
+        // Always regenerate so the PDF DONOR line matches the form-filled full name
+        // on the order (same value shown on the thank-you page).
+        $pdfUrl = $this->donationReceiptPdfService->whatsappMediaUrl($order, true);
 
         if (empty($apiKey) || ! $campaign) {
             Log::error('AiSensy config missing (receipt)', [
@@ -227,7 +235,6 @@ class AiSensyService
             return false;
         }
 
-        $donorName = (string) ($order->donor_name ?? 'Donor');
         $filename = $this->donationReceiptPdfService->whatsappFilename($order);
 
         $payload = [
@@ -235,7 +242,9 @@ class AiSensyService
             'campaignName' => $campaign,
             'destination' => $this->formatMobile($order->donor_phone, $countryCode),
             'userName' => $donorName,
-            'templateParams' => ['$FirstName'],
+            // Pass the full form name (not "$FirstName") so the campaign body and
+            // contact label match the thank-you page / PDF receipt donor line.
+            'templateParams' => [$donorName],
             'source' => (string) config('services.aisensy.receipt_source', 'donate website receipt'),
             'media' => [
                 'url' => $pdfUrl,

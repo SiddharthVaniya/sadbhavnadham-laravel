@@ -481,6 +481,71 @@ it('prefers the otp aisensy account key over a stale env otp key', function () {
     });
 });
 
+it('sends receipt whatsapp with the full form donor name not FirstName placeholder', function () {
+    Http::fake([
+        'https://backend.aisensy.com/*' => Http::response(['success' => 'true'], 200),
+        '*' => Http::response('%PDF-1.4', 200, ['Content-Type' => 'application/pdf']),
+    ]);
+
+    $this->mock(\App\Services\DonationReceiptPdfService::class, function ($mock) {
+        $mock->shouldReceive('whatsappMediaUrl')
+            ->once()
+            ->andReturn('https://example.test/storage/receipts/donation-receipt-1.pdf');
+        $mock->shouldReceive('whatsappFilename')
+            ->once()
+            ->andReturn('donation-receipt-1.pdf');
+    });
+
+    $account = AisensyAccount::create([
+        'name' => 'Default Account',
+        'api_key' => 'test-api-key',
+        'country_code' => '91',
+        'is_active' => true,
+    ]);
+
+    $cause = Cause::factory()->create([
+        'aisensy_account_id' => $account->id,
+        'aisensy_receipt_campaign' => 'donation_receipt_pdf',
+    ]);
+
+    $order = DonationOrder::create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'order_receipt_full_name',
+        'donor_name' => 'Siddharth Vaniya',
+        'donor_email' => 'siddharth@example.com',
+        'donor_phone' => '9876543210',
+        'currency' => 'INR',
+        'total_amount' => 1,
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'receipt_number' => 99,
+    ]);
+
+    DonationItem::create([
+        'donation_order_id' => $order->id,
+        'cause_id' => $cause->id,
+        'cause' => $cause->slug,
+        'title' => 'Custom Donation',
+        'quantity' => 1,
+        'unit_amount' => 1,
+        'amount' => 1,
+    ]);
+
+    $sent = app(AiSensyService::class)->sendReceiptWhatsApp($order->fresh());
+
+    expect($sent)->toBeTrue();
+
+    Http::assertSent(function (Request $request): bool {
+        $data = $request->data();
+
+        return ($data['campaignName'] ?? null) === 'donation_receipt_pdf'
+            && ($data['userName'] ?? null) === 'Siddharth Vaniya'
+            && ($data['templateParams'][0] ?? null) === 'Siddharth Vaniya'
+            && ($data['templateParams'][0] ?? null) !== '$FirstName'
+            && ($data['paramsFallbackValue']['FirstName'] ?? null) === 'Siddharth Vaniya';
+    });
+});
+
 it('sends payment-fail whatsapp with four template params matching payment_failed_retry_payment', function () {
     Http::fake([
         'https://backend.aisensy.com/*' => Http::response(['success' => 'true'], 200),
