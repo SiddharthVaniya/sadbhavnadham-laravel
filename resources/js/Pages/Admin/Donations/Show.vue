@@ -14,7 +14,6 @@ const props = defineProps({
 const page = usePage();
 const canManageReceipts = computed(() => page.props.auth.permissions?.includes('manage receipts') ?? false);
 const resending = ref(false);
-const resendingWhatsApp = ref(false);
 const generating = ref(false);
 const queuingAction = ref(null);
 
@@ -151,19 +150,102 @@ const addressLine = computed(() => {
 
 const statusTone = (status) => {
     if (['sent', 'logged'].includes(status)) {
-        return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+        return 'bg-emerald-50 text-emerald-800';
     }
 
     if (status === 'failed') {
-        return 'border-rose-200 bg-rose-50 text-rose-800';
+        return 'bg-rose-50 text-rose-800';
     }
 
     if (status === 'not_applicable') {
-        return 'border-border bg-muted/40 text-muted-foreground';
+        return 'bg-muted/50 text-muted-foreground';
     }
 
-    return 'border-amber-200 bg-amber-50 text-amber-900';
+    return 'bg-amber-50 text-amber-900';
 };
+
+const deliveryRows = computed(() => {
+    const rows = [];
+
+    if (showPaymentLink.value) {
+        rows.push(
+            {
+                key: 'payment_link_whatsapp',
+                label: 'Link WhatsApp',
+                status: delivery.value.payment_link_whatsapp?.status,
+                labelText: delivery.value.payment_link_whatsapp?.label || '—',
+                at: delivery.value.payment_link_whatsapp?.at,
+            },
+            {
+                key: 'payment_link_email',
+                label: 'Link email',
+                status: delivery.value.payment_link_email?.status,
+                labelText: delivery.value.payment_link_email?.label || '—',
+                at: delivery.value.payment_link_email?.at,
+            },
+            {
+                key: 'payment_link_sms',
+                label: 'Link SMS',
+                status: delivery.value.payment_link_sms?.status,
+                labelText: delivery.value.payment_link_sms?.label || '—',
+                at: delivery.value.payment_link_sms?.at,
+            },
+        );
+    }
+
+    if (isPaid.value || props.donation.receipt_number) {
+        rows.push(
+            {
+                key: 'email',
+                label: 'Email',
+                status: delivery.value.email?.status,
+                labelText: delivery.value.email?.label || 'Not sent',
+                at: delivery.value.email?.at,
+                error: delivery.value.email?.error,
+            },
+            {
+                key: 'whatsapp',
+                label: 'Thank-you',
+                status: delivery.value.whatsapp?.status,
+                labelText: delivery.value.whatsapp?.label || 'Not sent',
+                at: delivery.value.whatsapp?.at,
+            },
+            {
+                key: 'certificate_whatsapp',
+                label: 'Certificate',
+                status: delivery.value.certificate_whatsapp?.status,
+                labelText: delivery.value.certificate_whatsapp?.label || 'Not sent',
+                at: delivery.value.certificate_whatsapp?.at,
+            },
+            {
+                key: 'receipt_whatsapp',
+                label: 'Receipt WA',
+                status: delivery.value.receipt_whatsapp?.status,
+                labelText: delivery.value.receipt_whatsapp?.label || 'Not sent',
+                at: delivery.value.receipt_whatsapp?.at,
+            },
+            {
+                key: 'sheet',
+                label: 'Sheet',
+                status: delivery.value.sheet?.status,
+                labelText: delivery.value.sheet?.label || 'Not logged',
+                at: delivery.value.sheet?.at,
+            },
+        );
+    }
+
+    if (isFailed.value || delivery.value.follow_up_sheet?.status === 'logged') {
+        rows.push({
+            key: 'follow_up_sheet',
+            label: 'Follow-up',
+            status: delivery.value.follow_up_sheet?.status,
+            labelText: delivery.value.follow_up_sheet?.label || '—',
+            at: delivery.value.follow_up_sheet?.at,
+        });
+    }
+
+    return rows;
+});
 
 const queueDelivery = (action, url, canRun) => {
     if (!canRun || queuingAction.value) {
@@ -193,20 +275,6 @@ const resendReceipt = () => {
     });
 };
 
-const resendReceiptWhatsApp = () => {
-    if (!canResendReceiptWhatsApp.value || resendingWhatsApp.value) {
-        return;
-    }
-
-    resendingWhatsApp.value = true;
-    router.post(props.donation.whatsapp_receipt_url, {}, {
-        preserveScroll: true,
-        onFinish: () => {
-            resendingWhatsApp.value = false;
-        },
-    });
-};
-
 const generateReceipt = () => {
     if (generating.value) {
         return;
@@ -223,36 +291,36 @@ const generateReceipt = () => {
 
 const paymentLinkButtonLabel = computed(() => {
     if (queuingAction.value === 'payment_link') {
-        return 'Queuing…';
+        return '…';
     }
 
     if (!delivery.value.payment_link_whatsapp?.url) {
-        return 'Create link & send WhatsApp';
+        return 'Create & send WA';
     }
 
     return delivery.value.payment_link_whatsapp.status === 'sent'
-        ? 'Resend payment link WhatsApp'
-        : 'Send payment link WhatsApp';
+        ? 'Resend link WA'
+        : 'Send link WA';
 });
 
 const paymentLinkEmailButtonLabel = computed(() => {
     if (queuingAction.value === 'payment_link_email') {
-        return 'Queuing…';
+        return '…';
     }
 
     return delivery.value.payment_link_email?.status === 'sent'
-        ? 'Resend via Email'
-        : 'Send via Email';
+        ? 'Resend email'
+        : 'Link email';
 });
 
 const paymentLinkSmsButtonLabel = computed(() => {
     if (queuingAction.value === 'payment_link_sms') {
-        return 'Queuing…';
+        return '…';
     }
 
     return delivery.value.payment_link_sms?.status === 'sent'
-        ? 'Resend via SMS'
-        : 'Send via SMS';
+        ? 'Resend SMS'
+        : 'Link SMS';
 });
 </script>
 
@@ -274,7 +342,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
         </PageHeader>
 
         <div class="grid items-start gap-6 xl:grid-cols-12">
-            <div class="space-y-4 xl:col-span-7">
+            <div class="space-y-4 xl:col-span-8">
                 <section class="rounded-xl border border-border bg-card p-5 shadow-none">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -391,59 +459,133 @@ const paymentLinkSmsButtonLabel = computed(() => {
                 </section>
 
                 <section
-                    v-if="showPaymentLink"
-                    class="rounded-xl border border-border bg-card p-5 shadow-none"
+                    v-if="deliveryRows.length || isPaid || donation.receipt_number || showPaymentLink"
+                    class="rounded-xl border border-border bg-card p-4 shadow-none"
                 >
-                    <div class="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                            <h3 class="text-sm font-semibold text-foreground">Payment recovery link</h3>
-                            <p class="mt-0.5 text-xs text-muted-foreground">
-                                Sent on failed payments so the donor can retry via Razorpay.
-                            </p>
-                        </div>
-                        <span
-                            class="rounded-md border px-2 py-1 text-xs font-medium"
-                            :class="statusTone(delivery.payment_link_whatsapp.status)"
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <h3 class="text-sm font-semibold text-foreground">Delivery & receipt</h3>
+                        <div
+                            v-if="canManageReceipts && (isPaid || donation.receipt_number)"
+                            class="flex flex-wrap items-center gap-x-2 text-xs"
                         >
-                            {{ delivery.payment_link_whatsapp.label }}
-                        </span>
-                    </div>
-
-                    <div class="mt-3 space-y-2 text-sm">
-                        <p v-if="delivery.payment_link_whatsapp.at" class="text-xs text-muted-foreground">
-                            WhatsApp sent {{ delivery.payment_link_whatsapp.at }}
-                        </p>
-                        <p v-if="delivery.payment_link_email?.at" class="text-xs text-muted-foreground">
-                            Email sent {{ delivery.payment_link_email.at }}
-                        </p>
-                        <p v-if="delivery.payment_link_sms?.at" class="text-xs text-muted-foreground">
-                            SMS sent {{ delivery.payment_link_sms.at }}
-                        </p>
-                        <a
-                            v-if="delivery.payment_link_whatsapp.url || donation.payment_link_url"
-                            :href="delivery.payment_link_whatsapp.url || donation.payment_link_url"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            class="block break-all font-medium text-sky-700 hover:underline"
-                        >
-                            {{ delivery.payment_link_whatsapp.url || donation.payment_link_url }}
-                        </a>
-                        <p v-else class="text-muted-foreground">No payment link created yet.</p>
-                    </div>
-
-                    <div v-if="canManageReceipts && isFailed" class="mt-4 space-y-2 border-t border-border pt-3">
-                        <button
-                            type="button"
-                            class="w-full rounded-lg bg-foreground px-3 py-2 text-sm text-background disabled:cursor-not-allowed disabled:opacity-60"
-                            :disabled="!canResendPaymentLink || Boolean(queuingAction)"
-                            @click="queueDelivery('payment_link', donation.whatsapp_payment_link_url, canResendPaymentLink)"
-                        >
-                            {{ paymentLinkButtonLabel }}
-                        </button>
-                        <div class="grid gap-2 sm:grid-cols-2">
+                            <a :href="donation.receipt_preview_url" target="_blank" class="font-medium hover:underline">Preview</a>
+                            <span class="text-muted-foreground">·</span>
+                            <a :href="donation.receipt_print_url" target="_blank" class="font-medium hover:underline">Open</a>
+                            <span class="text-muted-foreground">·</span>
                             <button
                                 type="button"
-                                class="rounded-lg border border-border px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                                class="font-medium hover:underline disabled:opacity-60"
+                                :disabled="generating"
+                                @click="generateReceipt"
+                            >
+                                {{ generating ? 'Queuing…' : 'Generate' }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="deliveryRows.length"
+                        class="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4"
+                    >
+                        <div
+                            v-for="row in deliveryRows"
+                            :key="row.key"
+                            class="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5"
+                            :title="row.error || row.at || undefined"
+                        >
+                            <span class="truncate text-xs text-muted-foreground">{{ row.label }}</span>
+                            <span
+                                class="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium"
+                                :class="statusTone(row.status)"
+                            >
+                                {{ row.labelText }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <p
+                        v-if="delivery.email?.error"
+                        class="mt-2 truncate text-xs text-rose-600"
+                        :title="delivery.email.error"
+                    >
+                        {{ delivery.email.error }}
+                    </p>
+
+                    <div
+                        v-if="canManageReceipts && isPaid"
+                        class="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3"
+                    >
+                        <button
+                            type="button"
+                            class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
+                            :disabled="!canResendThankYou || Boolean(queuingAction)"
+                            @click="queueDelivery('thank_you', donation.whatsapp_thank_you_url, canResendThankYou)"
+                        >
+                            {{ queuingAction === 'thank_you' ? '…' : (delivery.whatsapp.status === 'sent' ? 'Resend thank-you' : 'Thank-you') }}
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
+                            :disabled="!canResendCertificate || Boolean(queuingAction)"
+                            @click="queueDelivery('certificate', donation.whatsapp_certificate_url, canResendCertificate)"
+                        >
+                            {{ queuingAction === 'certificate' ? '…' : (delivery.certificate_whatsapp.status === 'sent' ? 'Resend cert' : 'Certificate') }}
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
+                            :disabled="!canResendReceiptWhatsApp || Boolean(queuingAction)"
+                            @click="queueDelivery('receipt_whatsapp', donation.whatsapp_receipt_url, canResendReceiptWhatsApp)"
+                        >
+                            {{ queuingAction === 'receipt_whatsapp' ? '…' : (delivery.receipt_whatsapp.status === 'sent' ? 'Resend receipt WA' : 'Receipt WA') }}
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
+                            :disabled="!canResendSheet || Boolean(queuingAction)"
+                            @click="queueDelivery('sheet', donation.sheet_resend_url, canResendSheet)"
+                        >
+                            {{ queuingAction === 'sheet' ? '…' : (delivery.sheet.status === 'logged' ? 'Re-log sheet' : 'Log sheet') }}
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-md bg-foreground px-2 py-1 text-xs text-background disabled:opacity-60"
+                            :disabled="!canResendEmail || resending"
+                            @click="resendReceipt"
+                        >
+                            {{ resending ? '…' : (delivery.email.status === 'sent' ? 'Resend email' : 'Send email') }}
+                        </button>
+                    </div>
+
+                    <div
+                        v-else-if="canManageReceipts && isFailed"
+                        class="mt-3 space-y-2 border-t border-border pt-3"
+                    >
+                        <div
+                            v-if="delivery.payment_link_whatsapp.url || donation.payment_link_url"
+                            class="truncate text-xs"
+                        >
+                            <a
+                                :href="delivery.payment_link_whatsapp.url || donation.payment_link_url"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                class="font-medium text-sky-700 hover:underline"
+                            >
+                                {{ delivery.payment_link_whatsapp.url || donation.payment_link_url }}
+                            </a>
+                        </div>
+                        <div class="flex flex-wrap gap-1.5">
+                            <button
+                                type="button"
+                                class="rounded-md bg-foreground px-2 py-1 text-xs text-background disabled:opacity-60"
+                                :disabled="!canResendPaymentLink || Boolean(queuingAction)"
+                                @click="queueDelivery('payment_link', donation.whatsapp_payment_link_url, canResendPaymentLink)"
+                            >
+                                {{ paymentLinkButtonLabel }}
+                            </button>
+                            <button
+                                type="button"
+                                class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
                                 :disabled="!canNotifyPaymentLinkEmail || Boolean(queuingAction)"
                                 @click="queueDelivery('payment_link_email', donation.payment_link_notify_email_url, canNotifyPaymentLinkEmail)"
                             >
@@ -451,237 +593,32 @@ const paymentLinkSmsButtonLabel = computed(() => {
                             </button>
                             <button
                                 type="button"
-                                class="rounded-lg border border-border px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                                class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
                                 :disabled="!canNotifyPaymentLinkSms || Boolean(queuingAction)"
                                 @click="queueDelivery('payment_link_sms', donation.payment_link_notify_sms_url, canNotifyPaymentLinkSms)"
                             >
                                 {{ paymentLinkSmsButtonLabel }}
                             </button>
                         </div>
-                        <p v-if="!canResendPaymentLink" class="text-xs text-rose-600">
-                            Add a valid donor phone before sending the payment link WhatsApp.
-                        </p>
-                        <p v-if="!canNotifyPaymentLinkEmail" class="text-xs text-rose-600">
-                            Add a valid donor email before sending the payment link email.
-                        </p>
-                        <p v-if="!canNotifyPaymentLinkSms" class="text-xs text-rose-600">
-                            Add a valid donor phone before sending the payment link SMS.
-                        </p>
                     </div>
+
+                    <p v-if="canManageReceipts && isPaid && !canResendThankYou && !canResendCertificate" class="mt-2 text-xs text-rose-600">
+                        Add a valid donor phone before sending WhatsApp.
+                    </p>
+                    <p v-else-if="canManageReceipts && isPaid && !canResendEmail" class="mt-2 text-xs text-rose-600">
+                        Add a valid donor email before resending the receipt.
+                    </p>
+                    <p v-else-if="canManageReceipts && isFailed && !canResendPaymentLink" class="mt-2 text-xs text-rose-600">
+                        Add a valid donor phone before sending the payment link WhatsApp.
+                    </p>
                 </section>
             </div>
 
-            <div class="space-y-4 xl:col-span-5">
+            <div class="space-y-4 xl:col-span-4">
                 <AttributionSourceCard
                     :source="donation.source"
                     empty-message="No UTM or referrer captured for this donation."
                 />
-
-                <section class="rounded-xl border border-border bg-card p-5 shadow-none">
-                    <h3 class="text-sm font-semibold text-foreground">Delivery status</h3>
-                    <div class="mt-3 space-y-2">
-                        <div
-                            v-if="showPaymentLink"
-                            class="rounded-lg border px-3 py-2"
-                            :class="statusTone(delivery.payment_link_whatsapp.status)"
-                        >
-                            <div class="flex items-center justify-between gap-2 text-sm font-medium">
-                                <span>Payment link WhatsApp</span>
-                                <span>{{ delivery.payment_link_whatsapp.label }}</span>
-                            </div>
-                            <p v-if="delivery.payment_link_whatsapp.at" class="mt-1 text-xs opacity-80">
-                                {{ delivery.payment_link_whatsapp.at }}
-                            </p>
-                        </div>
-                        <div
-                            v-if="showPaymentLink"
-                            class="rounded-lg border px-3 py-2"
-                            :class="statusTone(delivery.payment_link_email?.status)"
-                        >
-                            <div class="flex items-center justify-between gap-2 text-sm font-medium">
-                                <span>Payment link email</span>
-                                <span>{{ delivery.payment_link_email?.label || '—' }}</span>
-                            </div>
-                            <p v-if="delivery.payment_link_email?.at" class="mt-1 text-xs opacity-80">
-                                {{ delivery.payment_link_email.at }}
-                            </p>
-                        </div>
-                        <div
-                            v-if="showPaymentLink"
-                            class="rounded-lg border px-3 py-2"
-                            :class="statusTone(delivery.payment_link_sms?.status)"
-                        >
-                            <div class="flex items-center justify-between gap-2 text-sm font-medium">
-                                <span>Payment link SMS</span>
-                                <span>{{ delivery.payment_link_sms?.label || '—' }}</span>
-                            </div>
-                            <p v-if="delivery.payment_link_sms?.at" class="mt-1 text-xs opacity-80">
-                                {{ delivery.payment_link_sms.at }}
-                            </p>
-                        </div>
-                        <div class="rounded-lg border px-3 py-2" :class="statusTone(delivery.email.status)">
-                            <div class="flex items-center justify-between gap-2 text-sm font-medium">
-                                <span>Email receipt</span>
-                                <span>{{ delivery.email.label }}</span>
-                            </div>
-                            <p v-if="delivery.email.at" class="mt-1 text-xs opacity-80">{{ delivery.email.at }}</p>
-                            <p v-if="delivery.email.error" class="mt-1 text-xs">{{ delivery.email.error }}</p>
-                        </div>
-                        <div class="rounded-lg border px-3 py-2" :class="statusTone(delivery.whatsapp.status)">
-                            <div class="flex items-center justify-between gap-2 text-sm font-medium">
-                                <span>WhatsApp thank-you</span>
-                                <span>{{ delivery.whatsapp.label }}</span>
-                            </div>
-                            <p v-if="delivery.whatsapp.at" class="mt-1 text-xs opacity-80">{{ delivery.whatsapp.at }}</p>
-                        </div>
-                        <div class="rounded-lg border px-3 py-2" :class="statusTone(delivery.certificate_whatsapp.status)">
-                            <div class="flex items-center justify-between gap-2 text-sm font-medium">
-                                <span>WhatsApp certificate</span>
-                                <span>{{ delivery.certificate_whatsapp.label }}</span>
-                            </div>
-                            <p v-if="delivery.certificate_whatsapp.at" class="mt-1 text-xs opacity-80">{{ delivery.certificate_whatsapp.at }}</p>
-                        </div>
-                        <div class="rounded-lg border px-3 py-2" :class="statusTone(delivery.receipt_whatsapp.status)">
-                            <div class="flex items-center justify-between gap-2 text-sm font-medium">
-                                <span>WhatsApp receipt</span>
-                                <span>{{ delivery.receipt_whatsapp.label }}</span>
-                            </div>
-                            <p v-if="delivery.receipt_whatsapp.at" class="mt-1 text-xs opacity-80">{{ delivery.receipt_whatsapp.at }}</p>
-                        </div>
-                        <div class="rounded-lg border px-3 py-2" :class="statusTone(delivery.sheet.status)">
-                            <div class="flex items-center justify-between gap-2 text-sm font-medium">
-                                <span>Google Sheet</span>
-                                <span>{{ delivery.sheet.label }}</span>
-                            </div>
-                            <p v-if="delivery.sheet.at" class="mt-1 text-xs opacity-80">{{ delivery.sheet.at }}</p>
-                        </div>
-                        <div
-                            v-if="isFailed || delivery.follow_up_sheet?.status === 'logged'"
-                            class="rounded-lg border px-3 py-2"
-                            :class="statusTone(delivery.follow_up_sheet?.status)"
-                        >
-                            <div class="flex items-center justify-between gap-2 text-sm font-medium">
-                                <span>Follow-up sheet</span>
-                                <span>{{ delivery.follow_up_sheet?.label || '—' }}</span>
-                            </div>
-                            <p v-if="delivery.follow_up_sheet?.at" class="mt-1 text-xs opacity-80">
-                                {{ delivery.follow_up_sheet.at }}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div v-if="canManageReceipts && isPaid" class="mt-3 flex flex-col gap-2 border-t border-border pt-3">
-                        <button
-                            type="button"
-                            class="rounded-lg border border-border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                            :disabled="!canResendThankYou || Boolean(queuingAction)"
-                            @click="queueDelivery('thank_you', donation.whatsapp_thank_you_url, canResendThankYou)"
-                        >
-                            {{
-                                queuingAction === 'thank_you'
-                                    ? 'Queuing…'
-                                    : (delivery.whatsapp.status === 'sent' ? 'Resend thank-you WhatsApp' : 'Send thank-you WhatsApp')
-                            }}
-                        </button>
-                        <button
-                            type="button"
-                            class="rounded-lg border border-border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                            :disabled="!canResendCertificate || Boolean(queuingAction)"
-                            @click="queueDelivery('certificate', donation.whatsapp_certificate_url, canResendCertificate)"
-                        >
-                            {{
-                                queuingAction === 'certificate'
-                                    ? 'Queuing…'
-                                    : (delivery.certificate_whatsapp.status === 'sent' ? 'Resend certificate WhatsApp' : 'Send certificate WhatsApp')
-                            }}
-                        </button>
-                        <button
-                            type="button"
-                            class="rounded-lg border border-border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                            :disabled="!canResendReceiptWhatsApp || Boolean(queuingAction)"
-                            @click="queueDelivery('receipt_whatsapp', donation.whatsapp_receipt_url, canResendReceiptWhatsApp)"
-                        >
-                            {{
-                                queuingAction === 'receipt_whatsapp'
-                                    ? 'Queuing…'
-                                    : (delivery.receipt_whatsapp.status === 'sent' ? 'Resend receipt WhatsApp' : 'Send receipt WhatsApp')
-                            }}
-                        </button>
-                        <button
-                            type="button"
-                            class="rounded-lg border border-border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                            :disabled="!canResendSheet || Boolean(queuingAction)"
-                            @click="queueDelivery('sheet', donation.sheet_resend_url, canResendSheet)"
-                        >
-                            {{
-                                queuingAction === 'sheet'
-                                    ? 'Queuing…'
-                                    : (delivery.sheet.status === 'logged' ? 'Re-log to Google Sheet' : 'Log to Google Sheet')
-                            }}
-                        </button>
-                        <p v-if="!canResendThankYou && !canResendCertificate" class="text-xs text-rose-600">
-                            Add a valid donor phone before sending WhatsApp.
-                        </p>
-                        <p v-else class="text-xs text-muted-foreground">
-                            These actions queue jobs. Status above updates after the queue worker runs.
-                        </p>
-                    </div>
-
-                    <p v-else-if="isFailed" class="mt-3 text-xs text-muted-foreground">
-                        Paid delivery actions unlock after this donation is paid. Use the payment recovery link card to retry WhatsApp.
-                    </p>
-                </section>
-
-                <section v-if="isPaid || donation.receipt_number" class="rounded-xl border border-border bg-card p-5 shadow-none">
-                    <h3 class="text-sm font-semibold text-foreground">Receipt</h3>
-                    <p class="mt-1 text-sm text-muted-foreground">Email: {{ donation.receipt_label || donation.receipt_email_label || 'Not sent' }}</p>
-                    <p class="mt-1 text-sm text-muted-foreground">WhatsApp: {{ delivery.receipt_whatsapp.label }}</p>
-                    <div v-if="canManageReceipts" class="mt-3 flex flex-col gap-2">
-                        <a :href="donation.receipt_preview_url" target="_blank" class="rounded-lg border border-border px-3 py-2 text-center text-sm">Preview receipt</a>
-                        <a :href="donation.receipt_print_url" target="_blank" class="rounded-lg border border-border px-3 py-2 text-center text-sm">Open receipt</a>
-                        <button
-                            type="button"
-                            class="rounded-lg border border-border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-60"
-                            :disabled="generating"
-                            @click="generateReceipt"
-                        >
-                            {{ generating ? 'Queuing…' : 'Generate receipt' }}
-                        </button>
-                        <button
-                            type="button"
-                            class="rounded-lg bg-foreground px-3 py-2 text-sm text-background disabled:cursor-not-allowed disabled:opacity-60"
-                            :disabled="!canResendEmail || resending"
-                            @click="resendReceipt"
-                        >
-                            {{ resending ? 'Queuing email…' : (delivery.email.status === 'sent' ? 'Resend email' : 'Send email') }}
-                        </button>
-                        <p v-if="!canResendEmail" class="text-xs text-rose-600">
-                            Add a valid donor email before resending the receipt.
-                        </p>
-                        <p v-else class="text-xs text-muted-foreground">
-                            Resend queues the email. Status above updates after the queue worker sends it.
-                        </p>
-                        <button
-                            v-if="isPaid"
-                            type="button"
-                            class="rounded-lg bg-foreground px-3 py-2 text-sm text-background disabled:cursor-not-allowed disabled:opacity-60"
-                            :disabled="!canResendReceiptWhatsApp || resendingWhatsApp"
-                            @click="resendReceiptWhatsApp"
-                        >
-                            {{
-                                resendingWhatsApp
-                                    ? 'Queuing WhatsApp…'
-                                    : (delivery.receipt_whatsapp.status === 'sent' ? 'Resend receipt WhatsApp' : 'Send receipt WhatsApp')
-                            }}
-                        </button>
-                        <p v-if="isPaid && !canResendReceiptWhatsApp" class="text-xs text-rose-600">
-                            Add a valid donor phone before sending the receipt on WhatsApp.
-                        </p>
-                        <p v-else-if="isPaid" class="text-xs text-muted-foreground">
-                            Send queues the receipt PDF on WhatsApp. Status above updates after the queue worker runs.
-                        </p>
-                    </div>
-                </section>
             </div>
         </div>
     </AdminLayout>
