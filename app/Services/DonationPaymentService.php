@@ -447,6 +447,8 @@ class DonationPaymentService
         $this->donationAttribution->ensureOnPaid($order);
         $order = $order->fresh(['items.causeModel']);
 
+        $this->linkTracking->markConverted($order);
+
         dispatch(new LogDonationToSheetJob($order));
 
         if ($sendEmail) {

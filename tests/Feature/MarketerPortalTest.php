@@ -317,7 +317,7 @@ it('shows charts on marketer campaigns and visits pages', function () {
         ->assertInertia(fn ($page) => $page
             ->component('Marketer/Visits')
             ->where('target.goal', 200)
-            ->has('resultBreakdown', 2)
+            ->has('resultBreakdown', 3)
             ->has('visits.data', 2));
 });
 
@@ -822,4 +822,134 @@ it('exports marketer visits as excel', function () {
     expect($response->getContent())
         ->toContain('Excel Visit')
         ->toContain('Tablet');
+});
+
+it('aligns clicks Donated with dashboard Paid donations when click was yesterday and pay is today', function () {
+    Carbon::setTestNow('2026-09-18 12:00:00');
+
+    $ashvini = digitalMarketer([
+        'referral_code' => 'lgwrin',
+        'email' => 'lgwrin-parity@example.com',
+        'name' => 'Kashyap',
+    ]);
+
+    $visit = marketerVisit($ashvini, [
+        'utm_campaign' => 'Parity Campaign',
+        'converted' => false,
+    ]);
+    $visit->created_at = now()->subDay();
+    $visit->updated_at = now()->subDay();
+    $visit->save();
+
+    DonationOrder::query()->create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'parity-paid-today',
+        'donor_name' => 'Parity Donor',
+        'donor_email' => 'parity@example.com',
+        'donor_phone' => '9876500999',
+        'currency' => 'INR',
+        'total_amount' => 501,
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'partner_user_id' => $ashvini->id,
+        'partner_code' => 'lgwrin',
+        'utm_campaign' => 'Parity Campaign',
+        'device_type' => 'mobile',
+    ]);
+
+    actingAs($ashvini)
+        ->get(route('marketer.dashboard', ['duration' => 'today']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Marketer/Dashboard')
+            ->where('summary.donations', 1));
+
+    actingAs($ashvini)
+        ->get(route('marketer.visits', ['duration' => 'today']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Marketer/Visits')
+            ->where('resultBreakdown', function ($breakdown) {
+                $donated = collect($breakdown)->firstWhere('name', 'Donated');
+
+                return $donated && (int) $donated['count'] === 1;
+            }));
+
+    Carbon::setTestNow();
+});
+
+it('lists result=donated visits by converted_at even when the click was yesterday', function () {
+    Carbon::setTestNow('2026-09-18 15:00:00');
+
+    $ashvini = digitalMarketer([
+        'referral_code' => 'lgwrin2',
+        'email' => 'lgwrin-donated-filter@example.com',
+    ]);
+
+    $visit = marketerVisit($ashvini, [
+        'utm_campaign' => 'Converted Yesterday Click',
+        'converted' => true,
+        'converted_amount' => 700,
+        'converted_at' => now(),
+    ]);
+    $visit->created_at = now()->subDay();
+    $visit->updated_at = now()->subDay();
+    $visit->save();
+
+    actingAs($ashvini)
+        ->get(route('marketer.visits', [
+            'duration' => 'today',
+            'result' => 'donated',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Marketer/Visits')
+            ->has('visits.data', 1)
+            ->where('visits.data.0.utm_campaign', 'Converted Yesterday Click')
+            ->where('visits.data.0.converted', true));
+
+    Carbon::setTestNow();
+});
+
+it('marks an attachable visit converted when paid order has partner_user_id', function () {
+    Carbon::setTestNow('2026-09-18 16:00:00');
+
+    $ashvini = digitalMarketer([
+        'referral_code' => 'attachsid',
+        'email' => 'attach-convert@example.com',
+    ]);
+
+    $visit = marketerVisit($ashvini, [
+        'converted' => false,
+        'donation_order_id' => null,
+    ]);
+    $visit->created_at = now()->subHours(2);
+    $visit->save();
+
+    $order = DonationOrder::query()->create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'attach-convert-order',
+        'donor_name' => 'Attach Donor',
+        'donor_email' => 'attach@example.com',
+        'donor_phone' => '9876500888',
+        'currency' => 'INR',
+        'total_amount' => 1200,
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'partner_user_id' => $ashvini->id,
+        'partner_code' => 'attachsid',
+    ]);
+
+    $converted = app(\App\Services\LinkTrackingService::class)->markConverted($order->fresh());
+
+    expect($converted)->not->toBeNull()
+        ->and($converted->converted)->toBeTrue()
+        ->and((int) $converted->donation_order_id)->toBe($order->id)
+        ->and((float) $converted->converted_amount)->toBe(1200.0);
+
+    $visit->refresh();
+    expect($visit->converted)->toBeTrue()
+        ->and((int) $visit->donation_order_id)->toBe($order->id);
+
+    Carbon::setTestNow();
 });

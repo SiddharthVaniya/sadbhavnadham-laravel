@@ -194,9 +194,13 @@ class MarketerPerformanceData
         $filters = $payload['filters'];
         unset($payload['range']);
         [$sort, $dir, $sortColumn] = self::resolveVisitSort($request);
+        $clickSummaryFilters = $filters;
+        $clickSummaryFilters['result'] = '';
+        $clickScoped = self::scopedVisits($user, $range, $clickSummaryFilters);
+        $trackedClicks = (clone $clickScoped)->count();
+        $clicksOnly = (clone $clickScoped)->where('converted', false)->count();
+        $donated = (clone self::attributedPaidOrders($user, $range))->count();
         $query = self::scopedVisits($user, $range, $filters);
-        $donated = (clone $query)->where('converted', true)->count();
-        $clicksOnly = (clone $query)->where('converted', false)->count();
         $paginator = $query
             ->orderBy($sortColumn, $dir)
             ->when($sortColumn !== 'id', fn (Builder $builder) => $builder->orderByDesc('id'))
@@ -208,10 +212,27 @@ class MarketerPerformanceData
             'sort' => $sort,
             'dir' => $dir,
             'target' => self::targetProgress($user),
-            'resultBreakdown' => self::countSlices(collect([
-                'Donated' => $donated,
-                'Clicks only' => $clicksOnly,
-            ])),
+            'resultBreakdown' => [
+                [
+                    'name' => 'Tracked clicks',
+                    'count' => $trackedClicks,
+                    'percentage' => $trackedClicks > 0 ? 100.0 : 0.0,
+                ],
+                [
+                    'name' => 'Donated',
+                    'count' => $donated,
+                    'percentage' => $trackedClicks > 0
+                        ? round(($donated / $trackedClicks) * 100, 1)
+                        : 0.0,
+                ],
+                [
+                    'name' => 'Clicks only',
+                    'count' => $clicksOnly,
+                    'percentage' => $trackedClicks > 0
+                        ? round(($clicksOnly / $trackedClicks) * 100, 1)
+                        : 0.0,
+                ],
+            ],
             'visits' => AdminInertiaResources::paginated(
                 $paginator,
                 fn (LinkTrackingVisit $visit) => self::visitRow($visit),
@@ -424,6 +445,14 @@ class MarketerPerformanceData
         $query = self::attributedVisits($user);
         self::applyVisitFilters($query, $filters);
 
+        $result = $filters['result'] ?? '';
+
+        if ($result === 'donated') {
+            self::applyConvertedAtRange($query, $range);
+
+            return $query;
+        }
+
         if ($range['start'] !== null) {
             $query->where('created_at', '>=', $range['start']);
         }
@@ -433,6 +462,41 @@ class MarketerPerformanceData
         }
 
         return $query;
+    }
+
+    /**
+     * Period filter for conversions: prefer payment time (converted_at).
+     * Legacy rows with null converted_at fall back to created_at.
+     *
+     * @param  array{start: ?Carbon, end: ?Carbon, label?: string}  $range
+     */
+    private static function applyConvertedAtRange(Builder $query, array $range): void
+    {
+        if ($range['start'] !== null) {
+            $start = $range['start'];
+            $query->where(function (Builder $builder) use ($start): void {
+                $builder->where(function (Builder $converted) use ($start): void {
+                    $converted->whereNotNull('converted_at')
+                        ->where('converted_at', '>=', $start);
+                })->orWhere(function (Builder $legacy) use ($start): void {
+                    $legacy->whereNull('converted_at')
+                        ->where('created_at', '>=', $start);
+                });
+            });
+        }
+
+        if ($range['end'] !== null) {
+            $end = $range['end'];
+            $query->where(function (Builder $builder) use ($end): void {
+                $builder->where(function (Builder $converted) use ($end): void {
+                    $converted->whereNotNull('converted_at')
+                        ->where('converted_at', '<=', $end);
+                })->orWhere(function (Builder $legacy) use ($end): void {
+                    $legacy->whereNull('converted_at')
+                        ->where('created_at', '<=', $end);
+                });
+            });
+        }
     }
 
     /**
@@ -1541,7 +1605,9 @@ class MarketerPerformanceData
      */
     private static function chartPayload(User $user, array $range, array $filters = []): array
     {
-        $visits = self::scopedVisits($user, $range, $filters);
+        $clickSummaryFilters = $filters;
+        $clickSummaryFilters['result'] = '';
+        $visits = self::scopedVisits($user, $range, $clickSummaryFilters);
 
         return [
             'target' => self::targetProgress($user),
@@ -1552,7 +1618,7 @@ class MarketerPerformanceData
                 self::visitCollection($visits)->countBy(fn (LinkTrackingVisit $visit) => ucfirst($visit->device_type ?: 'unknown'))
             ),
             'resultBreakdown' => self::countSlices(collect([
-                'Donated' => (clone $visits)->where('converted', true)->count(),
+                'Donated' => (clone self::attributedPaidOrders($user, $range))->count(),
                 'Clicks only' => (clone $visits)->where('converted', false)->count(),
             ])),
         ];

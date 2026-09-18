@@ -39,7 +39,7 @@ const sliceCount = (name) => Number(
     (props.resultBreakdown || []).find((item) => item.name === name)?.count || 0,
 );
 
-const visitTotal = computed(() => Number(props.visits?.meta?.total ?? 0));
+const visitTotal = computed(() => sliceCount('Tracked clicks') || Number(props.visits?.meta?.total ?? 0));
 const donatedCount = computed(() => sliceCount('Donated'));
 const clicksOnlyCount = computed(() => sliceCount('Clicks only'));
 const targetPercent = computed(() => {
@@ -220,7 +220,7 @@ const visitRows = computed(() =>
             <MarketerStatCard
                 label="Tracked clicks"
                 :value="formatNumber(visitTotal)"
-                :hint="durationLabel"
+                hint="Visits recorded in this period"
             >
                 <template #icon>
                     <MousePointerClick class="size-4" />
@@ -229,7 +229,7 @@ const visitRows = computed(() =>
             <MarketerStatCard
                 label="Donated"
                 :value="formatNumber(donatedCount)"
-                hint="Clicks that converted"
+                hint="Paid donations in this period (same as Performance)"
             >
                 <template #icon>
                     <HeartHandshake class="size-4" />
@@ -238,7 +238,7 @@ const visitRows = computed(() =>
             <MarketerStatCard
                 label="Clicks only"
                 :value="formatNumber(clicksOnlyCount)"
-                hint="Did not convert"
+                hint="Visits in this period that have not converted"
             >
                 <template #icon>
                     <Repeat class="size-4" />

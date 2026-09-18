@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AnalyticsEvent;
 use App\Models\DonationOrder;
 use App\Models\LinkTrackingSummary;
 use App\Models\LinkTrackingVisit;
@@ -161,12 +162,21 @@ class LinkTrackingService
 
     public function markConverted(DonationOrder $order): ?LinkTrackingVisit
     {
-        $visit = LinkTrackingVisit::query()
-            ->where('donation_order_id', $order->id)
-            ->first();
+        $visit = $this->resolveVisitForConversion($order);
 
-        if ($visit === null || $visit->converted) {
-            return $visit;
+        if ($visit === null) {
+            return null;
+        }
+
+        if ($visit->converted) {
+            // Already converted for this order, or for a different order — do not reassign.
+            // Period "Donated" counts use paid orders, so leaving the first conversion is safe.
+            return $visit->fresh();
+        }
+
+        if ((int) ($visit->donation_order_id ?? 0) !== (int) $order->id) {
+            $visit->update(['donation_order_id' => $order->id]);
+            $visit = $visit->fresh();
         }
 
         $amount = round((float) $order->total_amount, 2);
@@ -181,6 +191,132 @@ class LinkTrackingService
         $this->bumpSummaryForConversion($visit, $amount, $convertedAt);
 
         return $visit->fresh();
+    }
+
+    /**
+     * Resolve (and optionally attach) a click visit for a paid order.
+     *
+     * Prefer an existing link by donation_order_id, then sid+visitor from checkout
+     * analytics, then the latest unconverted visit for the partner sid within a
+     * short lookback before payment.
+     */
+    public function resolveVisitForConversion(DonationOrder $order): ?LinkTrackingVisit
+    {
+        $visit = LinkTrackingVisit::query()
+            ->where('donation_order_id', $order->id)
+            ->first();
+
+        if ($visit !== null) {
+            return $visit;
+        }
+
+        $sid = $this->resolveSidForOrder($order);
+
+        if ($sid === null) {
+            return null;
+        }
+
+        $visitorId = $this->resolveVisitorIdForOrder($order);
+
+        if ($visitorId !== null) {
+            $visit = LinkTrackingVisit::query()
+                ->where('sid', $sid)
+                ->where('visitor_id', $visitorId)
+                ->orderByDesc('id')
+                ->first();
+
+            if ($visit !== null) {
+                if (! $visit->converted && (int) ($visit->donation_order_id ?? 0) !== (int) $order->id) {
+                    $visit->update(['donation_order_id' => $order->id]);
+
+                    return $visit->fresh();
+                }
+
+                if ((int) ($visit->donation_order_id ?? 0) === (int) $order->id || ! $visit->converted) {
+                    return $visit;
+                }
+            }
+        }
+
+        return $this->attachLatestUnconvertedVisit($order, $sid);
+    }
+
+    /**
+     * Attach the latest unconverted visit for this sid within 7 days before pay.
+     */
+    public function attachLatestUnconvertedVisit(DonationOrder $order, ?string $sid = null, bool $attach = true): ?LinkTrackingVisit
+    {
+        $sid = $sid ?? $this->resolveSidForOrder($order);
+
+        if ($sid === null) {
+            return null;
+        }
+
+        $paidAt = $order->paid_at ?? now();
+        $lookbackStart = $paidAt->copy()->subDays(7);
+
+        $visit = LinkTrackingVisit::query()
+            ->where('sid', $sid)
+            ->where('converted', false)
+            ->where(function ($query) use ($order): void {
+                $query->whereNull('donation_order_id')
+                    ->orWhere('donation_order_id', $order->id);
+            })
+            ->where('created_at', '>=', $lookbackStart)
+            ->where('created_at', '<=', $paidAt)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($visit === null) {
+            return null;
+        }
+
+        if ($attach && (int) ($visit->donation_order_id ?? 0) !== (int) $order->id) {
+            $visit->update(['donation_order_id' => $order->id]);
+        }
+
+        return $attach ? $visit->fresh() : $visit;
+    }
+
+    private function resolveSidForOrder(DonationOrder $order): ?string
+    {
+        $code = trim((string) ($order->partner_code ?? ''));
+
+        if ($code !== '') {
+            return $code;
+        }
+
+        $legacy = trim((string) ($order->utm_content ?? ''));
+
+        return $legacy !== '' ? $legacy : null;
+    }
+
+    private function resolveVisitorIdForOrder(DonationOrder $order): ?string
+    {
+        $event = AnalyticsEvent::query()
+            ->where('donation_order_id', $order->id)
+            ->where('event_type', AnalyticsEvent::TYPE_CHECKOUT_STARTED)
+            ->latest('id')
+            ->first();
+
+        if ($event === null) {
+            return null;
+        }
+
+        // session_id is the closest stable client identifier when visitor_id is not stored on events
+        $sessionId = trim((string) ($event->session_id ?? ''));
+
+        if ($sessionId === '') {
+            return null;
+        }
+
+        // Prefer a visit whose visitor_id equals the analytics session (some clients reuse the same UUID).
+        $match = LinkTrackingVisit::query()
+            ->where('visitor_id', $sessionId)
+            ->orderByDesc('id')
+            ->value('visitor_id');
+
+        return is_string($match) && $match !== '' ? $match : null;
     }
 
     /**
