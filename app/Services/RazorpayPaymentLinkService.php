@@ -101,6 +101,30 @@ class RazorpayPaymentLinkService
     }
 
     /**
+     * Ensure a payment link exists, verify it can be notified, then send email/SMS.
+     *
+     * @throws InvalidArgumentException|Throwable
+     */
+    public function notifyOrder(DonationOrder $order, string $medium): DonationOrder
+    {
+        if ($order->isPaid()) {
+            throw new InvalidArgumentException('This donation is already paid. Payment link notification was not sent.');
+        }
+
+        if (! $order->isFailed()) {
+            throw new InvalidArgumentException('Payment link notify is only available for failed donations.');
+        }
+
+        if (! filled($order->payment_link_id) || ! filled($order->payment_link_url)) {
+            $order = $this->createForOrder($order);
+        }
+
+        $this->notify($order->fresh(), $medium);
+
+        return $order->fresh();
+    }
+
+    /**
      * Send or resend a payment-link notification via Razorpay email or SMS.
      *
      * @throws InvalidArgumentException|Throwable
@@ -111,6 +135,10 @@ class RazorpayPaymentLinkService
 
         if (! in_array($medium, self::mediums(), true)) {
             throw new InvalidArgumentException('Payment link notify medium must be email or sms.');
+        }
+
+        if ($order->isPaid()) {
+            throw new InvalidArgumentException('This donation is already paid. Payment link notification was not sent.');
         }
 
         if ($medium === self::MEDIUM_EMAIL && ! $this->hasSendableEmail($order->donor_email)) {
@@ -125,8 +153,11 @@ class RazorpayPaymentLinkService
             throw new InvalidArgumentException('Payment link must exist before notifying the donor.');
         }
 
+        $link = $this->fetchPaymentLink($order->payment_link_id);
+        $this->assertLinkIsNotifiable($link, $medium);
+
         try {
-            $this->api()->paymentLink->fetch($order->payment_link_id)->notifyBy($medium);
+            $response = $this->api()->paymentLink->fetch($order->payment_link_id)->notifyBy($medium);
         } catch (Throwable $exception) {
             Log::error('Payment link Razorpay notify failed', [
                 'order_id' => $order->id,
@@ -136,6 +167,10 @@ class RazorpayPaymentLinkService
             ]);
 
             throw $exception;
+        }
+
+        if (is_array($response) && array_key_exists('success', $response) && $response['success'] !== true) {
+            throw new InvalidArgumentException('Razorpay did not confirm the payment link '.$medium.' notification.');
         }
 
         $timestampColumn = $medium === self::MEDIUM_EMAIL
@@ -150,7 +185,60 @@ class RazorpayPaymentLinkService
             'order_id' => $order->id,
             'payment_link_id' => $order->payment_link_id,
             'medium' => $medium,
+            'response' => $response,
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function fetchPaymentLink(string $paymentLinkId): array
+    {
+        $link = $this->api()->paymentLink->fetch($paymentLinkId);
+
+        if (is_array($link)) {
+            return $link;
+        }
+
+        if (is_object($link) && method_exists($link, 'toArray')) {
+            return $link->toArray();
+        }
+
+        return (array) $link;
+    }
+
+    /**
+     * @param  array<string, mixed>  $link
+     */
+    public function assertLinkIsOpen(array $link): void
+    {
+        $status = strtolower(trim((string) ($link['status'] ?? '')));
+
+        if (in_array($status, ['paid', 'partially_paid'], true)) {
+            throw new InvalidArgumentException('This payment link is already paid. Notification was not sent.');
+        }
+
+        if (in_array($status, ['cancelled', 'expired'], true)) {
+            throw new InvalidArgumentException("This payment link is {$status}. Create a new link before notifying.");
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $link
+     */
+    public function assertLinkIsNotifiable(array $link, string $medium): void
+    {
+        $this->assertLinkIsOpen($link);
+
+        $customer = is_array($link['customer'] ?? null) ? $link['customer'] : [];
+
+        if ($medium === self::MEDIUM_EMAIL && ! $this->hasSendableEmail($customer['email'] ?? null)) {
+            throw new InvalidArgumentException('This payment link has no customer email on Razorpay. Create a new link with the donor email.');
+        }
+
+        if ($medium === self::MEDIUM_SMS && ! filled($customer['contact'] ?? null)) {
+            throw new InvalidArgumentException('This payment link has no customer phone on Razorpay. Create a new link with the donor phone.');
+        }
     }
 
     public function hasSendableEmail(?string $email): bool
@@ -173,7 +261,7 @@ class RazorpayPaymentLinkService
         $digits = preg_replace('/\D+/', '', (string) $phone) ?? '';
 
         if (strlen($digits) >= 10) {
-            return substr($digits, -10);
+            return '+91'.substr($digits, -10);
         }
 
         return $digits !== '' ? $digits : null;

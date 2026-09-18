@@ -26,23 +26,8 @@ class NotifyPaymentLinkJob implements ShouldQueue
             return;
         }
 
-        if (! $order->isFailed()) {
-            Log::info('Payment link notify skipped', [
-                'order_id' => $order->id,
-                'reason' => 'not_failed',
-                'status' => $order->status,
-                'medium' => $this->medium,
-            ]);
-
-            return;
-        }
-
         try {
-            if (! filled($order->payment_link_id) || ! filled($order->payment_link_url)) {
-                $order = $paymentLinks->createForOrder($order);
-            }
-
-            $paymentLinks->notify($order, $this->medium);
+            $paymentLinks->notifyOrder($order, $this->medium);
         } catch (InvalidArgumentException $exception) {
             Log::warning('Payment link notify skipped', [
                 'order_id' => $order->id,

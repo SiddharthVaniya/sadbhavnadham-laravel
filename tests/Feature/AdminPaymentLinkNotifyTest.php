@@ -13,6 +13,7 @@ use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 use function Pest\Laravel\actingAs;
+use function Pest\Laravel\mock;
 
 uses(RefreshDatabase::class);
 
@@ -63,40 +64,46 @@ function createAbandonedNotifyOrder(array $overrides = []): DonationOrder
     return $order->fresh();
 }
 
-it('queues payment link email notify for failed donations', function () {
+it('sends payment link email notify synchronously for failed donations', function () {
     Bus::fake();
 
     $user = createPaymentLinkNotifyManager();
     $order = createFailedNotifyOrder();
+
+    $service = mock(RazorpayPaymentLinkService::class);
+    $service->shouldReceive('hasSendableEmail')->andReturn(true);
+    $service->shouldReceive('notifyOrder')->once()->withArgs(
+        fn (DonationOrder $donationOrder, string $medium) => $donationOrder->id === $order->id && $medium === 'email'
+    )->andReturn($order);
 
     actingAs($user)
         ->from(route('admin.donations.show', $order))
         ->post(route('admin.donations.payment-link.notify', [$order, 'email']))
         ->assertRedirect(route('admin.donations.show', $order))
-        ->assertSessionHas('status');
+        ->assertSessionHas('status', 'Payment link email sent via Razorpay.');
 
-    Bus::assertDispatched(NotifyPaymentLinkJob::class, function (NotifyPaymentLinkJob $job) use ($order): bool {
-        return (fn () => $this->orderId === $order->id && $this->medium === 'email')
-            ->call($job);
-    });
+    Bus::assertNotDispatched(NotifyPaymentLinkJob::class);
     Bus::assertNotDispatched(CreatePaymentLinkJob::class);
     Bus::assertNotDispatched(SendPaymentLinkWhatsAppJob::class);
 });
 
-it('queues payment link sms notify for failed donations', function () {
+it('sends payment link sms notify synchronously for failed donations', function () {
     Bus::fake();
 
     $user = createPaymentLinkNotifyManager();
     $order = createFailedNotifyOrder();
 
+    $service = mock(RazorpayPaymentLinkService::class);
+    $service->shouldReceive('notifyOrder')->once()->withArgs(
+        fn (DonationOrder $donationOrder, string $medium) => $donationOrder->id === $order->id && $medium === 'sms'
+    )->andReturn($order);
+
     actingAs($user)
         ->post(route('admin.donations.payment-link.notify', [$order, 'sms']))
-        ->assertRedirect(route('admin.donations.show', $order));
+        ->assertRedirect(route('admin.donations.show', $order))
+        ->assertSessionHas('status', 'Payment link SMS sent via Razorpay.');
 
-    Bus::assertDispatched(NotifyPaymentLinkJob::class, function (NotifyPaymentLinkJob $job) use ($order): bool {
-        return (fn () => $this->orderId === $order->id && $this->medium === 'sms')
-            ->call($job);
-    });
+    Bus::assertNotDispatched(NotifyPaymentLinkJob::class);
 });
 
 it('blocks email notify when donor email is missing', function () {
@@ -147,9 +154,28 @@ it('blocks payment link notify for paid donations', function () {
         ->from(route('admin.donations.show', $order))
         ->post(route('admin.donations.payment-link.notify', [$order, 'email']))
         ->assertRedirect(route('admin.donations.show', $order))
-        ->assertSessionHas('flash_tone', 'warning');
+        ->assertSessionHas('flash_tone', 'warning')
+        ->assertSessionHas('status', 'This donation is already paid. Payment link notification was not sent.');
 
     Bus::assertNotDispatched(NotifyPaymentLinkJob::class);
+});
+
+it('warns when razorpay payment link is already paid', function () {
+    $user = createPaymentLinkNotifyManager();
+    $order = createFailedNotifyOrder();
+
+    $service = mock(RazorpayPaymentLinkService::class);
+    $service->shouldReceive('hasSendableEmail')->andReturn(true);
+    $service->shouldReceive('notifyOrder')
+        ->once()
+        ->andThrow(new InvalidArgumentException('This payment link is already paid. Notification was not sent.'));
+
+    actingAs($user)
+        ->from(route('admin.donations.show', $order))
+        ->post(route('admin.donations.payment-link.notify', [$order, 'email']))
+        ->assertRedirect(route('admin.donations.show', $order))
+        ->assertSessionHas('flash_tone', 'warning')
+        ->assertSessionHas('status', 'This payment link is already paid. Notification was not sent.');
 });
 
 it('exposes payment link email and sms delivery props on failed donation details', function () {
@@ -242,22 +268,10 @@ it('creates a missing payment link then notifies without dispatching whatsapp', 
         'payment_link_url' => null,
     ]);
 
-    $service = Mockery::mock(RazorpayPaymentLinkService::class);
-    $service->shouldReceive('createForOrder')
+    $service = mock(RazorpayPaymentLinkService::class);
+    $service->shouldReceive('notifyOrder')
         ->once()
-        ->andReturnUsing(function (DonationOrder $donationOrder) {
-            $donationOrder->forceFill([
-                'payment_link_id' => 'plink_created',
-                'payment_link_url' => 'https://rzp.io/i/created',
-            ])->save();
-
-            return $donationOrder->fresh();
-        });
-    $service->shouldReceive('notify')
-        ->once()
-        ->withArgs(function (DonationOrder $donationOrder, string $medium): bool {
-            return $donationOrder->payment_link_id === 'plink_created' && $medium === 'email';
-        });
+        ->withArgs(fn (DonationOrder $donationOrder, string $medium) => $donationOrder->id === $order->id && $medium === 'email');
 
     (new NotifyPaymentLinkJob($order->id, 'email'))->handle($service);
 

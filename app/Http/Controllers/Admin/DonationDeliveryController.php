@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Jobs\CreatePaymentLinkJob;
 use App\Jobs\LogDonationToSheetJob;
-use App\Jobs\NotifyPaymentLinkJob;
 use App\Jobs\SendCertificateWhatsAppJob;
 use App\Jobs\SendPaymentLinkWhatsAppJob;
 use App\Jobs\SendReceiptWhatsAppJob;
@@ -13,6 +12,7 @@ use App\Jobs\SendThankYouWhatsAppJob;
 use App\Models\DonationOrder;
 use App\Services\DonationWhatsAppPolicy;
 use App\Services\RazorpayPaymentLinkService;
+use Illuminate\Support\Facades\Log;
 
 class DonationDeliveryController extends Controller
 {
@@ -23,6 +23,14 @@ class DonationDeliveryController extends Controller
     public function resendPaymentLinkWhatsApp(DonationOrder $order)
     {
         $this->authorize('view', $order);
+
+        if ($order->isPaid()) {
+            return $this->redirectWithTone(
+                $order,
+                'This donation is already paid. Payment link WhatsApp was not sent.',
+                'warning',
+            );
+        }
 
         if (! $order->isFailed()) {
             return $this->redirectWithTone(
@@ -38,6 +46,21 @@ class DonationDeliveryController extends Controller
                 'Add a valid donor phone on this donation before sending WhatsApp.',
                 'warning',
             );
+        }
+
+        if (filled($order->payment_link_id)) {
+            try {
+                $paymentLinks = app(RazorpayPaymentLinkService::class);
+                $link = $paymentLinks->fetchPaymentLink($order->payment_link_id);
+                $paymentLinks->assertLinkIsOpen($link);
+            } catch (\InvalidArgumentException $exception) {
+                return $this->redirectWithTone($order, $exception->getMessage(), 'warning');
+            } catch (\Throwable $exception) {
+                Log::warning('Could not verify Razorpay payment link before WhatsApp', [
+                    'order_id' => $order->id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
         }
 
         if (! filled($order->payment_link_url)) {
@@ -70,6 +93,14 @@ class DonationDeliveryController extends Controller
             abort(404);
         }
 
+        if ($order->isPaid()) {
+            return $this->redirectWithTone(
+                $order,
+                'This donation is already paid. Payment link notification was not sent.',
+                'warning',
+            );
+        }
+
         if (! $order->isFailed()) {
             return $this->redirectWithTone(
                 $order,
@@ -96,17 +127,29 @@ class DonationDeliveryController extends Controller
             );
         }
 
-        NotifyPaymentLinkJob::dispatch($order->id, $medium);
-
         $label = $medium === RazorpayPaymentLinkService::MEDIUM_EMAIL ? 'email' : 'SMS';
-        $alreadySent = $medium === RazorpayPaymentLinkService::MEDIUM_EMAIL
-            ? filled($order->payment_link_email_sent_at)
-            : filled($order->payment_link_sms_sent_at);
 
-        $message = $alreadySent
-            ? "Payment link {$label} re-send queued. It will send when the queue worker runs."
-            : "Payment link {$label} queued. It will send when the queue worker runs.";
+        try {
+            // Run immediately so admin sees Razorpay errors without waiting on the queue worker.
+            $paymentLinks->notifyOrder($order, $medium);
+        } catch (\InvalidArgumentException $exception) {
+            toastr()->warning($exception->getMessage());
 
+            return $this->redirectWithTone($order, $exception->getMessage(), 'warning');
+        } catch (\Throwable $exception) {
+            Log::error('Admin payment link notify failed', [
+                'order_id' => $order->id,
+                'medium' => $medium,
+                'error' => $exception->getMessage(),
+            ]);
+
+            $message = "Payment link {$label} failed: ".$exception->getMessage();
+            toastr()->error($message);
+
+            return $this->redirectWithTone($order, $message, 'warning');
+        }
+
+        $message = "Payment link {$label} sent via Razorpay.";
         toastr()->success($message);
 
         return $this->redirectWithTone($order, $message);
