@@ -116,14 +116,19 @@ const delivery = computed(() => props.donation.delivery ?? {
     certificate_whatsapp: { status: 'not_sent', label: 'Not sent', at: null },
     receipt_whatsapp: { status: 'not_sent', label: 'Not sent', at: null },
     payment_link_whatsapp: { status: 'not_applicable', label: '—', at: null, url: null },
+    payment_link_email: { status: 'not_applicable', label: '—', at: null },
+    payment_link_sms: { status: 'not_applicable', label: '—', at: null },
     sheet: { status: 'not_logged', label: 'Not logged', at: null },
+    follow_up_sheet: { status: 'not_applicable', label: '—', at: null },
 });
 
 const isFailed = computed(() => Boolean(props.donation.is_failed));
 const isPaid = computed(() => Boolean(props.donation.is_paid));
 const showPaymentLink = computed(() => isFailed.value
     || Boolean(delivery.value.payment_link_whatsapp?.url)
-    || delivery.value.payment_link_whatsapp?.status === 'sent');
+    || delivery.value.payment_link_whatsapp?.status === 'sent'
+    || delivery.value.payment_link_email?.status === 'sent'
+    || delivery.value.payment_link_sms?.status === 'sent');
 
 const canResendEmail = computed(() => Boolean(props.donation.can_resend_receipt_email));
 const canResendSheet = computed(() => Boolean(props.donation.can_resend_sheet));
@@ -131,6 +136,8 @@ const canResendThankYou = computed(() => Boolean(props.donation.can_resend_thank
 const canResendCertificate = computed(() => Boolean(props.donation.can_resend_certificate_whatsapp));
 const canResendReceiptWhatsApp = computed(() => Boolean(props.donation.can_resend_receipt_whatsapp));
 const canResendPaymentLink = computed(() => Boolean(props.donation.can_resend_payment_link_whatsapp));
+const canNotifyPaymentLinkEmail = computed(() => Boolean(props.donation.can_notify_payment_link_email));
+const canNotifyPaymentLinkSms = computed(() => Boolean(props.donation.can_notify_payment_link_sms));
 
 const addressLine = computed(() => {
     const parts = [
@@ -226,6 +233,26 @@ const paymentLinkButtonLabel = computed(() => {
     return delivery.value.payment_link_whatsapp.status === 'sent'
         ? 'Resend payment link WhatsApp'
         : 'Send payment link WhatsApp';
+});
+
+const paymentLinkEmailButtonLabel = computed(() => {
+    if (queuingAction.value === 'payment_link_email') {
+        return 'Queuing…';
+    }
+
+    return delivery.value.payment_link_email?.status === 'sent'
+        ? 'Resend via Email'
+        : 'Send via Email';
+});
+
+const paymentLinkSmsButtonLabel = computed(() => {
+    if (queuingAction.value === 'payment_link_sms') {
+        return 'Queuing…';
+    }
+
+    return delivery.value.payment_link_sms?.status === 'sent'
+        ? 'Resend via SMS'
+        : 'Send via SMS';
 });
 </script>
 
@@ -386,6 +413,12 @@ const paymentLinkButtonLabel = computed(() => {
                         <p v-if="delivery.payment_link_whatsapp.at" class="text-xs text-muted-foreground">
                             WhatsApp sent {{ delivery.payment_link_whatsapp.at }}
                         </p>
+                        <p v-if="delivery.payment_link_email?.at" class="text-xs text-muted-foreground">
+                            Email sent {{ delivery.payment_link_email.at }}
+                        </p>
+                        <p v-if="delivery.payment_link_sms?.at" class="text-xs text-muted-foreground">
+                            SMS sent {{ delivery.payment_link_sms.at }}
+                        </p>
                         <a
                             v-if="delivery.payment_link_whatsapp.url || donation.payment_link_url"
                             :href="delivery.payment_link_whatsapp.url || donation.payment_link_url"
@@ -398,7 +431,7 @@ const paymentLinkButtonLabel = computed(() => {
                         <p v-else class="text-muted-foreground">No payment link created yet.</p>
                     </div>
 
-                    <div v-if="canManageReceipts && isFailed" class="mt-4 border-t border-border pt-3">
+                    <div v-if="canManageReceipts && isFailed" class="mt-4 space-y-2 border-t border-border pt-3">
                         <button
                             type="button"
                             class="w-full rounded-lg bg-foreground px-3 py-2 text-sm text-background disabled:cursor-not-allowed disabled:opacity-60"
@@ -407,8 +440,32 @@ const paymentLinkButtonLabel = computed(() => {
                         >
                             {{ paymentLinkButtonLabel }}
                         </button>
-                        <p v-if="!canResendPaymentLink" class="mt-2 text-xs text-rose-600">
+                        <div class="grid gap-2 sm:grid-cols-2">
+                            <button
+                                type="button"
+                                class="rounded-lg border border-border px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                                :disabled="!canNotifyPaymentLinkEmail || Boolean(queuingAction)"
+                                @click="queueDelivery('payment_link_email', donation.payment_link_notify_email_url, canNotifyPaymentLinkEmail)"
+                            >
+                                {{ paymentLinkEmailButtonLabel }}
+                            </button>
+                            <button
+                                type="button"
+                                class="rounded-lg border border-border px-3 py-2 text-sm text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                                :disabled="!canNotifyPaymentLinkSms || Boolean(queuingAction)"
+                                @click="queueDelivery('payment_link_sms', donation.payment_link_notify_sms_url, canNotifyPaymentLinkSms)"
+                            >
+                                {{ paymentLinkSmsButtonLabel }}
+                            </button>
+                        </div>
+                        <p v-if="!canResendPaymentLink" class="text-xs text-rose-600">
                             Add a valid donor phone before sending the payment link WhatsApp.
+                        </p>
+                        <p v-if="!canNotifyPaymentLinkEmail" class="text-xs text-rose-600">
+                            Add a valid donor email before sending the payment link email.
+                        </p>
+                        <p v-if="!canNotifyPaymentLinkSms" class="text-xs text-rose-600">
+                            Add a valid donor phone before sending the payment link SMS.
                         </p>
                     </div>
                 </section>
@@ -434,6 +491,32 @@ const paymentLinkButtonLabel = computed(() => {
                             </div>
                             <p v-if="delivery.payment_link_whatsapp.at" class="mt-1 text-xs opacity-80">
                                 {{ delivery.payment_link_whatsapp.at }}
+                            </p>
+                        </div>
+                        <div
+                            v-if="showPaymentLink"
+                            class="rounded-lg border px-3 py-2"
+                            :class="statusTone(delivery.payment_link_email?.status)"
+                        >
+                            <div class="flex items-center justify-between gap-2 text-sm font-medium">
+                                <span>Payment link email</span>
+                                <span>{{ delivery.payment_link_email?.label || '—' }}</span>
+                            </div>
+                            <p v-if="delivery.payment_link_email?.at" class="mt-1 text-xs opacity-80">
+                                {{ delivery.payment_link_email.at }}
+                            </p>
+                        </div>
+                        <div
+                            v-if="showPaymentLink"
+                            class="rounded-lg border px-3 py-2"
+                            :class="statusTone(delivery.payment_link_sms?.status)"
+                        >
+                            <div class="flex items-center justify-between gap-2 text-sm font-medium">
+                                <span>Payment link SMS</span>
+                                <span>{{ delivery.payment_link_sms?.label || '—' }}</span>
+                            </div>
+                            <p v-if="delivery.payment_link_sms?.at" class="mt-1 text-xs opacity-80">
+                                {{ delivery.payment_link_sms.at }}
                             </p>
                         </div>
                         <div class="rounded-lg border px-3 py-2" :class="statusTone(delivery.email.status)">
@@ -471,6 +554,19 @@ const paymentLinkButtonLabel = computed(() => {
                                 <span>{{ delivery.sheet.label }}</span>
                             </div>
                             <p v-if="delivery.sheet.at" class="mt-1 text-xs opacity-80">{{ delivery.sheet.at }}</p>
+                        </div>
+                        <div
+                            v-if="isFailed || delivery.follow_up_sheet?.status === 'logged'"
+                            class="rounded-lg border px-3 py-2"
+                            :class="statusTone(delivery.follow_up_sheet?.status)"
+                        >
+                            <div class="flex items-center justify-between gap-2 text-sm font-medium">
+                                <span>Follow-up sheet</span>
+                                <span>{{ delivery.follow_up_sheet?.label || '—' }}</span>
+                            </div>
+                            <p v-if="delivery.follow_up_sheet?.at" class="mt-1 text-xs opacity-80">
+                                {{ delivery.follow_up_sheet.at }}
+                            </p>
                         </div>
                     </div>
 

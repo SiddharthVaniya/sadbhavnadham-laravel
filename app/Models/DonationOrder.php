@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Jobs\LogFailedDonationFollowUpSheetJob;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -76,6 +77,7 @@ class DonationOrder extends Model
         'failed_at',
         'receipt_sent_at',
         'sheet_logged_at',
+        'failed_sheet_logged_at',
         'whatsapp_sent_at',
         'certificate_whatsapp_sent_at',
         'receipt_whatsapp_sent_at',
@@ -97,6 +99,8 @@ class DonationOrder extends Model
         'payment_link_id',
         'payment_link_url',
         'payment_link_sent_at',
+        'payment_link_email_sent_at',
+        'payment_link_sms_sent_at',
     ];
 
     protected $casts = [
@@ -111,6 +115,7 @@ class DonationOrder extends Model
         'receipt_sent_at' => 'datetime',
         'receipt_failed_at' => 'datetime',
         'sheet_logged_at' => 'datetime',
+        'failed_sheet_logged_at' => 'datetime',
         'whatsapp_sent_at' => 'datetime',
         'certificate_whatsapp_sent_at' => 'datetime',
         'receipt_whatsapp_sent_at' => 'datetime',
@@ -118,6 +123,8 @@ class DonationOrder extends Model
         'certificate_whatsapp_failed_at' => 'datetime',
         'receipt_whatsapp_failed_at' => 'datetime',
         'payment_link_sent_at' => 'datetime',
+        'payment_link_email_sent_at' => 'datetime',
+        'payment_link_sms_sent_at' => 'datetime',
         'receipt_notify_attempts' => 'integer',
         'sheet_notify_attempts' => 'integer',
         'whatsapp_notify_attempts' => 'integer',
@@ -235,6 +242,8 @@ class DonationOrder extends Model
             'status' => self::STATUS_FAILED,
             'failed_at' => now(),
         ]);
+
+        LogFailedDonationFollowUpSheetJob::dispatch($this);
     }
 
     /* ==========================

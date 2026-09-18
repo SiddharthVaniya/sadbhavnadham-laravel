@@ -11,6 +11,7 @@
 /.phpunit.cache
 /.vscode
 /.zed
+/.cursor/mcp.json
 /auth.json
 /public/build
 /public/vite

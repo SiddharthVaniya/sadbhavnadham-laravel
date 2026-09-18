@@ -7,6 +7,7 @@ use App\Models\DonationItem;
 use App\Models\DonationOrder;
 use App\Services\DonationAttributionService;
 use App\Services\DonationWhatsAppPolicy;
+use App\Services\RazorpayPaymentLinkService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class AdminInertiaData
@@ -272,13 +273,18 @@ class AdminInertiaData
 
     public static function recoveryRow(DonationOrder $order): array
     {
-        $canNudge = app(DonationWhatsAppPolicy::class)
+        $canNudgeWhatsApp = app(DonationWhatsAppPolicy::class)
             ->hasSendablePhoneNumber($order->donor_phone);
+        $canNudgeSms = $canNudgeWhatsApp;
+        $canNudgeEmail = app(RazorpayPaymentLinkService::class)
+            ->hasSendableEmail($order->donor_email);
 
         $nudgeLabel = 'Ready';
-        if (! $canNudge) {
+        if (! $canNudgeWhatsApp && ! $canNudgeEmail) {
+            $nudgeLabel = 'No contact';
+        } elseif (! $canNudgeWhatsApp) {
             $nudgeLabel = 'No phone';
-        } elseif ($order->payment_link_sent_at) {
+        } elseif ($order->payment_link_sent_at || $order->payment_link_email_sent_at || $order->payment_link_sms_sent_at) {
             $nudgeLabel = 'Sent';
         } elseif (filled($order->payment_link_url)) {
             $nudgeLabel = 'Link ready';
@@ -289,7 +295,12 @@ class AdminInertiaData
             'failed_at' => $order->failed_at?->format('d M Y, h:i A'),
             'payment_link_url' => $order->payment_link_url,
             'payment_link_sent_at' => $order->payment_link_sent_at?->format('d M Y, h:i A'),
-            'can_nudge' => $canNudge,
+            'payment_link_email_sent_at' => $order->payment_link_email_sent_at?->format('d M Y, h:i A'),
+            'payment_link_sms_sent_at' => $order->payment_link_sms_sent_at?->format('d M Y, h:i A'),
+            'can_nudge' => $canNudgeWhatsApp,
+            'can_nudge_whatsapp' => $canNudgeWhatsApp,
+            'can_nudge_email' => $canNudgeEmail,
+            'can_nudge_sms' => $canNudgeSms,
             'nudge_label' => $nudgeLabel,
             'show_url' => route('admin.donations.show', $order),
         ];

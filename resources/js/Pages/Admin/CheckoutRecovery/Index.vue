@@ -33,7 +33,14 @@ const selected = ref([]);
 
 const nudgeForm = useForm({
     order_ids: [],
+    channel: 'whatsapp',
 });
+
+const channelOptions = [
+    { value: 'whatsapp', label: 'WhatsApp' },
+    { value: 'email', label: 'Email (Razorpay)' },
+    { value: 'sms', label: 'SMS (Razorpay)' },
+];
 
 const columns = [
     { key: 'select', label: '', sortable: false },
@@ -47,7 +54,20 @@ const columns = [
 ];
 
 const rows = computed(() => props.orders.data ?? []);
-const selectableIds = computed(() => rows.value.filter((row) => row.can_nudge).map((row) => row.id));
+
+const rowCanNudge = (row) => {
+    if (nudgeForm.channel === 'email') {
+        return Boolean(row.can_nudge_email);
+    }
+
+    if (nudgeForm.channel === 'sms') {
+        return Boolean(row.can_nudge_sms ?? row.can_nudge);
+    }
+
+    return Boolean(row.can_nudge_whatsapp ?? row.can_nudge);
+};
+
+const selectableIds = computed(() => rows.value.filter((row) => rowCanNudge(row)).map((row) => row.id));
 const allSelected = computed(() => selectableIds.value.length > 0 && selectableIds.value.every((id) => selected.value.includes(id)));
 
 const durationChoices = computed(() =>
@@ -96,12 +116,14 @@ const nudgeSelected = () => {
         return;
     }
 
+    const channel = nudgeForm.channel;
     nudgeForm.order_ids = [...selected.value];
     nudgeForm.post(props.nudgeUrl, {
         preserveScroll: true,
         onSuccess: () => {
             selected.value = [];
             nudgeForm.reset();
+            nudgeForm.channel = channel;
         },
     });
 };
@@ -111,13 +133,23 @@ const nudgeOne = (id) => {
         return;
     }
 
+    const channel = nudgeForm.channel;
     nudgeForm.order_ids = [id];
     nudgeForm.post(props.nudgeUrl, {
         preserveScroll: true,
         onSuccess: () => {
             selected.value = selected.value.filter((rowId) => rowId !== id);
             nudgeForm.reset();
+            nudgeForm.channel = channel;
         },
+    });
+};
+
+const onChannelChange = () => {
+    selected.value = selected.value.filter((id) => {
+        const row = rows.value.find((item) => item.id === id);
+
+        return row ? rowCanNudge(row) : false;
     });
 };
 
@@ -134,15 +166,23 @@ const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN
             :subtitle="`${stats.total_count.toLocaleString()} abandoned checkouts · ${formatMoney(stats.total_amount)}`"
         >
             <template #actions>
-                <button
-                    v-if="canNudge"
-                    type="button"
-                    class="admin-btn-primary disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="selected.length === 0 || nudgeForm.processing"
-                    @click="nudgeSelected"
-                >
-                    Nudge selected ({{ selected.length }})
-                </button>
+                <div v-if="canNudge" class="flex flex-wrap items-center gap-2">
+                    <FormSelect
+                        v-model="nudgeForm.channel"
+                        label="Channel"
+                        class="min-w-[11rem]"
+                        :options="channelOptions"
+                        @update:model-value="onChannelChange"
+                    />
+                    <button
+                        type="button"
+                        class="admin-btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="selected.length === 0 || nudgeForm.processing"
+                        @click="nudgeSelected"
+                    >
+                        Nudge selected ({{ selected.length }})
+                    </button>
+                </div>
             </template>
         </PageHeader>
 
@@ -211,7 +251,7 @@ const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN
 
         <div class="mb-3 flex items-center justify-between gap-3">
             <p class="text-sm text-muted-foreground">
-                Shows unpaid checkouts older than 5 minutes. Pending checkouts are marked failed when nudged so payment links can be created.
+                Shows unpaid checkouts older than 5 minutes. Pending checkouts are marked failed when nudged so payment links can be created. Choose WhatsApp, email, or SMS before nudging.
             </p>
             <button
                 v-if="activeFilterCount > 0"
@@ -239,7 +279,7 @@ const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN
                     type="checkbox"
                     class="rounded border-border"
                     :checked="selected.includes(row.id)"
-                    :disabled="! canNudge || ! row.can_nudge"
+                    :disabled="! canNudge || ! rowCanNudge(row)"
                     :aria-label="`Select ${row.donor_name}`"
                     @change="toggleRow(row.id)"
                 >
@@ -248,6 +288,7 @@ const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN
                 <div class="min-w-0">
                     <div class="truncate font-medium text-foreground">{{ row.donor_name }}</div>
                     <div class="truncate text-xs text-muted-foreground">{{ row.donor_phone || 'No phone' }}</div>
+                    <div class="truncate text-xs text-muted-foreground">{{ row.donor_email || 'No email' }}</div>
                 </div>
             </template>
             <template #cell-total_amount="{ row }">
@@ -258,7 +299,9 @@ const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN
             </template>
             <template #cell-nudge_label="{ row }">
                 <span class="text-xs font-medium text-muted-foreground">{{ row.nudge_label }}</span>
-                <div v-if="row.payment_link_sent_at" class="text-[11px] text-muted-foreground">{{ row.payment_link_sent_at }}</div>
+                <div v-if="row.payment_link_sent_at" class="text-[11px] text-muted-foreground">WA {{ row.payment_link_sent_at }}</div>
+                <div v-if="row.payment_link_email_sent_at" class="text-[11px] text-muted-foreground">Email {{ row.payment_link_email_sent_at }}</div>
+                <div v-if="row.payment_link_sms_sent_at" class="text-[11px] text-muted-foreground">SMS {{ row.payment_link_sms_sent_at }}</div>
             </template>
             <template #cell-created="{ row }">
                 <div>{{ row.created_date }}</div>
@@ -267,7 +310,7 @@ const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN
             <template #cell-actions="{ row }">
                 <div class="flex items-center justify-end gap-2">
                     <button
-                        v-if="canNudge && row.can_nudge"
+                        v-if="canNudge && rowCanNudge(row)"
                         type="button"
                         class="text-xs font-medium text-foreground hover:text-foreground"
                         :disabled="nudgeForm.processing"

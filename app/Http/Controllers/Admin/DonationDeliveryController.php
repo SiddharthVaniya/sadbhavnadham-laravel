@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Jobs\CreatePaymentLinkJob;
 use App\Jobs\LogDonationToSheetJob;
+use App\Jobs\NotifyPaymentLinkJob;
 use App\Jobs\SendCertificateWhatsAppJob;
 use App\Jobs\SendPaymentLinkWhatsAppJob;
 use App\Jobs\SendReceiptWhatsAppJob;
 use App\Jobs\SendThankYouWhatsAppJob;
 use App\Models\DonationOrder;
 use App\Services\DonationWhatsAppPolicy;
+use App\Services\RazorpayPaymentLinkService;
 
 class DonationDeliveryController extends Controller
 {
@@ -52,6 +54,59 @@ class DonationDeliveryController extends Controller
         $message = $order->payment_link_sent_at
             ? 'Payment link WhatsApp re-send queued. It will send when the queue worker runs.'
             : 'Payment link WhatsApp queued. It will send when the queue worker runs.';
+        toastr()->success($message);
+
+        return $this->redirectWithTone($order, $message);
+    }
+
+    public function notifyPaymentLink(DonationOrder $order, string $medium)
+    {
+        $this->authorize('view', $order);
+
+        $medium = strtolower(trim($medium));
+        $paymentLinks = app(RazorpayPaymentLinkService::class);
+
+        if (! in_array($medium, RazorpayPaymentLinkService::mediums(), true)) {
+            abort(404);
+        }
+
+        if (! $order->isFailed()) {
+            return $this->redirectWithTone(
+                $order,
+                'Payment link notify is only available for failed donations.',
+                'warning',
+            );
+        }
+
+        if ($medium === RazorpayPaymentLinkService::MEDIUM_EMAIL
+            && ! $paymentLinks->hasSendableEmail($order->donor_email)) {
+            return $this->redirectWithTone(
+                $order,
+                'Add a valid donor email on this donation before sending the payment link email.',
+                'warning',
+            );
+        }
+
+        if ($medium === RazorpayPaymentLinkService::MEDIUM_SMS
+            && ! $this->donationWhatsAppPolicy->hasSendablePhoneNumber($order->donor_phone)) {
+            return $this->redirectWithTone(
+                $order,
+                'Add a valid donor phone on this donation before sending the payment link SMS.',
+                'warning',
+            );
+        }
+
+        NotifyPaymentLinkJob::dispatch($order->id, $medium);
+
+        $label = $medium === RazorpayPaymentLinkService::MEDIUM_EMAIL ? 'email' : 'SMS';
+        $alreadySent = $medium === RazorpayPaymentLinkService::MEDIUM_EMAIL
+            ? filled($order->payment_link_email_sent_at)
+            : filled($order->payment_link_sms_sent_at);
+
+        $message = $alreadySent
+            ? "Payment link {$label} re-send queued. It will send when the queue worker runs."
+            : "Payment link {$label} queued. It will send when the queue worker runs.";
+
         toastr()->success($message);
 
         return $this->redirectWithTone($order, $message);

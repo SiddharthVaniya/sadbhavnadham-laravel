@@ -338,6 +338,10 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::post('/donations/{order}/whatsapp/payment-link', [DonationDeliveryController::class, 'resendPaymentLinkWhatsApp'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::RECEIPT_RESEND_NOTIFICATIONS))
         ->name('donations.whatsapp.payment-link');
+    Route::post('/donations/{order}/payment-link/notify/{medium}', [DonationDeliveryController::class, 'notifyPaymentLink'])
+        ->whereIn('medium', ['email', 'sms'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::RECEIPT_RESEND_NOTIFICATIONS))
+        ->name('donations.payment-link.notify');
 
     Route::get('roles', [RoleController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::ROLE_MANAGE))

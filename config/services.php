@@ -33,6 +33,7 @@ return [
         'client_secret' => env('GOOGLE_CLIENT_SECRET'),
         'redirect_uri' => env('GOOGLE_REDIRECT_URI'),
         'sheet_id' => env('GOOGLE_SHEET_ID'),
+        'failed_sheet_id' => env('GOOGLE_FAILED_SHEET_ID'),
     ],
 
     'slack' => [

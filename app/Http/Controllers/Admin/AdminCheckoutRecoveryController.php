@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\CheckoutRecoveryIndexRequest;
 use App\Http\Requests\Admin\CheckoutRecoveryNudgeRequest;
 use App\Jobs\CreatePaymentLinkJob;
+use App\Jobs\NotifyPaymentLinkJob;
 use App\Jobs\SendPaymentLinkWhatsAppJob;
 use App\Models\DonationOrder;
 use App\Services\DonationWhatsAppPolicy;
+use App\Services\RazorpayPaymentLinkService;
 use App\Support\AdminInertiaData;
 use App\Support\DonationVisibility;
 use App\Support\PeriodRange;
@@ -86,6 +88,9 @@ class AdminCheckoutRecoveryController extends Controller
 
     public function nudge(CheckoutRecoveryNudgeRequest $request): RedirectResponse
     {
+        $channel = (string) $request->validated('channel', 'whatsapp');
+        $paymentLinks = app(RazorpayPaymentLinkService::class);
+
         $orders = DonationOrder::query()
             ->abandonedCheckouts()
             ->whereIn('id', $request->validated('order_ids'))
@@ -99,7 +104,14 @@ class AdminCheckoutRecoveryController extends Controller
         $skipped = 0;
 
         foreach ($orders as $order) {
-            if (! $this->donationWhatsAppPolicy->hasSendablePhoneNumber($order->donor_phone)) {
+            $canChannel = match ($channel) {
+                RazorpayPaymentLinkService::MEDIUM_EMAIL => $paymentLinks->hasSendableEmail($order->donor_email),
+                RazorpayPaymentLinkService::MEDIUM_SMS,
+                'whatsapp' => $this->donationWhatsAppPolicy->hasSendablePhoneNumber($order->donor_phone),
+                default => false,
+            };
+
+            if (! $canChannel) {
                 $skipped++;
 
                 continue;
@@ -116,10 +128,14 @@ class AdminCheckoutRecoveryController extends Controller
                 continue;
             }
 
-            if (! filled($order->payment_link_url)) {
-                CreatePaymentLinkJob::dispatch($order->id, true);
+            if ($channel === 'whatsapp') {
+                if (! filled($order->payment_link_url)) {
+                    CreatePaymentLinkJob::dispatch($order->id, true);
+                } else {
+                    SendPaymentLinkWhatsAppJob::dispatch($order->id, true);
+                }
             } else {
-                SendPaymentLinkWhatsAppJob::dispatch($order->id, true);
+                NotifyPaymentLinkJob::dispatch($order->id, $channel);
             }
 
             $queued++;
@@ -127,7 +143,7 @@ class AdminCheckoutRecoveryController extends Controller
 
         if ($queued === 0) {
             $message = $skipped > 0
-                ? 'No payment-link nudges were queued. Check donor phone numbers and checkout status.'
+                ? 'No payment-link nudges were queued. Check donor contact details and checkout status.'
                 : 'No matching abandoned checkouts were found.';
 
             toastr()->warning($message);
@@ -138,9 +154,15 @@ class AdminCheckoutRecoveryController extends Controller
                 ->with('flash_tone', 'warning');
         }
 
+        $channelLabel = match ($channel) {
+            RazorpayPaymentLinkService::MEDIUM_EMAIL => 'email',
+            RazorpayPaymentLinkService::MEDIUM_SMS => 'SMS',
+            default => 'WhatsApp',
+        };
+
         $message = $queued === 1
-            ? 'Payment-link nudge queued for 1 checkout.'
-            : "Payment-link nudges queued for {$queued} checkouts.";
+            ? "Payment-link {$channelLabel} nudge queued for 1 checkout."
+            : "Payment-link {$channelLabel} nudges queued for {$queued} checkouts.";
 
         if ($skipped > 0) {
             $message .= " Skipped {$skipped}.";

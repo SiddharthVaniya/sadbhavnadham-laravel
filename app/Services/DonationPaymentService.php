@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\CreatePaymentLinkJob;
 use App\Jobs\LogDonationToSheetJob;
+use App\Jobs\LogFailedDonationFollowUpSheetJob;
 use App\Jobs\SendCertificateWhatsAppJob;
 use App\Jobs\SendDonationReceiptJob;
 use App\Jobs\SendReceiptWhatsAppJob;
@@ -288,6 +289,7 @@ class DonationPaymentService
 
         dispatch(new CreatePaymentLinkJob($order->id, $immediate));
         dispatch(new LogDonationToSheetJob($order, 'failed'));
+        dispatch(new LogFailedDonationFollowUpSheetJob($order));
     }
 
     /* =====================================================

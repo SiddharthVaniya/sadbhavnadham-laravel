@@ -4,11 +4,10 @@ namespace App\Jobs;
 
 use App\Models\DonationOrder;
 use App\Models\Setting;
-use App\Support\RazorpayDonationLabels;
+use App\Services\RazorpayPaymentLinkService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Log;
-use Razorpay\Api\Api;
 use Throwable;
 
 class CreatePaymentLinkJob implements ShouldQueue
@@ -20,7 +19,7 @@ class CreatePaymentLinkJob implements ShouldQueue
         private bool $immediate = false,
     ) {}
 
-    public function handle(): void
+    public function handle(RazorpayPaymentLinkService $paymentLinks): void
     {
         $order = DonationOrder::with(['items.causeModel', 'items.package'])->find($this->orderId);
         if (! $order) {
@@ -63,64 +62,17 @@ class CreatePaymentLinkJob implements ShouldQueue
             return;
         }
 
-        $api = new Api(
-            config('payments.razorpay.key'),
-            config('payments.razorpay.secret')
-        );
-
-        $item = $order->items->first();
-        $cause = $item?->causeModel;
-        $package = $item?->package;
-        $contact = $this->razorpayContact($order->donor_phone);
-
         try {
-            $link = $api->paymentLink->create([
-                'amount' => (int) ($order->total_amount * 100),
-                'currency' => 'INR',
-                'accept_partial' => false,
-                'description' => $cause
-                    ? RazorpayDonationLabels::description($cause, $package)
-                    : \App\Support\Branding::paymentLinkDescription(),
-
-                'customer' => array_filter([
-                    'name' => $order->donor_name,
-                    'email' => $order->donor_email,
-                    'contact' => $contact,
-                ]),
-
-                'notes' => array_merge(
-                    $cause ? RazorpayDonationLabels::orderNotes($order, $cause, $package) : [
-                        'donation_order_id' => (string) $order->id,
-                    ],
-                    [
-                        'address' => trim(implode(', ', array_filter([
-                            $order->address,
-                            $order->city,
-                            $order->state,
-                            $order->pincode,
-                            $order->country,
-                        ]))),
-                        'city' => $order->city ?? '',
-                        'state' => $order->state ?? '',
-                        'pincode' => $order->pincode ?? '',
-                    ]
-                ),
-            ]);
+            $order = $paymentLinks->createForOrder($order);
         } catch (Throwable $exception) {
             Log::error('Payment link Razorpay create failed', [
                 'order_id' => $order->id,
                 'immediate' => $this->immediate,
-                'contact_suffix' => $contact ? substr($contact, -4) : null,
                 'error' => $exception->getMessage(),
             ]);
 
             throw $exception;
         }
-
-        $order->update([
-            'payment_link_id' => $link['id'],
-            'payment_link_url' => $link['short_url'] ?? $link['url'],
-        ]);
 
         Log::info('Payment link created', [
             'order_id' => $order->id,
@@ -152,16 +104,5 @@ class CreatePaymentLinkJob implements ShouldQueue
             'order_id' => $order->id,
             'force_send' => $this->immediate,
         ]);
-    }
-
-    private function razorpayContact(?string $phone): ?string
-    {
-        $digits = preg_replace('/\D+/', '', (string) $phone) ?? '';
-
-        if (strlen($digits) >= 10) {
-            return substr($digits, -10);
-        }
-
-        return $digits !== '' ? $digits : null;
     }
 }

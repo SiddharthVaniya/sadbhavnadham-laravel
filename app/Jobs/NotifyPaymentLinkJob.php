@@ -1,0 +1,62 @@
+<?php
+
+namespace App\Jobs;
+
+use App\Models\DonationOrder;
+use App\Services\RazorpayPaymentLinkService;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Facades\Log;
+use InvalidArgumentException;
+use Throwable;
+
+class NotifyPaymentLinkJob implements ShouldQueue
+{
+    use Queueable;
+
+    public function __construct(
+        private int $orderId,
+        private string $medium,
+    ) {}
+
+    public function handle(RazorpayPaymentLinkService $paymentLinks): void
+    {
+        $order = DonationOrder::with(['items.causeModel', 'items.package'])->find($this->orderId);
+        if (! $order) {
+            return;
+        }
+
+        if (! $order->isFailed()) {
+            Log::info('Payment link notify skipped', [
+                'order_id' => $order->id,
+                'reason' => 'not_failed',
+                'status' => $order->status,
+                'medium' => $this->medium,
+            ]);
+
+            return;
+        }
+
+        try {
+            if (! filled($order->payment_link_id) || ! filled($order->payment_link_url)) {
+                $order = $paymentLinks->createForOrder($order);
+            }
+
+            $paymentLinks->notify($order, $this->medium);
+        } catch (InvalidArgumentException $exception) {
+            Log::warning('Payment link notify skipped', [
+                'order_id' => $order->id,
+                'medium' => $this->medium,
+                'reason' => $exception->getMessage(),
+            ]);
+        } catch (Throwable $exception) {
+            Log::error('Payment link notify job failed', [
+                'order_id' => $order->id,
+                'medium' => $this->medium,
+                'error' => $exception->getMessage(),
+            ]);
+
+            throw $exception;
+        }
+    }
+}

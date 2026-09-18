@@ -17,6 +17,7 @@ use App\Models\User;
 use App\Models\WhatsappCampaignRun;
 use App\Services\DonationAttributionService;
 use App\Services\DonationWhatsAppPolicy;
+use App\Services\RazorpayPaymentLinkService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -653,11 +654,15 @@ class AdminInertiaResources
             'can_resend_certificate_whatsapp' => self::canResendDonationWhatsApp($order),
             'can_resend_receipt_whatsapp' => self::canResendDonationWhatsApp($order),
             'can_resend_payment_link_whatsapp' => self::canResendPaymentLinkWhatsApp($order),
+            'can_notify_payment_link_email' => self::canNotifyPaymentLinkEmail($order),
+            'can_notify_payment_link_sms' => self::canNotifyPaymentLinkSms($order),
             'sheet_resend_url' => route('admin.donations.sheet.resend', $order),
             'whatsapp_thank_you_url' => route('admin.donations.whatsapp.thank-you', $order),
             'whatsapp_certificate_url' => route('admin.donations.whatsapp.certificate', $order),
             'whatsapp_receipt_url' => route('admin.donations.whatsapp.receipt', $order),
             'whatsapp_payment_link_url' => route('admin.donations.whatsapp.payment-link', $order),
+            'payment_link_notify_email_url' => route('admin.donations.payment-link.notify', [$order, 'email']),
+            'payment_link_notify_sms_url' => route('admin.donations.payment-link.notify', [$order, 'sms']),
             'payment_link_url' => $order->payment_link_url,
             'payment_link_id' => $order->payment_link_id,
             'is_failed' => $order->isFailed(),
@@ -846,7 +851,10 @@ class AdminInertiaResources
      *     certificate_whatsapp: array{status: string, label: string, at: ?string},
      *     receipt_whatsapp: array{status: string, label: string, at: ?string},
      *     payment_link_whatsapp: array{status: string, label: string, at: ?string, url: ?string},
-     *     sheet: array{status: string, label: string, at: ?string}
+     *     payment_link_email: array{status: string, label: string, at: ?string},
+     *     payment_link_sms: array{status: string, label: string, at: ?string},
+     *     sheet: array{status: string, label: string, at: ?string},
+     *     follow_up_sheet: array{status: string, label: string, at: ?string}
      * }
      */
     public static function donationDeliveryStatus(DonationOrder $order): array
@@ -875,6 +883,35 @@ class AdminInertiaResources
             } else {
                 $paymentLinkStatus = 'not_sent';
                 $paymentLinkLabel = 'Not created';
+            }
+        }
+
+        $paymentLinkEmailStatus = 'not_applicable';
+        $paymentLinkEmailLabel = '—';
+        $paymentLinkSmsStatus = 'not_applicable';
+        $paymentLinkSmsLabel = '—';
+
+        if ($order->isFailed() || filled($order->payment_link_url) || filled($order->payment_link_email_sent_at) || filled($order->payment_link_sms_sent_at)) {
+            if ($order->payment_link_email_sent_at) {
+                $paymentLinkEmailStatus = 'sent';
+                $paymentLinkEmailLabel = 'Sent';
+            } elseif (filled($order->payment_link_url)) {
+                $paymentLinkEmailStatus = 'not_sent';
+                $paymentLinkEmailLabel = 'Not sent';
+            } else {
+                $paymentLinkEmailStatus = 'not_sent';
+                $paymentLinkEmailLabel = 'Not created';
+            }
+
+            if ($order->payment_link_sms_sent_at) {
+                $paymentLinkSmsStatus = 'sent';
+                $paymentLinkSmsLabel = 'Sent';
+            } elseif (filled($order->payment_link_url)) {
+                $paymentLinkSmsStatus = 'not_sent';
+                $paymentLinkSmsLabel = 'Not sent';
+            } else {
+                $paymentLinkSmsStatus = 'not_sent';
+                $paymentLinkSmsLabel = 'Not created';
             }
         }
 
@@ -907,11 +944,50 @@ class AdminInertiaResources
                 'at' => $order->payment_link_sent_at?->format('d M Y, h:i A'),
                 'url' => $order->payment_link_url,
             ],
+            'payment_link_email' => [
+                'status' => $paymentLinkEmailStatus,
+                'label' => $paymentLinkEmailLabel,
+                'at' => $order->payment_link_email_sent_at?->format('d M Y, h:i A'),
+            ],
+            'payment_link_sms' => [
+                'status' => $paymentLinkSmsStatus,
+                'label' => $paymentLinkSmsLabel,
+                'at' => $order->payment_link_sms_sent_at?->format('d M Y, h:i A'),
+            ],
             'sheet' => [
                 'status' => $order->sheet_logged_at ? 'logged' : 'not_logged',
                 'label' => $order->sheet_logged_at ? 'Logged' : 'Not logged',
                 'at' => $order->sheet_logged_at?->format('d M Y, h:i A'),
             ],
+            'follow_up_sheet' => self::followUpSheetStatus($order),
+        ];
+    }
+
+    /**
+     * @return array{status: string, label: string, at: ?string}
+     */
+    private static function followUpSheetStatus(DonationOrder $order): array
+    {
+        if ($order->failed_sheet_logged_at) {
+            return [
+                'status' => 'logged',
+                'label' => 'Logged',
+                'at' => $order->failed_sheet_logged_at->format('d M Y, h:i A'),
+            ];
+        }
+
+        if ($order->isFailed()) {
+            return [
+                'status' => 'not_logged',
+                'label' => 'Not logged',
+                'at' => null,
+            ];
+        }
+
+        return [
+            'status' => 'not_applicable',
+            'label' => '—',
+            'at' => null,
         ];
     }
 
@@ -925,6 +1001,24 @@ class AdminInertiaResources
     }
 
     private static function canResendPaymentLinkWhatsApp(DonationOrder $order): bool
+    {
+        if (! $order->isFailed()) {
+            return false;
+        }
+
+        return app(DonationWhatsAppPolicy::class)->hasSendablePhoneNumber($order->donor_phone);
+    }
+
+    private static function canNotifyPaymentLinkEmail(DonationOrder $order): bool
+    {
+        if (! $order->isFailed()) {
+            return false;
+        }
+
+        return app(RazorpayPaymentLinkService::class)->hasSendableEmail($order->donor_email);
+    }
+
+    private static function canNotifyPaymentLinkSms(DonationOrder $order): bool
     {
         if (! $order->isFailed()) {
             return false;
