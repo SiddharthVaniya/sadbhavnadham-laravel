@@ -993,7 +993,7 @@ class AdminInertiaResources
 
     private static function canResendDonationWhatsApp(DonationOrder $order): bool
     {
-        if (! $order->isPaid() || $order->payment_provider === DonationOrder::PROVIDER_RAZORPAY_QR) {
+        if (! $order->isPaid()) {
             return false;
         }
 

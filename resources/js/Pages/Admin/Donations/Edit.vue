@@ -96,8 +96,23 @@ const filteredPackages = computed(() => {
     return props.packages.filter((pkg) => String(pkg.cause_id) === String(form.cause_id));
 });
 const selectedPackage = computed(() => filteredPackages.value.find((pkg) => String(pkg.id) === String(form.cause_package_id)));
-const panCollectionEnabled = computed(() => Boolean(selectedCause.value?.pan_required));
-const showPanField = computed(() => canEditDonorDetails.value && panCollectionEnabled.value && panRequired.value);
+const panCollectionEnabled = computed(() => Boolean(selectedCause.value?.pan_required) || isQrDonation.value);
+const showPanField = computed(() => canEditDonorDetails.value && (isQrDonation.value || Boolean(selectedCause.value?.pan_required) || panRequired.value));
+const panFieldHint = computed(() => {
+    if (panRequirementHint.value) {
+        return panRequirementHint.value;
+    }
+
+    if (isQrDonation.value && !panRequired.value) {
+        return 'Optional. Enter the donor PAN card number if available.';
+    }
+
+    if (panRequired.value) {
+        return 'PAN is required for ₹1,00,000+ (single or FY total).';
+    }
+
+    return '';
+});
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const csrfToken = () => page.props.csrf_token
@@ -253,7 +268,12 @@ const setPanVisibility = (required, data = {}) => {
 };
 
 const syncPanRequirement = async () => {
-    if (!panCollectionEnabled.value) {
+    if (!canEditDonorDetails.value) {
+        setPanVisibility(false);
+        return;
+    }
+
+    if (!panCollectionEnabled.value && !isQrDonation.value) {
         setPanVisibility(false);
         return;
     }
@@ -434,10 +454,10 @@ const submit = () => form.put(`/admin/donations/${props.donation.uuid}`);
                     <FormInput
                         v-if="showPanField"
                         v-model="form.pan_number"
-                        label="PAN"
+                        :label="panRequired ? 'PAN card number' : 'PAN card number (optional)'"
                         :error="form.errors.pan_number"
                         :required="panRequired"
-                        :hint="panRequirementHint"
+                        :hint="panFieldHint"
                     />
                     <FormDatePicker
                         v-model="form.date_of_birth"

@@ -191,9 +191,7 @@ class DonationDeliveryController extends Controller
             );
         }
 
-        if (! $this->donationWhatsAppPolicy->hasSendablePhoneNumber($order->donor_phone)
-            || $order->payment_provider === DonationOrder::PROVIDER_RAZORPAY_QR
-        ) {
+        if (! $this->donationWhatsAppPolicy->hasSendablePhoneNumber($order->donor_phone)) {
             return $this->redirectWithTone(
                 $order,
                 'Add a valid donor phone on this donation before sending WhatsApp.',
@@ -221,9 +219,7 @@ class DonationDeliveryController extends Controller
             );
         }
 
-        if (! $this->donationWhatsAppPolicy->hasSendablePhoneNumber($order->donor_phone)
-            || $order->payment_provider === DonationOrder::PROVIDER_RAZORPAY_QR
-        ) {
+        if (! $this->donationWhatsAppPolicy->hasSendablePhoneNumber($order->donor_phone)) {
             return $this->redirectWithTone(
                 $order,
                 'Add a valid donor phone on this donation before sending WhatsApp.',
@@ -251,9 +247,7 @@ class DonationDeliveryController extends Controller
             );
         }
 
-        if (! $this->donationWhatsAppPolicy->hasSendablePhoneNumber($order->donor_phone)
-            || $order->payment_provider === DonationOrder::PROVIDER_RAZORPAY_QR
-        ) {
+        if (! $this->donationWhatsAppPolicy->hasSendablePhoneNumber($order->donor_phone)) {
             return $this->redirectWithTone(
                 $order,
                 'Add a valid donor phone on this donation before sending WhatsApp.',
