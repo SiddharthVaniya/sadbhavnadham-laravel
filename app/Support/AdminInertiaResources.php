@@ -666,6 +666,7 @@ class AdminInertiaResources
             'payment_link_url' => $order->payment_link_url,
             'payment_link_id' => $order->payment_link_id,
             'is_failed' => $order->isFailed(),
+            'is_pending' => $order->isPending(),
             'is_paid' => $order->isPaid(),
             'delivery' => self::donationDeliveryStatus($order),
             'source' => app(DonationAttributionService::class)->detailPayload($order),
@@ -873,7 +874,7 @@ class AdminInertiaResources
         $paymentLinkStatus = 'not_applicable';
         $paymentLinkLabel = '—';
 
-        if ($order->isFailed() || filled($order->payment_link_url) || filled($order->payment_link_sent_at)) {
+        if ($order->isFailed() || $order->isPending() || filled($order->payment_link_url) || filled($order->payment_link_sent_at)) {
             if ($order->payment_link_sent_at) {
                 $paymentLinkStatus = 'sent';
                 $paymentLinkLabel = 'Sent';
@@ -882,7 +883,7 @@ class AdminInertiaResources
                 $paymentLinkLabel = 'Link ready · not sent';
             } else {
                 $paymentLinkStatus = 'not_sent';
-                $paymentLinkLabel = 'Not created';
+                $paymentLinkLabel = $order->isPending() ? 'Pending · send link' : 'Not created';
             }
         }
 
@@ -1002,7 +1003,7 @@ class AdminInertiaResources
 
     private static function canResendPaymentLinkWhatsApp(DonationOrder $order): bool
     {
-        if (! $order->isFailed()) {
+        if (! $order->isFailed() && ! $order->isPending()) {
             return false;
         }
 

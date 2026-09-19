@@ -32,11 +32,11 @@ function createStalePendingOrder(array $overrides = []): DonationOrder
     return $order->fresh();
 }
 
-it('marks pending checkouts older than ten minutes as failed and queues payment link creation', function () {
+it('marks pending checkouts older than five minutes as failed and queues payment link creation', function () {
     Bus::fake();
 
     $order = createStalePendingOrder([
-        'created_at' => now()->subMinutes(11),
+        'created_at' => now()->subMinutes(6),
     ]);
 
     $this->artisan('donations:nudge-stale-pending')
@@ -61,7 +61,7 @@ it('processes newest stale pending orders first', function () {
         'donor_name' => 'Older Pending',
     ]);
     $newer = createStalePendingOrder([
-        'created_at' => now()->subMinutes(12),
+        'created_at' => now()->subMinutes(7),
         'donor_name' => 'Newer Pending',
     ]);
 
@@ -72,11 +72,11 @@ it('processes newest stale pending orders first', function () {
         ->and($older->refresh()->isPending())->toBeTrue();
 });
 
-it('does not convert pending checkouts younger than ten minutes', function () {
+it('does not convert pending checkouts younger than five minutes', function () {
     Bus::fake();
 
     $order = createStalePendingOrder([
-        'created_at' => now()->subMinutes(5),
+        'created_at' => now()->subMinutes(3),
     ]);
 
     $this->artisan('donations:nudge-stale-pending')
@@ -108,7 +108,7 @@ it('queues fail whatsapp when a stale pending order already has a payment link',
     Bus::fake();
 
     $order = createStalePendingOrder([
-        'created_at' => now()->subMinutes(12),
+        'created_at' => now()->subMinutes(7),
         'payment_link_id' => 'plink_existing',
         'payment_link_url' => 'https://rzp.io/i/existing',
     ]);

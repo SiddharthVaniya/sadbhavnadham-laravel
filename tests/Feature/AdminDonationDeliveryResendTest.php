@@ -233,6 +233,55 @@ it('queues payment link creation when failed donation has no link yet', function
     Bus::assertNotDispatched(SendPaymentLinkWhatsAppJob::class);
 });
 
+it('marks pending donations failed and queues payment link on send link instant', function () {
+    Bus::fake();
+
+    $user = createReceiptManager();
+    $order = createPaidDeliveryOrder([
+        'status' => DonationOrder::STATUS_PENDING,
+        'paid_at' => null,
+        'failed_at' => null,
+        'payment_link_id' => null,
+        'payment_link_url' => null,
+        'payment_link_sent_at' => null,
+    ]);
+
+    actingAs($user)
+        ->from(route('admin.donations.show', $order))
+        ->post(route('admin.donations.whatsapp.payment-link', $order))
+        ->assertRedirect(route('admin.donations.show', $order))
+        ->assertSessionHas('status');
+
+    $order->refresh();
+
+    expect($order->isFailed())->toBeTrue()
+        ->and($order->failed_at)->not->toBeNull();
+
+    Bus::assertDispatched(CreatePaymentLinkJob::class);
+    Bus::assertNotDispatched(SendPaymentLinkWhatsAppJob::class);
+});
+
+it('exposes send link for pending donation details', function () {
+    $user = createReceiptManager();
+    $order = createPaidDeliveryOrder([
+        'status' => DonationOrder::STATUS_PENDING,
+        'paid_at' => null,
+        'failed_at' => null,
+        'payment_link_url' => null,
+        'payment_link_sent_at' => null,
+    ]);
+
+    actingAs($user)
+        ->get(route('admin.donations.show', $order))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Admin/Donations/Show')
+            ->where('donation.is_pending', true)
+            ->where('donation.is_failed', false)
+            ->where('donation.can_resend_payment_link_whatsapp', true)
+            ->where('donation.delivery.payment_link_whatsapp.label', 'Pending · send link'));
+});
+
 it('exposes payment link delivery status on failed donation details', function () {
     $user = createReceiptManager();
     $order = createPaidDeliveryOrder([
