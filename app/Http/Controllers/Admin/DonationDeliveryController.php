@@ -32,10 +32,10 @@ class DonationDeliveryController extends Controller
             );
         }
 
-        if (! $order->isFailed()) {
+        if (! $order->isFailed() && ! $order->isPending()) {
             return $this->redirectWithTone(
                 $order,
-                'Payment link WhatsApp is only available for failed donations.',
+                'Payment link WhatsApp is only available for pending or failed donations.',
                 'warning',
             );
         }
@@ -46,6 +46,11 @@ class DonationDeliveryController extends Controller
                 'Add a valid donor phone on this donation before sending WhatsApp.',
                 'warning',
             );
+        }
+
+        if ($order->isPending()) {
+            $order->markAsFailed();
+            $order->refresh();
         }
 
         if (filled($order->payment_link_id)) {

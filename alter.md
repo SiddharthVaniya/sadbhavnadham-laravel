@@ -63,7 +63,8 @@ Behaviour (code + schedule only):
 
 - Command: `php artisan donations:nudge-stale-pending`
 - Schedule: every 5 minutes (`routes/console.php`)
-- Pending checkouts older than **10 minutes** (and within the last **7 days**) are marked **failed**, then payment-link + **fail** WhatsApp (`payment_failed_retry_payment`) is queued
+- Pending checkouts older than **5 minutes** (and within the last **7 days**) are marked **failed**, then payment-link + **fail** WhatsApp (`payment_failed_retry_payment`) is queued
+- Admin donation details also has **Send link instant** for pending orders (marks failed immediately and queues the same WhatsApp)
 
 Ensure cron / scheduler is running:
 

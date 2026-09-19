@@ -13,12 +13,12 @@ use Illuminate\Support\Facades\Log;
 class NudgeStalePendingDonationsCommand extends Command
 {
     protected $signature = 'donations:nudge-stale-pending
-                            {--minutes=10 : Pending checkouts older than this many minutes}
+                            {--minutes=5 : Pending checkouts older than this many minutes}
                             {--max-age-days=7 : Ignore pending older than this many days}
                             {--limit=50 : Max orders to process per run}
                             {--dry-run : List matches without marking failed or queueing jobs}';
 
-    protected $description = 'Mark stale pending checkouts as failed and queue payment-link fail WhatsApp';
+    protected $description = 'Mark stale pending checkouts as failed and queue payment-link fail WhatsApp (default after 5 minutes)';
 
     public function handle(DonationWhatsAppPolicy $donationWhatsAppPolicy): int
     {

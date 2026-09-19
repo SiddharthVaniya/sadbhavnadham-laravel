@@ -122,8 +122,10 @@ const delivery = computed(() => props.donation.delivery ?? {
 });
 
 const isFailed = computed(() => Boolean(props.donation.is_failed));
+const isPending = computed(() => Boolean(props.donation.is_pending));
 const isPaid = computed(() => Boolean(props.donation.is_paid));
 const showPaymentLink = computed(() => isFailed.value
+    || isPending.value
     || Boolean(delivery.value.payment_link_whatsapp?.url)
     || delivery.value.payment_link_whatsapp?.status === 'sent'
     || delivery.value.payment_link_email?.status === 'sent'
@@ -292,6 +294,10 @@ const generateReceipt = () => {
 const paymentLinkButtonLabel = computed(() => {
     if (queuingAction.value === 'payment_link') {
         return '…';
+    }
+
+    if (isPending.value) {
+        return 'Send link instant';
     }
 
     if (!delivery.value.payment_link_whatsapp?.url) {
@@ -558,9 +564,12 @@ const paymentLinkSmsButtonLabel = computed(() => {
                     </div>
 
                     <div
-                        v-else-if="canManageReceipts && isFailed"
+                        v-else-if="canManageReceipts && (isFailed || isPending)"
                         class="mt-3 space-y-2 border-t border-border pt-3"
                     >
+                        <p v-if="isPending" class="text-xs text-muted-foreground">
+                            Sends a Razorpay payment link on WhatsApp and marks this donation failed. Pending checkouts also get this link automatically after 5 minutes.
+                        </p>
                         <div
                             v-if="delivery.payment_link_whatsapp.url || donation.payment_link_url"
                             class="truncate text-xs"
@@ -583,22 +592,24 @@ const paymentLinkSmsButtonLabel = computed(() => {
                             >
                                 {{ paymentLinkButtonLabel }}
                             </button>
-                            <button
-                                type="button"
-                                class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
-                                :disabled="!canNotifyPaymentLinkEmail || Boolean(queuingAction)"
-                                @click="queueDelivery('payment_link_email', donation.payment_link_notify_email_url, canNotifyPaymentLinkEmail)"
-                            >
-                                {{ paymentLinkEmailButtonLabel }}
-                            </button>
-                            <button
-                                type="button"
-                                class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
-                                :disabled="!canNotifyPaymentLinkSms || Boolean(queuingAction)"
-                                @click="queueDelivery('payment_link_sms', donation.payment_link_notify_sms_url, canNotifyPaymentLinkSms)"
-                            >
-                                {{ paymentLinkSmsButtonLabel }}
-                            </button>
+                            <template v-if="isFailed">
+                                <button
+                                    type="button"
+                                    class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
+                                    :disabled="!canNotifyPaymentLinkEmail || Boolean(queuingAction)"
+                                    @click="queueDelivery('payment_link_email', donation.payment_link_notify_email_url, canNotifyPaymentLinkEmail)"
+                                >
+                                    {{ paymentLinkEmailButtonLabel }}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
+                                    :disabled="!canNotifyPaymentLinkSms || Boolean(queuingAction)"
+                                    @click="queueDelivery('payment_link_sms', donation.payment_link_notify_sms_url, canNotifyPaymentLinkSms)"
+                                >
+                                    {{ paymentLinkSmsButtonLabel }}
+                                </button>
+                            </template>
                         </div>
                     </div>
 
@@ -608,7 +619,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
                     <p v-else-if="canManageReceipts && isPaid && !canResendEmail" class="mt-2 text-xs text-rose-600">
                         Add a valid donor email before resending the receipt.
                     </p>
-                    <p v-else-if="canManageReceipts && isFailed && !canResendPaymentLink" class="mt-2 text-xs text-rose-600">
+                    <p v-else-if="canManageReceipts && (isFailed || isPending) && !canResendPaymentLink" class="mt-2 text-xs text-rose-600">
                         Add a valid donor phone before sending the payment link WhatsApp.
                     </p>
                 </section>
