@@ -147,7 +147,7 @@ class AdminStaffReferralsData
             'leaderboard' => $canViewAll
                 ? self::leaderboard($duration['start'], $duration['end'], $filters, $partnerCodes)
                 : [],
-            'donations' => AdminInertiaData::paginatedDonations($paginator),
+            'donations' => self::paginatedAttributedDonations($paginator),
             'filter_options' => self::filterOptions($canViewAll),
             'filters' => [
                 ...$filters,
@@ -589,6 +589,63 @@ class AdminStaffReferralsData
                 });
             });
         });
+    }
+
+    /**
+     * Partner attribution table: "Code" must show the tracking/partner code
+     * (sid), not the Meta ad name stored in utm_content.
+     *
+     * @return array{data: list<array<string, mixed>>, links: mixed, meta: array<string, mixed>}
+     */
+    private static function paginatedAttributedDonations(LengthAwarePaginator $paginator): array
+    {
+        $partnerCodesByUserId = User::query()
+            ->whereIn(
+                'id',
+                collect($paginator->items())
+                    ->pluck('partner_user_id')
+                    ->filter()
+                    ->unique()
+                    ->values()
+                    ->all(),
+            )
+            ->get(['id', 'referral_code'])
+            ->mapWithKeys(fn (User $user) => [
+                $user->id => StaffReferral::normalize($user->referral_code),
+            ]);
+
+        return [
+            'data' => collect($paginator->items())
+                ->flatMap(function (DonationOrder $order) use ($partnerCodesByUserId) {
+                    return collect(AdminInertiaData::donationTableRows($order))
+                        ->map(function (array $row) use ($order, $partnerCodesByUserId) {
+                            $trackingCode = filled($order->partner_code)
+                                ? (string) $order->partner_code
+                                : (
+                                    $order->partner_user_id
+                                        ? ($partnerCodesByUserId[$order->partner_user_id] ?? null)
+                                        : null
+                                );
+
+                            // Keep Meta ad name available; Code column reads utm_content.
+                            $row['ad_name'] = filled($order->utm_content) ? (string) $order->utm_content : null;
+                            $row['partner_code'] = $trackingCode;
+                            $row['utm_content'] = $trackingCode
+                                ?? (filled($order->utm_content) ? (string) $order->utm_content : null);
+
+                            return $row;
+                        });
+                })
+                ->values()
+                ->all(),
+            'links' => $paginator->linkCollection()->toArray(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
+                'total' => $paginator->total(),
+            ],
+        ];
     }
 
     public static function orderAttributionMatchesPartner(?string $utmContent, ?string $utmCampaign, User $partner): bool

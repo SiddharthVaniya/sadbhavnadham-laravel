@@ -372,6 +372,54 @@ it('attributes meta facebook donations to partner by name in utm fields', functi
             ->where('summary.revenue', 10));
 });
 
+it('shows partner tracking code not meta ad name in attributed donations Code column', function () {
+    $admin = referralsUser([
+        'view staff referrals',
+        'view all donations',
+    ]);
+
+    $pritesh = User::factory()->create([
+        'name' => 'Pritesh Rathod',
+        'referral_code' => 'pr',
+    ]);
+
+    DonationOrder::create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'ref-meta-pr-sid',
+        'donor_name' => 'piyush goswami',
+        'donor_email' => 'piyush@example.com',
+        'donor_phone' => '9876543210',
+        'currency' => 'INR',
+        'total_amount' => 1500,
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'partner_user_id' => $pritesh->id,
+        'partner_code' => 'pr',
+        'utm_source' => 'meta',
+        'utm_medium' => 'Pritesh_Rathod',
+        'utm_campaign' => 'Tree Plantation',
+        // Meta {{ad.name}} — must not appear as the partner "Code".
+        'utm_content' => 'Urvi | Sales | Vishal Fodder R | 200',
+    ]);
+
+    actingAs($admin)
+        ->get(route('admin.referrals.index', [
+            'duration' => 'all',
+            'partner_user_id' => $pritesh->id,
+        ]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('code', 'pr')
+            ->where('summary.paid_orders', 1)
+            ->where('summary.revenue', 1500)
+            ->where('donations.data.0.donor_name', 'piyush goswami')
+            ->where('donations.data.0.utm_content', 'pr')
+            ->where('donations.data.0.partner_code', 'pr')
+            ->where('donations.data.0.ad_name', 'Urvi | Sales | Vishal Fodder R | 200')
+            ->where('leaderboard.0.code', 'pr')
+            ->where('leaderboard.0.paid_orders', 1));
+});
+
 it('forbids users without the staff referrals permission', function () {
     $user = referralsUser(['view donations']);
 
