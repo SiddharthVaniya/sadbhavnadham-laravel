@@ -106,8 +106,8 @@ class DonationWhatsAppPolicy
     }
 
     /**
-     * QR/manual entries without a real phone get placeholder values such as
-     * "upi-a1b2c3" or "u-d4e5f6"; those must never receive WhatsApp messages.
+     * Auto-send on payment capture. Razorpay QR starts without a real donor
+     * phone, so it never auto-notifies; admins can still force-send after editing.
      */
     private function hasSendablePhone(DonationOrder $order): bool
     {

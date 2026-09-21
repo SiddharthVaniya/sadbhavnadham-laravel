@@ -257,6 +257,7 @@ it('lets admins complete donor details on a razorpay qr donation without changin
             'donor_name' => 'KamlaBen Rabari',
             'donor_email' => 'kamla@example.com',
             'donor_phone' => '9876501234',
+            'pan_number' => 'ABCDE1234F',
             'address' => 'Dabhoi Road, Vadodara',
             'pincode' => '390001',
             'city' => 'Vadodara',
@@ -274,6 +275,7 @@ it('lets admins complete donor details on a razorpay qr donation without changin
     expect($order->donor_name)->toBe('KamlaBen Rabari')
         ->and($order->donor_email)->toBe('kamla@example.com')
         ->and($order->donor_phone)->toBe('9876501234')
+        ->and($order->pan_number)->toBe('ABCDE1234F')
         ->and($order->city)->toBe('Vadodara')
         ->and($order->address)->toBe('Dabhoi Road, Vadodara')
         ->and((float) $order->total_amount)->toBe(3000.0)

@@ -4,6 +4,7 @@ use App\Jobs\CreatePaymentLinkJob;
 use App\Jobs\LogDonationToSheetJob;
 use App\Jobs\SendCertificateWhatsAppJob;
 use App\Jobs\SendPaymentLinkWhatsAppJob;
+use App\Jobs\SendReceiptWhatsAppJob;
 use App\Jobs\SendThankYouWhatsAppJob;
 use App\Models\DonationOrder;
 use App\Models\User;
@@ -82,6 +83,71 @@ it('queues thank-you and certificate whatsapp from donation details', function (
 
     Bus::assertDispatched(SendThankYouWhatsAppJob::class);
     Bus::assertDispatched(SendCertificateWhatsAppJob::class);
+});
+
+it('allows manual whatsapp and receipt send for completed razorpay qr donations', function () {
+    Bus::fake();
+
+    $user = createReceiptManager();
+    $order = createPaidDeliveryOrder([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY_QR,
+        'provider_order_id' => 'qr-pay_manual_wa_1',
+        'provider_payment_id' => 'pay_manual_wa_1',
+        'donor_phone' => '9879970092',
+    ]);
+
+    actingAs($user)
+        ->get(route('admin.donations.show', $order))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Admin/Donations/Show')
+            ->where('donation.provider', 'Razorpay QR')
+            ->where('donation.can_resend_thank_you_whatsapp', true)
+            ->where('donation.can_resend_certificate_whatsapp', true)
+            ->where('donation.can_resend_receipt_whatsapp', true));
+
+    actingAs($user)
+        ->from(route('admin.donations.show', $order))
+        ->post(route('admin.donations.whatsapp.thank-you', $order))
+        ->assertRedirect(route('admin.donations.show', $order))
+        ->assertSessionHas('status');
+
+    actingAs($user)
+        ->from(route('admin.donations.show', $order))
+        ->post(route('admin.donations.whatsapp.receipt', $order))
+        ->assertRedirect(route('admin.donations.show', $order))
+        ->assertSessionHas('status');
+
+    Bus::assertDispatched(SendThankYouWhatsAppJob::class);
+    Bus::assertDispatched(SendReceiptWhatsAppJob::class);
+});
+
+it('still blocks qr whatsapp when phone is a placeholder', function () {
+    Bus::fake();
+
+    $user = createReceiptManager();
+    $order = createPaidDeliveryOrder([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY_QR,
+        'provider_order_id' => 'qr-pay_placeholder_1',
+        'provider_payment_id' => 'pay_placeholder_1',
+        'donor_phone' => 'u-abc123def456',
+    ]);
+
+    actingAs($user)
+        ->get(route('admin.donations.show', $order))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('donation.can_resend_thank_you_whatsapp', false)
+            ->where('donation.can_resend_receipt_whatsapp', false));
+
+    actingAs($user)
+        ->from(route('admin.donations.show', $order))
+        ->post(route('admin.donations.whatsapp.receipt', $order))
+        ->assertRedirect(route('admin.donations.show', $order))
+        ->assertSessionHas('status', 'Add a valid donor phone on this donation before sending WhatsApp.')
+        ->assertSessionHas('flash_tone', 'warning');
+
+    Bus::assertNotDispatched(SendReceiptWhatsAppJob::class);
 });
 
 it('blocks whatsapp resend when donor phone is invalid', function () {
