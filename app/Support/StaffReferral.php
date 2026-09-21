@@ -82,6 +82,156 @@ class StaffReferral
     }
 
     /**
+     * Meta ad names often start with the marketer's first name before a pipe:
+     * e.g. "Urvi | Sales | Vishal Fodder R | 200".
+     *
+     * When that prefix uniquely matches a partner, it is stronger evidence than a
+     * mismatched sid on a shared/wrong destination URL.
+     */
+    public static function metaAdNamePrefix(?string $utmContent): ?string
+    {
+        $content = trim((string) $utmContent);
+
+        if ($content === '' || ! str_contains($content, '|')) {
+            return null;
+        }
+
+        $prefix = trim(explode('|', $content, 2)[0]);
+
+        if ($prefix === '' || mb_strlen($prefix) < 2) {
+            return null;
+        }
+
+        // Numeric / date prefixes like "12/08" are not partner names.
+        if (preg_match('/^[0-9]/', $prefix) === 1) {
+            return null;
+        }
+
+        return $prefix;
+    }
+
+    /**
+     * Resolve the partner uniquely identified by a Meta ad-name prefix, if any.
+     */
+    public static function partnerFromMetaAdNamePrefix(?string $utmContent): ?User
+    {
+        $prefix = self::metaAdNamePrefix($utmContent);
+
+        if ($prefix === null) {
+            return null;
+        }
+
+        $matches = User::query()
+            ->whereNotNull('referral_code')
+            ->where('referral_code', '!=', '')
+            ->get(['id', 'name', 'referral_code'])
+            ->filter(function (User $user) use ($prefix): bool {
+                $name = trim((string) $user->name);
+
+                if ($name === '') {
+                    return false;
+                }
+
+                if (strcasecmp($name, $prefix) === 0) {
+                    return true;
+                }
+
+                $firstName = trim(explode(' ', $name, 2)[0]);
+
+                return $firstName !== '' && strcasecmp($firstName, $prefix) === 0;
+            })
+            ->values();
+
+        return $matches->count() === 1 ? $matches->first() : null;
+    }
+
+    /**
+     * @param  \Illuminate\Database\Eloquent\Builder|\Illuminate\Database\Query\Builder  $query
+     */
+    public static function whereUtmContentMatchesPartnerAd($query, User $partner, string $column = 'utm_content'): void
+    {
+        $name = trim((string) $partner->name);
+        $firstName = $name !== '' ? trim(explode(' ', $name, 2)[0]) : '';
+
+        if ($firstName === '' || mb_strlen($firstName) < 2) {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+
+        $escaped = addcslashes($firstName, '%_\\');
+        $query->where(function ($builder) use ($column, $escaped): void {
+            $builder->where($column, 'like', $escaped.' |%')
+                ->orWhere($column, 'like', $escaped.'|%');
+        });
+    }
+
+    /**
+     * First names that uniquely identify one marketer for "Name | …" Meta ads.
+     *
+     * @return list<string>
+     */
+    public static function uniquePartnerAdNamePrefixes(): array
+    {
+        $firstNames = User::query()
+            ->whereNotNull('referral_code')
+            ->where('referral_code', '!=', '')
+            ->pluck('name')
+            ->map(function ($name) {
+                $trimmed = trim((string) $name);
+
+                if ($trimmed === '') {
+                    return null;
+                }
+
+                $first = trim(explode(' ', $trimmed, 2)[0]);
+
+                return mb_strlen($first) >= 2 ? $first : null;
+            })
+            ->filter()
+            ->values();
+
+        $counts = [];
+        foreach ($firstNames as $first) {
+            $key = mb_strtolower((string) $first);
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+        }
+
+        return $firstNames
+            ->filter(fn (string $first) => ($counts[mb_strtolower($first)] ?? 0) === 1)
+            ->unique(fn (string $first) => mb_strtolower($first))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Exclude rows whose Meta ad name clearly credits a known marketer
+     * (so sid=pr cannot claim an "Urvi | …" ad).
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder|\Illuminate\Database\Query\Builder  $query
+     */
+    public static function whereUtmContentNotForeignPartnerAd($query, string $column = 'utm_content'): void
+    {
+        $prefixes = self::uniquePartnerAdNamePrefixes();
+
+        if ($prefixes === []) {
+            return;
+        }
+
+        $query->where(function ($builder) use ($column, $prefixes): void {
+            $builder->whereNull($column)
+                ->orWhere($column, '')
+                ->orWhere(function ($inner) use ($column, $prefixes): void {
+                    foreach ($prefixes as $prefix) {
+                        $escaped = addcslashes($prefix, '%_\\');
+                        $inner->where($column, 'not like', $escaped.' |%')
+                            ->where($column, 'not like', $escaped.'|%');
+                    }
+                });
+        });
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function attributionQuery(string $code): array

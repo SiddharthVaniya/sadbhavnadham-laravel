@@ -144,26 +144,58 @@ it('keeps first-touch meta when a later employee link is opened', function () {
         ->and($order->attr_source)->toBe('meta');
 });
 
-it('keeps first-touch employee credit when a later meta link is opened', function () {
-    $partner = User::factory()->create(['referral_code' => 'ashvini']);
-    $order = auditOrder('audit-staff-then-meta');
+it('lets a later Meta ad click replace a prior WhatsApp/staff cookie touch', function () {
+    $staff = User::factory()->create(['referral_code' => 'pr', 'name' => 'Pritesh Rathod']);
+    $urvi = User::factory()->create(['referral_code' => 'cpufaju', 'name' => 'Urvi Soni']);
+    $order = auditOrder('audit-whatsapp-then-meta');
 
     checkoutWithCookie($order, [
         'utm_source' => 'meta',
-        'utm_medium' => 'paid_social',
-        'utm_campaign' => 'later-ad',
-        'utm_id' => '999',
-        'sid' => 'someone-else',
+        'utm_medium' => 'Instagram_Feed',
+        'utm_campaign' => 'Urvi |  Sales | CBO | Bull | 5x | 16/9/26',
+        'utm_content' => 'Urvi | Sales | Vishal Fodder R | 200',
+        'sid' => 'cpufaju',
+        'utm_id' => '120999',
+        'aid' => '120998',
     ], [
-        'utm_source' => 'staff',
-        'utm_medium' => 'referral',
-        'utm_content' => 'ashvini',
-        'sid' => 'ashvini',
+        'utm_source' => 'meta',
+        'utm_medium' => 'whatsapp',
+        'utm_campaign' => 'tree',
+        'sid' => 'pr',
+        'landing_path' => '/donate/tree-plantation',
     ]);
 
     $order->refresh();
 
-    expect($order->utm_source)->toBe('staff')
+    expect($order->partner_user_id)->toBe($urvi->id)
+        ->and($order->partner_code)->toBe('cpufaju')
+        ->and($order->utm_medium)->toBe('Instagram_Feed')
+        ->and($order->utm_campaign)->toBe('Urvi |  Sales | CBO | Bull | 5x | 16/9/26')
+        ->and($order->utm_content)->toBe('Urvi | Sales | Vishal Fodder R | 200')
+        ->and($staff->id)->not->toBe($order->partner_user_id);
+});
+
+it('keeps first-touch Meta when a later WhatsApp link without Meta placement arrives', function () {
+    $partner = User::factory()->create(['referral_code' => 'ashvini']);
+    $order = auditOrder('audit-meta-then-whatsapp');
+
+    checkoutWithCookie($order, [
+        'utm_source' => 'meta',
+        'utm_medium' => 'whatsapp',
+        'utm_campaign' => 'tree',
+        'sid' => 'someone-else',
+    ], [
+        'utm_source' => 'meta',
+        'utm_medium' => 'Instagram_Feed',
+        'utm_campaign' => 'first-meta',
+        'utm_content' => 'Ashvini | Retargeting',
+        'sid' => 'ashvini',
+        'utm_id' => '120211',
+    ]);
+
+    $order->refresh();
+
+    expect($order->utm_campaign)->toBe('first-meta')
         ->and($order->partner_user_id)->toBe($partner->id)
         ->and($order->partner_code)->toBe('ashvini');
 });
