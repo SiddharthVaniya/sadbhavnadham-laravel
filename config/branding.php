@@ -108,12 +108,12 @@ return [
     ],
 
     'bank' => [
-        'account_name' => env('BRAND_BANK_ACCOUNT_NAME', 'Manav Seva Cheritable Trust'),
-        'account_number' => env('BRAND_BANK_ACCOUNT_NUMBER', '065821010000069'),
-        'ifsc' => env('BRAND_BANK_IFSC', 'UBIN0906581'),
-        'bank_name' => env('BRAND_BANK_NAME', 'Union Bank of India'),
-        'branch' => env('BRAND_BANK_BRANCH', ''),
-        'account_type' => env('BRAND_BANK_ACCOUNT_TYPE', 'Current'),
+        'account_name' => env('BRAND_BANK_ACCOUNT_NAME', 'MANAV SEVA CHERITABLE TRUST'),
+        'account_number' => env('BRAND_BANK_ACCOUNT_NUMBER', '10196234882'),
+        'ifsc' => env('BRAND_BANK_IFSC', 'IDFB0042434'),
+        'bank_name' => env('BRAND_BANK_NAME', 'IDFC FIRST Bank'),
+        'branch' => env('BRAND_BANK_BRANCH', 'Rajkot Branch'),
+        'account_type' => env('BRAND_BANK_ACCOUNT_TYPE', 'Saving Account'),
         'upi_id' => env('BRAND_BANK_UPI_ID', ''),
         'note' => env(
             'BRAND_BANK_NOTE',
