@@ -60,19 +60,25 @@ if [ "${DEPLOY_ALLOW_MIGRATE:-0}" = "1" ] || [ "${DEPLOY_ALLOW_DOWNTIME:-0}" = "
     exit 1
 fi
 
-if git remote get-url github >/dev/null 2>&1; then
-    git remote set-url github "$GITHUB_URL"
-else
-    git remote add github "$GITHUB_URL"
+# Git must stay owned by APP_USER — root-owned .git/objects breaks fetch as app.
+if [ "$(id -un)" = "root" ] || [ "$(id -u)" -eq 0 ]; then
+    echo "==> Ensure .git owned by ${APP_USER}"
+    chown -R "${APP_USER}:${APP_USER}" .git
 fi
 
-if git remote get-url origin >/dev/null 2>&1; then
-    git remote set-url origin "$GITHUB_URL"
+if as_app git remote get-url github >/dev/null 2>&1; then
+    as_app git remote set-url github "$GITHUB_URL"
 else
-    git remote add origin "$GITHUB_URL"
+    as_app git remote add github "$GITHUB_URL"
 fi
 
-if ! git remote get-url "$REMOTE" >/dev/null 2>&1; then
+if as_app git remote get-url origin >/dev/null 2>&1; then
+    as_app git remote set-url origin "$GITHUB_URL"
+else
+    as_app git remote add origin "$GITHUB_URL"
+fi
+
+if ! as_app git remote get-url "$REMOTE" >/dev/null 2>&1; then
     REMOTE="origin"
 fi
 
