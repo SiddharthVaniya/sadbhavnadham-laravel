@@ -86,6 +86,10 @@ const pageTitle = computed(() => {
         return 'Complete QR donation details';
     }
 
+    if (canEditDonorDetails.value) {
+        return 'Edit donation details';
+    }
+
     return 'Edit donation cause';
 });
 const filteredPackages = computed(() => {
@@ -96,22 +100,18 @@ const filteredPackages = computed(() => {
     return props.packages.filter((pkg) => String(pkg.cause_id) === String(form.cause_id));
 });
 const selectedPackage = computed(() => filteredPackages.value.find((pkg) => String(pkg.id) === String(form.cause_package_id)));
-const panCollectionEnabled = computed(() => Boolean(selectedCause.value?.pan_required) || isQrDonation.value);
-const showPanField = computed(() => canEditDonorDetails.value && (isQrDonation.value || Boolean(selectedCause.value?.pan_required) || panRequired.value));
+const panCollectionEnabled = computed(() => Boolean(selectedCause.value?.pan_required) || canEditDonorDetails.value);
+const showPanField = computed(() => canEditDonorDetails.value);
 const panFieldHint = computed(() => {
     if (panRequirementHint.value) {
         return panRequirementHint.value;
     }
 
-    if (isQrDonation.value && !panRequired.value) {
+    if (!panRequired.value) {
         return 'Optional. Enter the donor PAN card number if available.';
     }
 
-    if (panRequired.value) {
-        return 'PAN is required for ₹1,00,000+ (single or FY total).';
-    }
-
-    return '';
+    return 'PAN is required for ₹1,00,000+ (single or FY total).';
 });
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -384,6 +384,13 @@ const submit = () => form.put(`/admin/donations/${props.donation.uuid}`);
             >
                 Fill donor and cause details here. Amount, payment ID, and receipt stay the same.
                 After saving, use Resend on the donation details page if you need to send the receipt.
+            </p>
+            <p
+                v-else-if="canEditDonorDetails && !canEditAmount"
+                class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"
+            >
+                You can update donor and cause details here. Amount, payment ID, and receipt stay the same.
+                After saving, use Resend on the donation details page if you need to send the receipt again.
             </p>
             <p
                 v-else-if="!canEditDonorDetails"

@@ -578,14 +578,15 @@ class AdminDonationController extends Controller
             $this->syncDonationItemCause($donationOrder, $request, updateAmounts: true);
             $message = 'Offline donation updated.';
             $redirect = redirect()->route('admin.donations.offline');
-        } elseif ($donationOrder->allowsAdminDonorEdit()) {
-            $this->updateDonationDonorDetails($request, $donationOrder);
-            $this->syncDonationItemCause($donationOrder, $request, updateAmounts: false);
-            $message = 'Donor details updated.';
-            $redirect = redirect()->route('admin.donations.show', $donationOrder);
         } else {
+            if ($this->requestIncludesDonorFields($request)) {
+                $this->updateDonationDonorDetails($request, $donationOrder);
+                $message = 'Donor details updated.';
+            } else {
+                $message = 'Donation cause updated.';
+            }
+
             $this->syncDonationItemCause($donationOrder, $request, updateAmounts: false);
-            $message = 'Donation cause updated.';
             $redirect = redirect()->route('admin.donations.show', $donationOrder);
         }
 
@@ -630,7 +631,15 @@ class AdminDonationController extends Controller
     private function updateDonationDonorDetails(UpdateDonationOrderRequest $request, DonationOrder $donationOrder): void
     {
         $donorSnapshot = $this->donorSnapshotFromRequest($request);
-        $donor = $this->resolveDonorFromSnapshot($donorSnapshot);
+        $donor = $this->resolveDonorFromSnapshot([
+            ...$donorSnapshot,
+            'donor_email' => $donorSnapshot['donor_email'] !== ''
+                ? $donorSnapshot['donor_email']
+                : (string) ($donationOrder->donor_email ?? ''),
+            'donor_phone' => $donorSnapshot['donor_phone'] !== ''
+                ? $donorSnapshot['donor_phone']
+                : (string) ($donationOrder->donor_phone ?? ''),
+        ]);
 
         $donationOrder->update([
             'donor_id' => $donor?->id ?? $donationOrder->donor_id,
@@ -648,6 +657,22 @@ class AdminDonationController extends Controller
             'country' => $donorSnapshot['country'],
             'donor_country_code' => $donorSnapshot['donor_country_code'],
         ]);
+    }
+
+    private function requestIncludesDonorFields(UpdateDonationOrderRequest $request): bool
+    {
+        return $request->exists('donor_name')
+            || $request->exists('donor_email')
+            || $request->exists('donor_phone')
+            || $request->exists('phone_dial_code')
+            || $request->exists('pan_number')
+            || $request->exists('date_of_birth')
+            || $request->exists('address')
+            || $request->exists('pincode')
+            || $request->exists('city')
+            || $request->exists('state')
+            || $request->exists('country')
+            || $request->exists('donor_country_code');
     }
 
     /**

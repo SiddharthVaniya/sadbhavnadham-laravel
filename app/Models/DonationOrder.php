@@ -271,13 +271,13 @@ class DonationOrder extends Model
         return str_starts_with((string) $this->provider_order_id, 'manual-');
     }
 
+    /**
+     * Paid donations may have donor contact corrected by admin.
+     * Amount / payment IDs stay locked unless this is a manual offline entry.
+     */
     public function allowsAdminDonorEdit(): bool
     {
-        if ($this->isManualAdminEntry()) {
-            return true;
-        }
-
-        return $this->payment_provider === self::PROVIDER_RAZORPAY_QR;
+        return $this->isPaid();
     }
 
     public function allowsAdminAmountEdit(): bool

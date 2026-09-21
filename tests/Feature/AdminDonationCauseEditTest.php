@@ -345,7 +345,64 @@ it('lets admins fully edit a manual danamojo offline donation', function () {
         ->and((float) $order->total_amount)->toBe(3500.0);
 });
 
-it('does not update donor details when editing a normal razorpay donation', function () {
+it('lets admins update donor details on a normal razorpay donation without changing amount', function () {
+    $user = createDonationEditAdmin();
+    $order = createPaidDonationForCauseEdit(DonationOrder::PROVIDER_RAZORPAY, [
+        'donor_name' => 'Online Donor',
+        'donor_email' => 'online@example.com',
+        'donor_phone' => '9876543211',
+        'city' => 'Rajkot',
+        'address' => 'Old Street',
+        'pan_number' => null,
+    ]);
+    $newCause = Cause::factory()->create([
+        'is_active' => true,
+        'title' => 'Tree Plantation',
+        'slug' => 'tree-plantation',
+    ]);
+
+    $this->actingAs($user)
+        ->get(route('admin.donations.edit', $order))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->where('donation.can_edit_donor_details', true)
+            ->where('donation.can_edit_amount', false));
+
+    $this->actingAs($user)
+        ->put(route('admin.donations.update', $order), [
+            'cause_id' => $newCause->id,
+            'donor_name' => 'Corrected Donor',
+            'donor_email' => 'corrected@example.com',
+            'donor_phone' => '9000000000',
+            'phone_dial_code' => '91',
+            'donor_country_code' => 'IN',
+            'address' => 'New Address Lane',
+            'pincode' => '400001',
+            'city' => 'Mumbai',
+            'state' => 'Maharashtra',
+            'country' => 'INDIA',
+            'pan_number' => 'ABCDE1234F',
+        ])
+        ->assertSessionHasNoErrors()
+        ->assertRedirect(route('admin.donations.show', $order));
+
+    $order->refresh();
+
+    expect($order->donor_name)->toBe('Corrected Donor')
+        ->and($order->donor_email)->toBe('corrected@example.com')
+        ->and($order->donor_phone)->toBe('9000000000')
+        ->and($order->city)->toBe('Mumbai')
+        ->and($order->address)->toBe('New Address Lane')
+        ->and($order->pan_number)->toBe('ABCDE1234F')
+        ->and((float) $order->total_amount)->toBe(1000.0)
+        ->and((int) $order->receipt_number)->toBe(701)
+        ->and($order->provider_payment_id)->toBe('pay_razorpay_1')
+        ->and($order->items->first()->cause_id)->toBe($newCause->id);
+
+    Bus::assertDispatched(UpdateDonationOnSheetJob::class);
+});
+
+it('keeps existing donor details when only cause is changed on a razorpay donation', function () {
     $user = createDonationEditAdmin();
     $order = createPaidDonationForCauseEdit(DonationOrder::PROVIDER_RAZORPAY, [
         'donor_name' => 'Online Donor',
@@ -360,19 +417,8 @@ it('does not update donor details when editing a normal razorpay donation', func
     ]);
 
     $this->actingAs($user)
-        ->get(route('admin.donations.edit', $order))
-        ->assertOk()
-        ->assertInertia(fn ($page) => $page
-            ->where('donation.can_edit_donor_details', false)
-            ->where('donation.can_edit_amount', false));
-
-    $this->actingAs($user)
         ->put(route('admin.donations.update', $order), [
             'cause_id' => $newCause->id,
-            'donor_name' => 'Hacked Name',
-            'donor_email' => 'hacked@example.com',
-            'donor_phone' => '9000000000',
-            'city' => 'Mumbai',
         ])
         ->assertRedirect(route('admin.donations.show', $order));
 
