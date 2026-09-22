@@ -85,29 +85,41 @@ class DonationCertificateService
         $dateConfig = (array) config('donation.certificate.date', []);
         $nameFontWeight = $this->certificateNameFontWeight($nameConfig);
         $nameLayout = $this->certificateNameLayout($donorName, $pageWidthPt, $nameConfig);
+        $nameTopPercent = $this->certificateNameTopPercent($order, $nameConfig);
+        $latinDonorName = $this->donorNameUsesLatinScript($donorName);
+        $nameFontFamily = $latinDonorName
+            ? 'DejaVu Sans, sans-serif'
+            : '"noto sans gujarati", "Noto Sans Gujarati", DejaVu Sans, sans-serif';
 
         $pdf = Pdf::loadView('certificates.sanman-patra', [
             'donorName' => $donorName,
             'dateValue' => $dateValue,
             'dateLine' => $this->formattedDateLine($order),
-            'templateImage' => 'data:image/jpeg;base64,'.base64_encode(File::get($templatePath)),
+            // Text-only overlay: never send the artwork through DomPDF (it shifts CMYK/JPEG colors).
+            'templateImage' => null,
             'pageWidthPt' => $pageWidthPt,
             'pageHeightPt' => $pageHeightPt,
-            'nameTopPercent' => (float) ($nameConfig['top_percent'] ?? 60.8),
+            'nameTopPercent' => $nameTopPercent,
             'nameSizePt' => $nameLayout['size_pt'],
             'nameMaxWidthPt' => $nameLayout['max_width_pt'],
             'nameWrap' => $nameLayout['wrap'],
-            'nameColor' => $this->normalizeCertificateColor((string) ($nameConfig['color'] ?? ''), '#8B1538'),
+            'nameColor' => $this->normalizeCertificateColor((string) ($nameConfig['color'] ?? ''), '#2d3253'),
             'nameFontWeight' => $nameFontWeight,
-            'dateBottomPt' => (float) ($dateConfig['bottom_pt'] ?? 52),
-            'dateBoxHeightPt' => (float) ($dateConfig['box_height_pt'] ?? 34),
-            'dateSizePt' => (float) ($dateConfig['size_pt'] ?? 20),
-            'dateColor' => $this->normalizeCertificateColor((string) ($dateConfig['color'] ?? ''), '#ffffff'),
+            'nameFontFamily' => $nameFontFamily,
+            'dateBottomPt' => (float) ($dateConfig['bottom_pt'] ?? 30),
+            'dateBoxHeightPt' => (float) ($dateConfig['box_height_pt'] ?? 22),
+            'dateSizePt' => (float) ($dateConfig['size_pt'] ?? 12),
+            'dateColor' => $this->normalizeCertificateColor((string) ($dateConfig['color'] ?? ''), '#0B1F6B'),
+            'dateAlign' => $this->normalizeCertificateDateAlign((string) ($dateConfig['align'] ?? 'left')),
+            'dateLeftPercent' => (float) ($dateConfig['left_percent'] ?? 17),
+            'dateWidthPercent' => (float) ($dateConfig['width_percent'] ?? 22),
+            'datePaddingLeftPt' => (float) ($dateConfig['padding_left_pt'] ?? 0),
+            'datePaddingRightPt' => (float) ($dateConfig['padding_right_pt'] ?? 0),
         ])->setPaper([0, 0, $pageWidthPt, $pageHeightPt])->setOptions([
             'isRemoteEnabled' => true,
             'fontDir' => $fontDir,
             'fontCache' => $fontCache,
-            'defaultFont' => 'noto sans gujarati',
+            'defaultFont' => $latinDonorName ? 'dejavu sans' : 'noto sans gujarati',
             // Subsetting drops Gujarati glyphs (તારીખ → boxes); keep the full font embedded.
             'isFontSubsettingEnabled' => false,
             'margin_left' => 0,
@@ -131,18 +143,23 @@ class DonationCertificateService
         }
 
         $tempPdfPath .= '.pdf';
+        $tempOverlayPath = sys_get_temp_dir().'/sanman-overlay-'.$order->id.'-'.uniqid('', true).'.png';
 
         try {
             File::put($tempPdfPath, $pdf->output());
 
-            if (! $this->convertPdfToPng($tempPdfPath, $pngAbsolutePath, $pixelWidth, $pixelHeight)) {
-                if (File::exists($pngAbsolutePath)) {
-                    File::delete($pngAbsolutePath);
-                }
-
+            if (! $this->convertPdfToPng($tempPdfPath, $tempOverlayPath, $pixelWidth, $pixelHeight)) {
                 Log::warning('Donation certificate PNG conversion unavailable', [
                     'order_id' => $order->id,
                     'hint' => 'Install the PHP imagick extension, Poppler pdftoppm, or Ghostscript to generate certificate images.',
+                ]);
+
+                return null;
+            }
+
+            if (! $this->compositeNameOntoTemplate($templatePath, $tempOverlayPath, $pngAbsolutePath)) {
+                Log::warning('Donation certificate template composite failed', [
+                    'order_id' => $order->id,
                 ]);
 
                 return null;
@@ -155,6 +172,10 @@ class DonationCertificateService
         } finally {
             if (File::exists($tempPdfPath)) {
                 File::delete($tempPdfPath);
+            }
+
+            if (File::exists($tempOverlayPath)) {
+                File::delete($tempOverlayPath);
             }
         }
     }
@@ -206,7 +227,26 @@ class DonationCertificateService
             return 'Donor';
         }
 
-        return mb_convert_case($name, MB_CASE_TITLE, 'UTF-8');
+        // Keep form script: English stays English, Gujarati stays Gujarati.
+        if ($this->donorNameUsesLatinScript($name)) {
+            return mb_convert_case($name, MB_CASE_TITLE, 'UTF-8');
+        }
+
+        return $name;
+    }
+
+    /**
+     * True when the form name is Latin/English letters (no Gujarati/Indic script).
+     */
+    public function donorNameUsesLatinScript(string $name): bool
+    {
+        $name = trim($name);
+
+        if ($name === '') {
+            return true;
+        }
+
+        return preg_match('/^[\p{Latin}0-9\s\.\'\-\(\)&,+\/]+$/u', $name) === 1;
     }
 
     public function formattedDateLine(DonationOrder $order): string
@@ -244,6 +284,22 @@ class DonationCertificateService
     public function certificateLocale(DonationOrder $order): string
     {
         return $this->usesGujaratiCertificate($order) ? 'gu' : 'en';
+    }
+
+    /**
+     * English artwork gold underline sits higher (~63%) than Gujarati (~66%).
+     *
+     * @param  array<string, mixed>|null  $nameConfig
+     */
+    public function certificateNameTopPercent(DonationOrder $order, ?array $nameConfig = null): float
+    {
+        $nameConfig ??= (array) config('donation.certificate.name', []);
+
+        if ($this->usesGujaratiCertificate($order)) {
+            return (float) ($nameConfig['top_percent'] ?? 61.5);
+        }
+
+        return (float) ($nameConfig['top_percent_english'] ?? 61.5);
     }
 
     private function datePrefix(DonationOrder $order): string
@@ -401,6 +457,13 @@ class DonationCertificateService
         return $color;
     }
 
+    private function normalizeCertificateDateAlign(string $align): string
+    {
+        $align = strtolower(trim($align));
+
+        return in_array($align, ['left', 'center', 'right'], true) ? $align : 'left';
+    }
+
     private function ensureDompdfGujaratiFont(string $fontPath, ?string $boldFontPath = null): void
     {
         $fontDir = dirname($fontPath);
@@ -481,7 +544,15 @@ class DonationCertificateService
             $base = 'https://'.substr($base, 7);
         }
 
-        return $base.'/storage/'.ltrim(str_replace('\\', '/', $relativePath), '/');
+        $url = $base.'/storage/'.ltrim(str_replace('\\', '/', $relativePath), '/');
+        $absolutePath = Storage::disk('public')->path($relativePath);
+
+        // Nginx caches /storage for years; bust so regenerated certificates show immediately.
+        if (is_file($absolutePath)) {
+            $url .= '?v='.filemtime($absolutePath);
+        }
+
+        return $url;
     }
 
     private function whatsappStoragePath(DonationOrder $order): string
@@ -592,6 +663,117 @@ class DonationCertificateService
         return File::lastModified($templatePath) > File::lastModified($certificatePath);
     }
 
+    /**
+     * Convert print CMYK templates to sRGB once, keeping the embedded ICC profile
+     * during transform so greens/golds match the source artwork.
+     */
+    private function preparedSrgbTemplatePath(string $templatePath): ?string
+    {
+        if (! extension_loaded('imagick') || ! File::exists($templatePath)) {
+            return null;
+        }
+
+        $cacheDir = storage_path('app/certificate-template-cache');
+        File::ensureDirectoryExists($cacheDir);
+
+        $cachePath = $cacheDir.'/'.hash(
+            'sha256',
+            $templatePath.'|'.File::lastModified($templatePath).'|'.File::size($templatePath).'|srgb-v2'
+        ).'.png';
+
+        if (File::exists($cachePath)) {
+            return $cachePath;
+        }
+
+        try {
+            $imagick = new \Imagick($templatePath);
+
+            if ($imagick->getImageColorspace() === \Imagick::COLORSPACE_CMYK
+                || count($imagick->getImageProfiles('icc', false)) > 0) {
+                $imagick->transformImageColorspace(\Imagick::COLORSPACE_SRGB);
+            }
+
+            $imagick->setImageColorspace(\Imagick::COLORSPACE_SRGB);
+            $imagick->setImageDepth(8);
+            $imagick->setImageFormat('png');
+            $imagick->stripImage();
+            $imagick->writeImage($cachePath);
+            $imagick->clear();
+            $imagick->destroy();
+
+            return File::exists($cachePath) ? $cachePath : null;
+        } catch (\Throwable $exception) {
+            Log::warning('Certificate template sRGB conversion failed', [
+                'template' => $templatePath,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    /**
+     * Keep artwork pixels identical to the source template. DomPDF only renders
+     * the donor name on white; near-white pixels are discarded and the rest is
+     * composited onto the original template.
+     */
+    private function compositeNameOntoTemplate(string $templatePath, string $overlayPngPath, string $outputPngPath): bool
+    {
+        if (! extension_loaded('imagick') || ! File::exists($overlayPngPath)) {
+            return false;
+        }
+
+        $basePath = $this->preparedSrgbTemplatePath($templatePath) ?? $templatePath;
+
+        if (! File::exists($basePath)) {
+            return false;
+        }
+
+        try {
+            $base = new \Imagick($basePath);
+            $base->setImageColorspace(\Imagick::COLORSPACE_SRGB);
+            $base->setImageDepth(8);
+
+            $overlay = new \Imagick($overlayPngPath);
+            $overlay->setImageColorspace(\Imagick::COLORSPACE_SRGB);
+            $overlay->setImageDepth(8);
+
+            $width = $base->getImageWidth();
+            $height = $base->getImageHeight();
+
+            if ($overlay->getImageWidth() !== $width || $overlay->getImageHeight() !== $height) {
+                $overlay->resizeImage($width, $height, \Imagick::FILTER_LANCZOS, 1);
+            }
+
+            // Knock out the white DomPDF page so only name ink remains.
+            $overlay->transparentPaintImage(
+                new \ImagickPixel('white'),
+                0.0,
+                0.12 * \Imagick::getQuantum(),
+                false,
+            );
+
+            $base->compositeImage($overlay, \Imagick::COMPOSITE_OVER, 0, 0);
+            $base->setImageFormat('png');
+            $base->setImageDepth(8);
+            $base->writeImage($outputPngPath);
+
+            $overlay->clear();
+            $overlay->destroy();
+            $base->clear();
+            $base->destroy();
+
+            return File::exists($outputPngPath);
+        } catch (\Throwable $exception) {
+            Log::warning('Certificate name composite failed', [
+                'template' => $templatePath,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
     private function convertPdfToPng(string $pdfPath, string $pngPath, int $width, int $height): bool
     {
         if ($this->convertPdfToPngWithImagick($pdfPath, $pngPath, $width, $height)) {
@@ -618,6 +800,8 @@ class DonationCertificateService
             $imagick->readImage($pdfPath.'[0]');
             $imagick->setImageBackgroundColor('white');
             $imagick = $imagick->mergeImageLayers(\Imagick::LAYERMETHOD_FLATTEN);
+            $imagick->transformImageColorspace(\Imagick::COLORSPACE_SRGB);
+            $imagick->setImageDepth(8);
             $imagick->setImageFormat('png');
             $imagick->resizeImage($width, $height, \Imagick::FILTER_LANCZOS, 1);
             $imagick->writeImage($pngPath);

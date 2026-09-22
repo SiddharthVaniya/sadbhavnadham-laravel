@@ -58,8 +58,8 @@ return [
             // payment_failed_retry_payment — Hi {{1}}, Order {{2}}, Amount ₹{{3}}, link {{4}}
             'payment_link_campaign' => env('AISENSY_PAYMENT_LINK_CAMPAIGN', 'payment_failed_retry_payment'),
 
-            // certificate_of_donation_old_age_home_uty — Dear {{1}}, ₹{{2}}, {{3}}, date {{4}}, cert {{5}}
-            'certificate_campaign' => env('AISENSY_CERTIFICATE_CAMPAIGN', 'certificate_of_donation_old_age_home_uty'),
+            // certificate_of_donation_old_age_home_new — IMAGE header, 0 body params
+            'certificate_campaign' => env('AISENSY_CERTIFICATE_CAMPAIGN', 'certificate_of_donation_old_age_home_new'),
 
             'thank_you_general_campaign' => env('AISENSY_THANKYOU_GENERAL'),
             'thank_you_general_image' => env('AISENSY_THANKYOU_GENERAL_IMAGE'),

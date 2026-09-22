@@ -132,6 +132,31 @@ it('selects gujarati or english certificate language from donor state', function
     'null' => [null, 'en', 'Date : '],
 ]);
 
+it('uses matching name top percent for gujarati and english certificate artwork', function () {
+    config()->set('donation.certificate.name.top_percent', 61.5);
+    config()->set('donation.certificate.name.top_percent_english', 61.5);
+
+    $service = app(DonationCertificateService::class);
+    $gujarat = new DonationOrder(['state' => 'Gujarat']);
+    $haryana = new DonationOrder(['state' => 'Haryana']);
+
+    expect($service->certificateNameTopPercent($gujarat))->toBe(61.5)
+        ->and($service->certificateNameTopPercent($haryana))->toBe(61.5);
+});
+
+it('keeps english form names as english letters on gujarati certificates', function () {
+    $service = app(DonationCertificateService::class);
+    $order = new DonationOrder([
+        'donor_name' => 'jaydeep gondaliya',
+        'state' => 'Gujarat',
+    ]);
+
+    expect($service->donorNameUsesLatinScript('jaydeep gondaliya'))->toBeTrue()
+        ->and($service->donorNameUsesLatinScript('જયદીપ ગોંડાલિયા'))->toBeFalse()
+        ->and($service->donorDisplayName($order))->toBe('Jaydeep Gondaliya')
+        ->and($service->certificateLocale($order))->toBe('gu');
+});
+
 it('renders certificate date with configured color in the template', function () {
     config()->set('donation.certificate.date.color', '#ffffff');
 
@@ -142,27 +167,32 @@ it('renders certificate date with configured color in the template', function ()
         'templateImage' => 'data:image/jpeg;base64,',
         'pageWidthPt' => 595,
         'pageHeightPt' => 842,
-        'nameTopPercent' => 60.8,
-        'nameSizePt' => 44,
+        'nameTopPercent' => 61.2,
+        'nameSizePt' => 36,
         'nameMaxWidthPt' => 488,
         'nameWrap' => false,
         'nameColor' => '#8B1538',
         'nameFontWeight' => 'normal',
-        'dateBottomPt' => 52,
-        'dateBoxHeightPt' => 34,
-        'dateSizePt' => 20,
-        'dateColor' => '#ffffff',
+        'dateBottomPt' => 44,
+        'dateBoxHeightPt' => 24,
+        'dateSizePt' => 13,
+        'dateColor' => '#0B1F6B',
+        'dateAlign' => 'left',
+        'dateLeftPercent' => 12,
+        'dateWidthPercent' => 24,
+        'datePaddingLeftPt' => 0,
+        'datePaddingRightPt' => 0,
     ])->render();
 
     expect($html)
-        ->toContain('color: #ffffff')
-        ->toContain('તારીખ : 06-07-2026');
+        ->toContain('color: #0B1F6B')
+        ->not->toContain('તારીખ');
 });
 
 it('renders certificate donor name with env-configured size and font weight', function () {
     config()->set('donation.certificate.name.size_pt', 56);
     config()->set('donation.certificate.name.font_weight', '700');
-    config()->set('donation.certificate.name.color', '#840405');
+    config()->set('donation.certificate.name.color', '#2d3253');
 
     $service = app(DonationCertificateService::class);
     $nameConfig = (array) config('donation.certificate.name');
@@ -177,25 +207,30 @@ it('renders certificate donor name with env-configured size and font weight', fu
         'nameSizePt' => (float) $nameConfig['size_pt'],
         'nameMaxWidthPt' => 488,
         'nameWrap' => false,
-        'nameColor' => '#840405',
+        'nameColor' => '#2d3253',
         'nameFontWeight' => $service->certificateNameFontWeight($nameConfig),
-        'dateBottomPt' => 52,
-        'dateBoxHeightPt' => 34,
-        'dateSizePt' => 20,
-        'dateColor' => '#ffffff',
+        'dateBottomPt' => 44,
+        'dateBoxHeightPt' => 24,
+        'dateSizePt' => 13,
+        'dateColor' => '#0B1F6B',
+        'dateAlign' => 'left',
+        'dateLeftPercent' => 12,
+        'dateWidthPercent' => 24,
+        'datePaddingLeftPt' => 0,
+        'datePaddingRightPt' => 0,
     ])->render();
 
     expect($html)
         ->toContain('font-size: 56pt')
         ->toContain('font-weight: bold')
-        ->toContain('color: #840405')
+        ->toContain('color: #2d3253')
         ->toContain('Pritesh Rathod');
 });
 
 it('reads certificate donor name color from env config', function () {
-    config()->set('donation.certificate.name.color', '#840405');
+    config()->set('donation.certificate.name.color', '#2d3253');
 
-    expect(config('donation.certificate.name.color'))->toBe('#840405');
+    expect(config('donation.certificate.name.color'))->toBe('#2d3253');
 });
 
 it('uses donation name color default when env hex color is empty', function () {
@@ -254,12 +289,17 @@ it('renders wrapped long certificate donor names in the template', function () {
         'nameSizePt' => 40,
         'nameMaxWidthPt' => 488,
         'nameWrap' => true,
-        'nameColor' => '#840405',
+        'nameColor' => '#2d3253',
         'nameFontWeight' => 'bold',
-        'dateBottomPt' => 35,
-        'dateBoxHeightPt' => 34,
-        'dateSizePt' => 20,
-        'dateColor' => '#ffffff',
+        'dateBottomPt' => 44,
+        'dateBoxHeightPt' => 24,
+        'dateSizePt' => 13,
+        'dateColor' => '#0B1F6B',
+        'dateAlign' => 'left',
+        'dateLeftPercent' => 12,
+        'dateWidthPercent' => 24,
+        'datePaddingLeftPt' => 0,
+        'datePaddingRightPt' => 0,
     ])->render();
 
     expect($html)
@@ -282,7 +322,8 @@ it('generates and stores a personalized certificate for a paid order', function 
     $url = app(DonationCertificateService::class)->generate($order);
 
     expect($url)->not->toBeNull()
-        ->and(str_ends_with((string) $url, '.png'))->toBeTrue()
+        ->and((string) $url)->toContain('.png')
+        ->and((string) $url)->toContain('?v=')
         ->and(str_starts_with((string) $url, 'https://'))->toBeTrue();
 
     expect(Storage::disk('public')->exists('certificates/sanman-'.$order->id.'-gu.png'))->toBeTrue();

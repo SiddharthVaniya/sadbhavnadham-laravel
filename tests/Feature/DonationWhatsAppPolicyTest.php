@@ -142,6 +142,35 @@ it('blocks messages for placeholder phones and razorpay qr orders', function () 
         ->and($policy->shouldSendCertificate($qrOrder->fresh()))->toBeFalse();
 });
 
+it('blocks certificate WhatsApp for donations paid before the configured cutoff', function () {
+    Setting::query()->updateOrCreate(['key' => Setting::SEND_DONATION_CERTIFICATE], ['value' => '1', 'label' => 'Certificate', 'group' => 'notifications']);
+
+    config()->set('donation.certificate.whatsapp_only_after', '2026-09-22 17:47:00');
+
+    $account = AisensyAccount::create([
+        'name' => 'Default Account',
+        'api_key' => 'test-api-key',
+        'country_code' => '91',
+        'is_active' => true,
+    ]);
+
+    $cause = Cause::factory()->create([
+        'aisensy_account_id' => $account->id,
+        'aisensy_send_certificate' => true,
+    ]);
+
+    $policy = app(DonationWhatsAppPolicy::class);
+
+    $oldOrder = createPaidOrderForCause($cause);
+    $oldOrder->update(['paid_at' => now()->subDay()]);
+
+    $newOrder = createPaidOrderForCause($cause);
+    $newOrder->update(['paid_at' => now()]);
+
+    expect($policy->shouldSendCertificate($oldOrder->fresh()))->toBeFalse()
+        ->and($policy->shouldSendCertificate($newOrder->fresh()))->toBeTrue();
+});
+
 it('blocks messages when disabled on the cause even if global settings are on', function () {
     Setting::query()->updateOrCreate(['key' => Setting::SEND_WHATSAPP_THANK_YOU], ['value' => '1', 'label' => 'Thank you', 'group' => 'notifications']);
     Setting::query()->updateOrCreate(['key' => Setting::SEND_DONATION_CERTIFICATE], ['value' => '1', 'label' => 'Certificate', 'group' => 'notifications']);

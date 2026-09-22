@@ -15,7 +15,7 @@
         }
 
         * {
-            font-family: "noto sans gujarati", "Noto Sans Gujarati", DejaVu Sans, sans-serif;
+            font-family: {{ $nameFontFamily ?? '"noto sans gujarati", "Noto Sans Gujarati", DejaVu Sans, sans-serif' }};
             box-sizing: border-box;
         }
 
@@ -24,6 +24,7 @@
             width: {{ $pageWidthPt }}pt;
             height: {{ $pageHeightPt }}pt;
             overflow: hidden;
+            background: #ffffff;
         }
 
         .template-image {
@@ -37,33 +38,36 @@
         .donor-name-wrap,
         .date-wrap {
             position: absolute;
-            left: 0;
-            width: 100%;
             border-collapse: collapse;
         }
 
         .donor-name-wrap {
             top: {{ $nameTopPercent }}%;
+            left: 0;
+            width: 100%;
         }
 
         .date-wrap {
             bottom: {{ $dateBottomPt }}pt;
+            left: {{ $dateLeftPercent }}%;
+            width: {{ $dateWidthPercent }}%;
             height: {{ $dateBoxHeightPt }}pt;
         }
 
         .donor-name-cell,
         .date-cell {
-            text-align: center;
             vertical-align: middle;
             padding: 0;
             margin: 0;
         }
 
         .donor-name-cell {
+            text-align: center;
             font-size: {{ $nameSizePt }}pt;
             font-weight: {{ $nameFontWeight ?? 'normal' }};
+            font-family: {{ $nameFontFamily ?? '"noto sans gujarati", "Noto Sans Gujarati", DejaVu Sans, sans-serif' }};
             color: {{ $nameColor }} !important;
-            line-height: 1.2;
+            line-height: 1.05;
             white-space: nowrap;
         }
 
@@ -71,37 +75,35 @@
             white-space: normal;
             max-width: {{ $nameMaxWidthPt }}pt;
             word-wrap: break-word;
-            line-height: 1.15;
+            line-height: 1.12;
         }
 
         .date-cell {
             height: {{ $dateBoxHeightPt }}pt;
+            text-align: {{ $dateAlign }};
             font-size: {{ $dateSizePt }}pt;
             font-weight: normal;
             font-family: "noto sans gujarati", "Noto Sans Gujarati", sans-serif;
             color: {{ $dateColor }} !important;
             line-height: 1;
             white-space: nowrap;
+            padding-left: {{ $datePaddingLeftPt }}pt;
+            padding-right: {{ $datePaddingRightPt }}pt;
         }
     </style>
 </head>
 <body>
     <div class="page">
-        <img class="template-image" src="{{ $templateImage }}" alt="">
+        @if (! empty($templateImage))
+            <img class="template-image" src="{{ $templateImage }}" alt="">
+        @endif
         <table class="donor-name-wrap">
             <tr>
-                <td class="donor-name-cell{{ ($nameWrap ?? false) ? ' donor-name-cell--wrap' : '' }}" style="color: {{ $nameColor }};">
-                    <span style="color: {{ $nameColor }};">{{ $donorName }}</span>
+                <td class="donor-name-cell{{ ($nameWrap ?? false) ? ' donor-name-cell--wrap' : '' }}" style="color: {{ $nameColor }}; font-family: {{ $nameFontFamily ?? 'DejaVu Sans, sans-serif' }};">
+                    <span style="color: {{ $nameColor }}; font-family: {{ $nameFontFamily ?? 'DejaVu Sans, sans-serif' }};">{{ $donorName }}</span>
                 </td>
             </tr>
         </table>
-        <table class="date-wrap">
-            <tr>
-                <td class="date-cell" style="color: {{ $dateColor }};">
-                    <span style="color: {{ $dateColor }};">{{ $dateLine ?? ('તારીખ : '.$dateValue) }}</span>
-                </td>
-            </tr>
-        </table>
-    </div>
+        </div>
 </body>
 </html>

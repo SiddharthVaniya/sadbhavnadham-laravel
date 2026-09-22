@@ -385,17 +385,9 @@ it('sends generated certificate media url in a separate certificate whatsapp pay
     Http::assertSent(function (Request $request) use ($order): bool {
         $data = $request->data();
         $mediaUrl = (string) ($data['media']['url'] ?? '');
-        $params = $data['templateParams'] ?? null;
 
-        return ($data['campaignName'] ?? null) === 'certificate_of_donation_old_age_home_uty'
-            && is_array($params)
-            && $params === [
-                'વિજયભાઈ ડોબરીયા',
-                '1000',
-                'Old Age Home',
-                '26-05-2026',
-                DonationOrder::formatReceiptNumber(42, DonationOrder::PROVIDER_RAZORPAY),
-            ]
+        return ($data['campaignName'] ?? null) === 'certificate_of_donation_old_age_home_new'
+            && ! array_key_exists('templateParams', $data)
             && (
                 str_contains($mediaUrl, 'certificates/sanman-'.$order->id)
                 || str_contains($mediaUrl, 'images/static-thank-you.png')
@@ -577,7 +569,7 @@ it('sends payment-fail whatsapp with four template params matching payment_faile
 
     $order = DonationOrder::create([
         'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
-        'provider_order_id' => 'order_TXrzm4D8yGHwbk',
+        'provider_order_id' => 'order_payment_fail_'.uniqid(),
         'donor_name' => 'JIGAR FALDU',
         'donor_email' => 'jigar@example.com',
         'donor_phone' => '9426025598',
@@ -603,7 +595,7 @@ it('sends payment-fail whatsapp with four template params matching payment_faile
 
     expect($sent)->toBeTrue();
 
-    Http::assertSent(function (Request $request): bool {
+    Http::assertSent(function (Request $request) use ($order): bool {
         $data = $request->data();
         $params = $data['templateParams'] ?? null;
 
@@ -612,7 +604,7 @@ it('sends payment-fail whatsapp with four template params matching payment_faile
             && is_array($params)
             && count($params) === 4
             && $params[0] === 'JIGAR FALDU'
-            && $params[1] === '#order_TXrzm4D8yGHwbk'
+            && $params[1] === '#'.$order->provider_order_id
             && $params[2] === '1100'
             && $params[3] === 'https://rzp.io/i/retry-link';
     });

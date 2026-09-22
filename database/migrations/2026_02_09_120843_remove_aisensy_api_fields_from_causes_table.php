@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('causes', function (Blueprint $table) {
-             $table->dropColumn([
+            $table->dropColumn([
                 'aisensy_api_key',
                 'aisensy_country_code',
             ]);
@@ -25,7 +25,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('causes', function (Blueprint $table) {
-             $table->text('aisensy_api_key')->nullable();
+            $table->text('aisensy_api_key')->nullable();
             $table->string('aisensy_country_code', 10)->nullable();
         });
     }

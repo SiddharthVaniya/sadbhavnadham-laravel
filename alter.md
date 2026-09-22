@@ -161,3 +161,50 @@ AISENSY_CERTIFICATE_CAMPAIGN=certificate_of_donation_old_age_home_uty
 ```
 
 Code uses cause `aisensy_certificate_campaign` first, then falls back to this env / config default.
+
+## 2026-09-22 — Certificate WhatsApp campaigns (`*_uty` → `*_new`)
+
+AiSensy returns `Campaign does not exist` for retired `*_uty` names. Live IMAGE campaigns use `*_new` (0 body params).
+
+### Preview
+
+```sql
+SELECT id, slug, title, aisensy_certificate_campaign
+FROM causes
+ORDER BY id;
+```
+
+### Update cause campaigns
+
+```sql
+UPDATE causes SET aisensy_certificate_campaign = 'certificate_of_donation_old_age_home_new', updated_at = NOW()
+WHERE slug = 'old-age-home';
+
+UPDATE causes SET aisensy_certificate_campaign = 'certificate_of_donation_tree_plantation_new', updated_at = NOW()
+WHERE slug = 'tree-plantation';
+
+UPDATE causes SET aisensy_certificate_campaign = 'certificate_of_donation_animal_hospital_new', updated_at = NOW()
+WHERE slug = 'animal-hospital';
+
+UPDATE causes SET aisensy_certificate_campaign = 'certificate_of_donation_dog_shelter_new', updated_at = NOW()
+WHERE slug = 'dog-shelter';
+
+UPDATE causes SET aisensy_certificate_campaign = 'certificate_of_donation_bull_shelter_new', updated_at = NOW()
+WHERE slug = 'bull-shelter';
+
+-- daily-needs: no approved *_new certificate campaign in aisensy_wa_templates yet — create in AiSensy first, then:
+-- UPDATE causes SET aisensy_certificate_campaign = 'certificate_of_donation_daily_need_new', updated_at = NOW() WHERE slug = 'daily-needs';
+```
+
+### Env
+
+```env
+AISENSY_CERTIFICATE_CAMPAIGN=certificate_of_donation_old_age_home_new
+```
+
+Code also auto-maps `*_uty` → `*_new` at send time so WhatsApp works before this SQL is applied.
+
+### Applied 2026-09-22 (live)
+
+Also set `aisensy_send_certificate = 1` for the five causes above. `daily-needs` left off until AiSensy has `certificate_of_donation_daily_need_new`.
+WhatsApp certificate media prefers JPEG (`DONATION_CERTIFICATE_WHATSAPP_PREFER_PNG=false`).

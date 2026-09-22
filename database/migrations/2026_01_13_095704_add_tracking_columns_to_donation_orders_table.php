@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-       Schema::table('donation_orders', function (Blueprint $table) {
+        Schema::table('donation_orders', function (Blueprint $table) {
 
             $table->timestamp('paid_at')->nullable()->after('status');
             $table->timestamp('failed_at')->nullable()->after('paid_at');
@@ -32,7 +32,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('donation_orders', function (Blueprint $table) {
-           $table->dropColumn([
+            $table->dropColumn([
                 'paid_at',
                 'failed_at',
                 'receipt_sent_at',

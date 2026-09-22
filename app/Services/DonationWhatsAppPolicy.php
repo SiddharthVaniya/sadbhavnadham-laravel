@@ -35,9 +35,39 @@ class DonationWhatsAppPolicy
             return false;
         }
 
+        if (! $this->isWithinCertificateWhatsAppWindow($order)) {
+            return false;
+        }
+
         $cause = $this->resolveCause($order);
 
         return $cause?->shouldSendCertificateWhatsApp() ?? false;
+    }
+
+    /**
+     * Skip auto-send / reconcile for donations paid before the configured cutoff.
+     */
+    private function isWithinCertificateWhatsAppWindow(DonationOrder $order): bool
+    {
+        $onlyAfter = trim((string) config('donation.certificate.whatsapp_only_after', ''));
+
+        if ($onlyAfter === '') {
+            return true;
+        }
+
+        try {
+            $cutoff = \Illuminate\Support\Carbon::parse($onlyAfter);
+        } catch (\Throwable) {
+            return true;
+        }
+
+        $paidAt = $order->paid_at ?? $order->created_at;
+
+        if ($paidAt === null) {
+            return true;
+        }
+
+        return $paidAt->greaterThanOrEqualTo($cutoff);
     }
 
     public function shouldSendReceipt(DonationOrder $order): bool

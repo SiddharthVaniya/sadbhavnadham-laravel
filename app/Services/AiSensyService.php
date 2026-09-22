@@ -4,11 +4,13 @@ namespace App\Services;
 
 use App\Helpers\NumberHelper;
 use App\Models\AisensyAccount;
+use App\Models\AisensyWaTemplate;
 use App\Models\DonationOrder;
 use App\Models\Donor;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class AiSensyService
 {
@@ -143,8 +145,10 @@ class AiSensyService
 
         $config = $this->resolveAccount($order);
         $apiKey = $config['key'] ?? null;
-        $campaign = $config['certificate_campaign']
-            ?: config('services.aisensy.default.certificate_campaign');
+        $campaign = $this->resolveCertificateCampaignName(
+            $config['certificate_campaign']
+                ?: config('services.aisensy.default.certificate_campaign')
+        );
         $countryCode = $config['country_code'] ?? '91';
         $imageUrl = $this->donationCertificateService->whatsappMediaUrl($order)
             ?? ($config['thank_you_image'] ?? null);
@@ -156,6 +160,7 @@ class AiSensyService
         }
 
         $imageUrl = $this->normalizeImageUrl($imageUrl);
+        $imageUrl = $this->mediaUrlWithoutCacheBuster($imageUrl);
         if (! $imageUrl) {
             Log::warning('Certificate WhatsApp skipped: no image available', ['order_id' => $order->id]);
 
@@ -178,21 +183,26 @@ class AiSensyService
         }
 
         /*
-         * Campaign: certificate_of_donation_old_age_home_uty (IMAGE)
-         * Body: Dear {{1}} / ₹{{2}} / {{3}} / Donation Date {{4}} / Certificate No. {{5}}
+         * Live campaigns are IMAGE headers with 0 body params (*_new).
+         * Legacy *_uty campaigns (5 body params) were retired in AiSensy.
+         * Omit templateParams entirely when empty — AiSensy rejects a mismatched count.
          */
         $payload = [
             'apiKey' => $apiKey,
             'campaignName' => $campaign,
             'destination' => $this->formatMobile($order->donor_phone, $countryCode),
             'userName' => $donorName,
-            'templateParams' => $this->certificateTemplateParams($order),
             'media' => [
                 'url' => $imageUrl,
                 'filename' => $filename,
             ],
             'source' => (string) config('services.aisensy.certificate_source', 'donate website certificate'),
         ];
+
+        $templateParams = $this->certificateTemplateParamsForCampaign($order, $campaign);
+        if ($templateParams !== []) {
+            $payload['templateParams'] = $templateParams;
+        }
 
         return $this->send($payload, 'certificate', ['order_id' => $order->id]);
     }
@@ -701,6 +711,104 @@ class AiSensyService
             $donationDate,
             $certificateNumber,
         ];
+    }
+
+    /**
+     * Live *_new IMAGE campaigns have 0 body variables; legacy *_uty had 5.
+     *
+     * @return list<string>
+     */
+    private function certificateTemplateParamsForCampaign(DonationOrder $order, string $campaign): array
+    {
+        if ($this->certificateCampaignUsesBodyParams($campaign)) {
+            return $this->certificateTemplateParams($order);
+        }
+
+        return [];
+    }
+
+    /**
+     * Map retired *_uty campaign names to live *_new AiSensy campaigns.
+     */
+    private function resolveCertificateCampaignName(?string $configured): ?string
+    {
+        $configured = trim((string) $configured);
+        $fallback = trim((string) config('services.aisensy.default.certificate_campaign', ''));
+        $campaign = $configured !== '' ? $configured : $fallback;
+
+        if ($campaign === '') {
+            return null;
+        }
+
+        if (str_ends_with($campaign, '_uty')) {
+            $mapped = substr($campaign, 0, -4).'_new';
+
+            if ($this->certificateCampaignIsKnown($mapped) || ! $this->certificateCampaignIsKnown($campaign)) {
+                return $mapped;
+            }
+        }
+
+        return $campaign;
+    }
+
+    private function certificateCampaignUsesBodyParams(string $campaign): bool
+    {
+        if (str_ends_with($campaign, '_new')) {
+            return false;
+        }
+
+        if (! Schema::hasTable('aisensy_wa_templates')) {
+            return str_ends_with($campaign, '_uty');
+        }
+
+        $paramCount = AisensyWaTemplate::query()
+            ->where(function ($query) use ($campaign): void {
+                $query->where('live_campaign_name', $campaign)
+                    ->orWhere('name', $campaign);
+            })
+            ->where('is_active', true)
+            ->value('param_count');
+
+        if ($paramCount === null) {
+            return str_ends_with($campaign, '_uty');
+        }
+
+        return (int) $paramCount > 0;
+    }
+
+    private function certificateCampaignIsKnown(string $campaign): bool
+    {
+        if (! Schema::hasTable('aisensy_wa_templates')) {
+            return false;
+        }
+
+        return AisensyWaTemplate::query()
+            ->where(function ($query) use ($campaign): void {
+                $query->where('live_campaign_name', $campaign)
+                    ->orWhere('name', $campaign);
+            })
+            ->where('is_active', true)
+            ->exists();
+    }
+
+    /**
+     * AiSensy media fetch can fail on cache-buster query strings.
+     */
+    private function mediaUrlWithoutCacheBuster(?string $imageUrl): ?string
+    {
+        if (! is_string($imageUrl) || $imageUrl === '') {
+            return null;
+        }
+
+        $parts = parse_url($imageUrl);
+        if (! is_array($parts) || empty($parts['scheme']) || empty($parts['host'])) {
+            return $imageUrl;
+        }
+
+        $port = isset($parts['port']) ? ':'.$parts['port'] : '';
+        $path = $parts['path'] ?? '/';
+
+        return $parts['scheme'].'://'.$parts['host'].$port.$path;
     }
 
     private function replaceMessageTokens(string $template, array $tokens): string

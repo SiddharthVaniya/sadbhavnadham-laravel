@@ -3,7 +3,6 @@
 namespace App\Console\Commands;
 
 use App\Models\DonationOrder;
-use App\Models\User;
 use App\Support\StaffReferral;
 use Illuminate\Console\Command;
 

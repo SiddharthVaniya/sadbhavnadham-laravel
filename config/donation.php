@@ -1,34 +1,5 @@
 <?php
 
-if (! function_exists('donation_env_hex_color')) {
-    /**
-     * Read a hex color from .env.
-     *
-     * Unquoted values like #840405 are treated as comments by dotenv, so use
-     * DONATION_CERTIFICATE_NAME_COLOR="#840405" or 840405 (without #).
-     */
-    function donation_env_hex_color(string $key, string $default): string
-    {
-        $value = env($key);
-
-        if (! is_string($value)) {
-            return $default;
-        }
-
-        $value = trim($value, " \t\n\r\0\x0B\"'");
-
-        if ($value === '') {
-            return $default;
-        }
-
-        if (preg_match('/^#?[0-9a-fA-F]{6}$/', $value) === 1) {
-            return '#'.ltrim($value, '#');
-        }
-
-        return $value;
-    }
-}
-
 return [
     // Legacy /{code}/donate/... vanity paths. Default false — use UTM query links instead.
     'staff_vanity_urls_enabled' => filter_var(env('DONATION_STAFF_VANITY_URLS_ENABLED', false), FILTER_VALIDATE_BOOLEAN),
@@ -103,28 +74,40 @@ return [
         'date_prefix_english' => env('DONATION_CERTIFICATE_DATE_PREFIX_ENGLISH', 'Date : '),
         'date_format' => 'd-m-Y',
         'name' => [
-            'top_percent' => (float) env('DONATION_CERTIFICATE_NAME_TOP_PERCENT', 60.8),
-            'size_pt' => (float) env('DONATION_CERTIFICATE_NAME_SIZE_PT', 44),
-            'color' => donation_env_hex_color('DONATION_CERTIFICATE_NAME_COLOR', '#8B1538'),
-            'font_weight' => env('DONATION_CERTIFICATE_NAME_FONT_WEIGHT'),
+            // Sit just above the template gold underline (~66% Gujarati / ~63% English art).
+            'top_percent' => (float) env('DONATION_CERTIFICATE_NAME_TOP_PERCENT', 61.5),
+            // New EN artwork matches GU gold underline (~66%); keep same name band.
+            'top_percent_english' => (float) env('DONATION_CERTIFICATE_NAME_TOP_PERCENT_ENGLISH', 61.5),
+            'size_pt' => (float) env('DONATION_CERTIFICATE_NAME_SIZE_PT', 34),
+            'color' => donation_env_hex_color('DONATION_CERTIFICATE_NAME_COLOR', '#2d3253'),
+            'font_weight' => env('DONATION_CERTIFICATE_NAME_FONT_WEIGHT', '600'),
             'bold' => env('DONATION_CERTIFICATE_NAME_BOLD'),
-            'min_size_pt' => (float) env('DONATION_CERTIFICATE_NAME_MIN_SIZE_PT', 32),
-            'max_width_percent' => (float) env('DONATION_CERTIFICATE_NAME_MAX_WIDTH_PERCENT', 82),
+            'min_size_pt' => (float) env('DONATION_CERTIFICATE_NAME_MIN_SIZE_PT', 24),
+            'max_width_percent' => (float) env('DONATION_CERTIFICATE_NAME_MAX_WIDTH_PERCENT', 78),
         ],
         'date' => [
-            // Larger value moves the date up inside the blue pill.
-            'bottom_pt' => (float) env('DONATION_CERTIFICATE_DATE_BOTTOM_PT', 52),
-            'box_height_pt' => (float) env('DONATION_CERTIFICATE_DATE_BOX_HEIGHT_PT', 34),
-            'size_pt' => (float) env('DONATION_CERTIFICATE_DATE_SIZE_PT', 20),
-            'color' => donation_env_hex_color('DONATION_CERTIFICATE_DATE_COLOR', '#ffffff'),
+            // Left of the centered phone pill on cream (navy). Use align=center + white for older full-width pills.
+            'bottom_pt' => (float) env('DONATION_CERTIFICATE_DATE_BOTTOM_PT', 30),
+            'box_height_pt' => (float) env('DONATION_CERTIFICATE_DATE_BOX_HEIGHT_PT', 22),
+            'size_pt' => (float) env('DONATION_CERTIFICATE_DATE_SIZE_PT', 12),
+            'color' => donation_env_hex_color('DONATION_CERTIFICATE_DATE_COLOR', '#0B1F6B'),
+            'align' => env('DONATION_CERTIFICATE_DATE_ALIGN', 'left'),
+            'left_percent' => (float) env('DONATION_CERTIFICATE_DATE_LEFT_PERCENT', 17),
+            'width_percent' => (float) env('DONATION_CERTIFICATE_DATE_WIDTH_PERCENT', 22),
+            'padding_left_pt' => (float) env('DONATION_CERTIFICATE_DATE_PADDING_LEFT_PT', 0),
+            'padding_right_pt' => (float) env('DONATION_CERTIFICATE_DATE_PADDING_RIGHT_PT', 0),
         ],
         'pdftoppm_binary' => env('PDFTOPPM_BINARY', base_path('tools/poppler/poppler-24.08.0/Library/bin/pdftoppm.exe')),
         'public_base_url' => env('DONATION_CERTIFICATE_PUBLIC_BASE_URL', env('APP_URL', 'https://donate.sadbhavnadham.org')),
         'render_dpi' => (int) env('DONATION_CERTIFICATE_RENDER_DPI', 220),
-        'whatsapp_max_width' => (int) env('DONATION_CERTIFICATE_WHATSAPP_MAX_WIDTH', 1920),
-        'whatsapp_jpeg_quality' => (int) env('DONATION_CERTIFICATE_WHATSAPP_JPEG_QUALITY', 94),
-        'whatsapp_max_bytes' => (int) env('DONATION_CERTIFICATE_WHATSAPP_MAX_BYTES', 4_500_000),
-        'whatsapp_prefer_png' => env('DONATION_CERTIFICATE_WHATSAPP_PREFER_PNG', true),
+        'whatsapp_max_width' => (int) env('DONATION_CERTIFICATE_WHATSAPP_MAX_WIDTH', 1280),
+        'whatsapp_jpeg_quality' => (int) env('DONATION_CERTIFICATE_WHATSAPP_JPEG_QUALITY', 88),
+        'whatsapp_max_bytes' => (int) env('DONATION_CERTIFICATE_WHATSAPP_MAX_BYTES', 2_500_000),
+        // Large PNGs (~3–4MB) often fail WhatsApp delivery even when AiSensy returns 200.
+        'whatsapp_prefer_png' => filter_var(env('DONATION_CERTIFICATE_WHATSAPP_PREFER_PNG', false), FILTER_VALIDATE_BOOLEAN),
+        // When set, auto-send certificate WhatsApp only for donations paid at/after this datetime.
+        // Empty = no cutoff. Admin force-resend still works.
+        'whatsapp_only_after' => env('DONATION_CERTIFICATE_WHATSAPP_ONLY_AFTER'),
     ],
 
     'birthday' => [

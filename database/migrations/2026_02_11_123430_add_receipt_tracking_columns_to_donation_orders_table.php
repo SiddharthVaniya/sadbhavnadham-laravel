@@ -12,7 +12,7 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('donation_orders', function (Blueprint $table) {
-           $table->string('receipt_path')->nullable()
+            $table->string('receipt_path')->nullable()
                 ->after('receipt_number');
 
             $table->timestamp('receipt_failed_at')->nullable()
