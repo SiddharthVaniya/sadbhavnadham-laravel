@@ -411,6 +411,7 @@ class CauseSeeder extends Seeder
             'aisensy_thank_you_campaign' => $oldAgeHome->aisensy_thank_you_campaign,
             'aisensy_certificate_campaign' => $oldAgeHome->aisensy_certificate_campaign,
             'certificate_template' => $oldAgeHome->certificate_template,
+            'certificate_template_english' => $oldAgeHome->certificate_template_english,
             'aisensy_thank_you_image' => $oldAgeHome->aisensy_thank_you_image,
             'aisensy_thank_you_message_mode' => $oldAgeHome->aisensy_thank_you_message_mode,
             'aisensy_thank_you_message_template' => $oldAgeHome->aisensy_thank_you_message_template,

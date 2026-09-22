@@ -63,6 +63,9 @@ const form = useForm({
     certificate_template: null,
     certificate_template_existing: props.cause?.certificate_template ?? '',
     remove_certificate_template: false,
+    certificate_template_english: null,
+    certificate_template_english_existing: props.cause?.certificate_template_english ?? '',
+    remove_certificate_template_english: false,
     aisensy_send_thank_you: props.cause?.aisensy_send_thank_you ?? true,
     aisensy_send_certificate: props.cause?.aisensy_send_certificate ?? true,
     aisensy_send_receipt: props.cause?.aisensy_send_receipt ?? true,
@@ -104,6 +107,14 @@ const certificateTemplatePreview = computed(() => {
     return assetUrl(form.certificate_template_existing);
 });
 
+const certificateTemplateEnglishPreview = computed(() => {
+    if (form.remove_certificate_template_english) {
+        return '';
+    }
+
+    return assetUrl(form.certificate_template_english_existing);
+});
+
 const clearThankYouImage = () => {
     form.remove_aisensy_thank_you_image = true;
     form.aisensy_thank_you_image_existing = '';
@@ -124,6 +135,17 @@ const clearCertificateTemplate = () => {
 const onCertificateTemplateChange = (event) => {
     form.certificate_template = event.target.files[0] ?? null;
     form.remove_certificate_template = false;
+};
+
+const clearCertificateTemplateEnglish = () => {
+    form.remove_certificate_template_english = true;
+    form.certificate_template_english_existing = '';
+    form.certificate_template_english = null;
+};
+
+const onCertificateTemplateEnglishChange = (event) => {
+    form.certificate_template_english = event.target.files[0] ?? null;
+    form.remove_certificate_template_english = false;
 };
 
 const submit = () => {
@@ -324,8 +346,10 @@ const submit = () => {
                                 is on in Settings.
                             </p>
                             <p class="mt-2 text-sm text-muted-foreground">
-                                Upload a certificate design for this cause, or leave blank to use the global template from Settings.
-                                If both are enabled for this cause, thank you is sent first.
+                                Upload Gujarati and English certificate designs for this cause.
+                                Gujarat donors use the Gujarati template; everyone else uses English.
+                                Leave a slot blank to fall back to the default bundled artwork.
+                                If both thank you and certificate are enabled for this cause, thank you is sent first.
                             </p>
                         </div>
                         <FormToggle
@@ -334,17 +358,17 @@ const submit = () => {
                             description="Turn off to skip the sanman patra image for donations to this cause only."
                             compact
                         />
+                        <FormInput
+                            v-model="form.aisensy_certificate_campaign"
+                            label="Certificate campaign"
+                            hint="AiSensy image campaign (e.g. certificate_of_donation_old_age_home)."
+                            :error="form.errors.aisensy_certificate_campaign"
+                        />
                         <div class="grid gap-4 lg:grid-cols-2">
-                            <FormInput
-                                v-model="form.aisensy_certificate_campaign"
-                                label="Certificate campaign"
-                                hint="AiSensy image campaign (e.g. certificate_of_donation_old_age_home)."
-                                :error="form.errors.aisensy_certificate_campaign"
-                            />
-                            <div class="max-w-md">
+                            <div>
                                 <FormFile
-                                    label="Certificate template"
-                                    hint="JPG/PNG used to generate the sanman patra. Name and date positions use global settings."
+                                    label="Gujarati certificate template"
+                                    hint="JPG/PNG for Gujarat donors. Name and date positions use global settings."
                                     :preview-url="certificateTemplatePreview"
                                     @change="onCertificateTemplateChange"
                                 />
@@ -354,7 +378,23 @@ const submit = () => {
                                     class="mt-2 text-sm font-medium text-rose-600 hover:text-rose-700"
                                     @click="clearCertificateTemplate"
                                 >
-                                    Remove certificate template
+                                    Remove Gujarati template
+                                </button>
+                            </div>
+                            <div>
+                                <FormFile
+                                    label="English certificate template"
+                                    hint="JPG/PNG for donors outside Gujarat (and when state is blank)."
+                                    :preview-url="certificateTemplateEnglishPreview"
+                                    @change="onCertificateTemplateEnglishChange"
+                                />
+                                <button
+                                    v-if="certificateTemplateEnglishPreview"
+                                    type="button"
+                                    class="mt-2 text-sm font-medium text-rose-600 hover:text-rose-700"
+                                    @click="clearCertificateTemplateEnglish"
+                                >
+                                    Remove English template
                                 </button>
                             </div>
                         </div>

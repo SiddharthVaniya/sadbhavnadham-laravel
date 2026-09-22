@@ -319,6 +319,34 @@ it('removes the cause certificate template when requested', function () {
     Storage::disk('public')->assertMissing('causes/certificates/old-template.jpg');
 });
 
+it('removes the cause english certificate template when requested', function () {
+    Storage::fake('public');
+    Storage::disk('public')->put('causes/certificates/old-english-template.jpg', 'fake-image');
+
+    $user = createAdminWithPermissions(['manage causes']);
+    $cause = Cause::factory()->create([
+        'title' => 'Test cause',
+        'certificate_template_english' => 'storage/causes/certificates/old-english-template.jpg',
+    ]);
+
+    actingAs($user)
+        ->post("/admin/causes/{$cause->id}", [
+            '_method' => 'put',
+            'title' => $cause->title,
+            'slug' => $cause->slug,
+            'is_active' => true,
+            'allow_custom_amount' => true,
+            'pan_required' => false,
+            'sort_order' => 0,
+            'certificate_template_english_existing' => 'storage/causes/certificates/old-english-template.jpg',
+            'remove_certificate_template_english' => true,
+        ])
+        ->assertRedirect(route('admin.causes.edit', $cause));
+
+    expect($cause->fresh()->certificate_template_english)->toBeNull();
+    Storage::disk('public')->assertMissing('causes/certificates/old-english-template.jpg');
+});
+
 it('toggles cause active status and reorders causes', function () {
     $user = createAdminWithPermissions(['manage causes']);
     $first = Cause::factory()->create(['sort_order' => 1]);

@@ -50,6 +50,7 @@ class AdminInertiaResources
             'aisensy_certificate_campaign' => $cause->aisensy_certificate_campaign,
             'aisensy_receipt_campaign' => $cause->aisensy_receipt_campaign,
             'certificate_template' => $cause->certificate_template,
+            'certificate_template_english' => $cause->certificate_template_english,
             'aisensy_send_thank_you' => (bool) ($cause->aisensy_send_thank_you ?? true),
             'aisensy_send_certificate' => (bool) ($cause->aisensy_send_certificate ?? true),
             'aisensy_send_receipt' => (bool) ($cause->aisensy_send_receipt ?? true),

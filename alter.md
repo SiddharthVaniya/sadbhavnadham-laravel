@@ -77,3 +77,32 @@ Optional dry-run:
 ```bash
 php artisan donations:nudge-stale-pending --dry-run
 ```
+
+---
+
+## English certificate template on causes (2026-09-22)
+
+Per-cause English sanman patra artwork (Admin → Causes → WhatsApp tab). Gujarat donors keep `certificate_template`.
+
+### Preview
+
+```sql
+SELECT id, slug, title, certificate_template, certificate_template_english
+FROM causes
+ORDER BY id;
+```
+
+### Schema
+
+```sql
+ALTER TABLE causes
+    ADD COLUMN certificate_template_english VARCHAR(255) NULL
+    AFTER certificate_template;
+```
+
+### Rollback
+
+```sql
+ALTER TABLE causes
+    DROP COLUMN certificate_template_english;
+```

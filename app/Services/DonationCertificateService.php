@@ -211,7 +211,7 @@ class DonationCertificateService
 
     public function formattedDateLine(DonationOrder $order): string
     {
-        return $this->datePrefix().$this->formattedDateValue($order);
+        return $this->datePrefix($order).$this->formattedDateValue($order);
     }
 
     public function formattedDateValue(DonationOrder $order): string
@@ -227,29 +227,69 @@ class DonationCertificateService
      */
     public function formattedDateParts(DonationOrder $order): array
     {
-        return [$this->datePrefix(), $this->formattedDateValue($order)];
+        return [$this->datePrefix($order), $this->formattedDateValue($order)];
     }
 
-    private function datePrefix(): string
+    /**
+     * Gujarat donors get the Gujarati certificate; everyone else (including
+     * missing/empty state) gets the English certificate.
+     */
+    public function usesGujaratiCertificate(DonationOrder $order): bool
     {
-        return (string) config('donation.certificate.date_prefix', 'તારીખ : ');
+        $state = preg_replace('/\s+/u', ' ', trim((string) ($order->state ?? ''))) ?? '';
+
+        return $state !== '' && mb_strtolower($state, 'UTF-8') === 'gujarat';
+    }
+
+    public function certificateLocale(DonationOrder $order): string
+    {
+        return $this->usesGujaratiCertificate($order) ? 'gu' : 'en';
+    }
+
+    private function datePrefix(DonationOrder $order): string
+    {
+        if ($this->usesGujaratiCertificate($order)) {
+            return (string) config('donation.certificate.date_prefix', 'તારીખ : ');
+        }
+
+        return (string) config('donation.certificate.date_prefix_english', 'Date : ');
     }
 
     private function resolveTemplatePath(DonationOrder $order): string
     {
+        $gujaratiTemplate = (string) config('donation.certificate.template');
         $order->loadMissing('items.causeModel');
-
         $cause = $order->items->first()?->causeModel;
 
-        if ($cause instanceof Cause) {
-            $causeTemplate = $this->absolutePathForStoredImage($cause->certificate_template);
+        if ($this->usesGujaratiCertificate($order)) {
+            if ($cause instanceof Cause) {
+                $causeTemplate = $this->absolutePathForStoredImage($cause->certificate_template);
 
-            if ($causeTemplate !== null) {
-                return $causeTemplate;
+                if ($causeTemplate !== null) {
+                    return $causeTemplate;
+                }
+            }
+
+            return $gujaratiTemplate;
+        }
+
+        if ($cause instanceof Cause) {
+            $englishCauseTemplate = $this->absolutePathForStoredImage($cause->certificate_template_english);
+
+            if ($englishCauseTemplate !== null) {
+                return $englishCauseTemplate;
             }
         }
 
-        return (string) config('donation.certificate.template');
+        $englishTemplate = (string) config('donation.certificate.template_english');
+
+        if ($englishTemplate !== '' && File::exists($englishTemplate)) {
+            return $englishTemplate;
+        }
+
+        // English artwork not uploaded yet — reuse the shared background image
+        // but still render English date text via datePrefix().
+        return $gujaratiTemplate;
     }
 
     private function absolutePathForStoredImage(?string $storedPath): ?string
@@ -428,8 +468,9 @@ class DonationCertificateService
     private function storagePath(DonationOrder $order, string $extension): string
     {
         $directory = trim((string) config('donation.certificate.storage_directory', 'certificates'), '/');
+        $locale = $this->certificateLocale($order);
 
-        return $directory.'/sanman-'.$order->id.'.'.$extension;
+        return $directory.'/sanman-'.$order->id.'-'.$locale.'.'.$extension;
     }
 
     private function publicUrl(string $relativePath): string
@@ -446,8 +487,9 @@ class DonationCertificateService
     private function whatsappStoragePath(DonationOrder $order): string
     {
         $directory = trim((string) config('donation.certificate.storage_directory', 'certificates'), '/');
+        $locale = $this->certificateLocale($order);
 
-        return $directory.'/sanman-'.$order->id.'-whatsapp.jpg';
+        return $directory.'/sanman-'.$order->id.'-'.$locale.'-whatsapp.jpg';
     }
 
     private function deleteWhatsAppJpeg(DonationOrder $order): void

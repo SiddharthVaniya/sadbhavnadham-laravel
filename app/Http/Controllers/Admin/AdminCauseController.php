@@ -158,6 +158,7 @@ class AdminCauseController extends Controller implements HasMiddleware
 
         $validated['hero_image'] = $this->handleHeroImage($request);
         $validated['certificate_template'] = $this->handleCertificateTemplate($request);
+        $validated['certificate_template_english'] = $this->handleCertificateTemplateEnglish($request);
         $validated['aisensy_thank_you_image'] = $this->handleAiSensyImage($request);
         $validated['icon_uri'] = $this->handleIconUri($request);
         $validated['icon_uri_active'] = $this->handleActiveIconUri($request);
@@ -170,6 +171,8 @@ class AdminCauseController extends Controller implements HasMiddleware
             $validated['hero_image_existing'],
             $validated['certificate_template_existing'],
             $validated['remove_certificate_template'],
+            $validated['certificate_template_english_existing'],
+            $validated['remove_certificate_template_english'],
             $validated['aisensy_thank_you_image_existing'],
             $validated['remove_aisensy_thank_you_image'],
             $validated['icon_uri_existing'],
@@ -229,6 +232,25 @@ class AdminCauseController extends Controller implements HasMiddleware
         }
 
         return $request->input('certificate_template_existing');
+    }
+
+    private function handleCertificateTemplateEnglish(StoreCauseRequest|UpdateCauseRequest $request): ?string
+    {
+        if ($request->hasFile('certificate_template_english')) {
+            $this->deleteStoredPublicImage($request->input('certificate_template_english_existing'));
+
+            $path = $request->file('certificate_template_english')->store('causes/certificates', 'public');
+
+            return 'storage/'.$path;
+        }
+
+        if ($request->boolean('remove_certificate_template_english')) {
+            $this->deleteStoredPublicImage($request->input('certificate_template_english_existing'));
+
+            return null;
+        }
+
+        return $request->input('certificate_template_english_existing');
     }
 
     private function handleAiSensyImage(StoreCauseRequest|UpdateCauseRequest $request): ?string

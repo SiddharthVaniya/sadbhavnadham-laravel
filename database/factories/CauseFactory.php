@@ -38,6 +38,7 @@ class CauseFactory extends Factory
             'aisensy_thank_you_campaign' => null,
             'aisensy_certificate_campaign' => null,
             'certificate_template' => null,
+            'certificate_template_english' => null,
             'aisensy_send_thank_you' => true,
             'aisensy_send_certificate' => true,
             'aisensy_thank_you_image' => null,

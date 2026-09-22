@@ -45,6 +45,7 @@ class Cause extends Model
         'aisensy_certificate_campaign',
         'aisensy_receipt_campaign',
         'certificate_template',
+        'certificate_template_english',
         'aisensy_thank_you_image',
         'aisensy_thank_you_message_mode',
         'aisensy_thank_you_message_template',

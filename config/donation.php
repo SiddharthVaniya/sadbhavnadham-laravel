@@ -91,11 +91,16 @@ return [
 
     'certificate' => [
         'enabled' => env('DONATION_CERTIFICATE_ENABLED', true),
-        'template' => public_path('images/certificate-template.jpg'),
+        // Gujarati sanman patra (default artwork for Gujarat donors).
+        'template' => env('DONATION_CERTIFICATE_TEMPLATE', public_path('images/certificate-template.jpg')),
+        // Optional shipped English artwork fallback. Prefer cause WhatsApp-tab upload
+        // (`causes.certificate_template_english`) over this file.
+        'template_english' => public_path('images/certificate-template-english.jpg'),
         'font' => public_path('fonts/NotoSansGujarati-Regular.ttf'),
         'font_bold' => env('DONATION_CERTIFICATE_FONT_BOLD', public_path('fonts/NotoSansGujarati-Bold.ttf')),
         'storage_directory' => 'certificates',
         'date_prefix' => 'તારીખ : ',
+        'date_prefix_english' => env('DONATION_CERTIFICATE_DATE_PREFIX_ENGLISH', 'Date : '),
         'date_format' => 'd-m-Y',
         'name' => [
             'top_percent' => (float) env('DONATION_CERTIFICATE_NAME_TOP_PERCENT', 60.8),

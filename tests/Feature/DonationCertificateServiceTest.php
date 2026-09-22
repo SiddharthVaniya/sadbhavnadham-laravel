@@ -95,16 +95,42 @@ it('formats certificate date as DD-MM-YYYY with the configured prefix', function
     Carbon::setTestNow(Carbon::create(2026, 5, 26, 10, 0, 0));
 
     $order = new DonationOrder([
+        'state' => 'Gujarat',
         'paid_at' => now(),
     ]);
 
     $service = app(DonationCertificateService::class);
 
-    expect($service->formattedDateLine($order))
+    expect($service->formattedDateValue($order))
+        ->toBe('26-05-2026')
+        ->and($service->formattedDateLine($order))
         ->toBe('તારીખ : 26-05-2026')
         ->and($service->formattedDateParts($order))
         ->toBe(['તારીખ : ', '26-05-2026']);
 });
+
+it('selects gujarati or english certificate language from donor state', function (?string $state, string $locale, string $datePrefix) {
+    Carbon::setTestNow(Carbon::create(2026, 5, 26, 10, 0, 0));
+
+    $order = new DonationOrder([
+        'state' => $state,
+        'paid_at' => now(),
+    ]);
+
+    $service = app(DonationCertificateService::class);
+
+    expect($service->certificateLocale($order))->toBe($locale)
+        ->and($service->usesGujaratiCertificate($order))->toBe($locale === 'gu')
+        ->and($service->formattedDateLine($order))->toBe($datePrefix.'26-05-2026');
+})->with([
+    'Gujarat' => ['Gujarat', 'gu', 'તારીખ : '],
+    'gujarat' => ['gujarat', 'gu', 'તારીખ : '],
+    'GUJARAT' => ['GUJARAT', 'gu', 'તારીખ : '],
+    'Maharashtra' => ['Maharashtra', 'en', 'Date : '],
+    'Rajasthan' => ['Rajasthan', 'en', 'Date : '],
+    'empty' => ['', 'en', 'Date : '],
+    'null' => [null, 'en', 'Date : '],
+]);
 
 it('renders certificate date with configured color in the template', function () {
     config()->set('donation.certificate.date.color', '#ffffff');
@@ -251,7 +277,7 @@ it('maps numeric certificate name font weights for dompdf', function () {
 });
 
 it('generates and stores a personalized certificate for a paid order', function () {
-    $order = makeCertificateOrder();
+    $order = makeCertificateOrder(['state' => 'Gujarat']);
 
     $url = app(DonationCertificateService::class)->generate($order);
 
@@ -259,8 +285,8 @@ it('generates and stores a personalized certificate for a paid order', function 
         ->and(str_ends_with((string) $url, '.png'))->toBeTrue()
         ->and(str_starts_with((string) $url, 'https://'))->toBeTrue();
 
-    expect(Storage::disk('public')->exists('certificates/sanman-'.$order->id.'.png'))->toBeTrue();
-    expect(Storage::disk('public')->exists('certificates/sanman-'.$order->id.'.pdf'))->toBeFalse();
+    expect(Storage::disk('public')->exists('certificates/sanman-'.$order->id.'-gu.png'))->toBeTrue();
+    expect(Storage::disk('public')->exists('certificates/sanman-'.$order->id.'-gu.pdf'))->toBeFalse();
 });
 
 it('creates a whatsapp optimized jpeg for certificate media', function () {
@@ -270,19 +296,19 @@ it('creates a whatsapp optimized jpeg for certificate media', function () {
 
     config()->set('donation.certificate.public_base_url', 'https://donate.sadbhavnadham.org');
 
-    $order = makeCertificateOrder();
+    $order = makeCertificateOrder(['state' => 'Maharashtra']);
 
     $service = app(DonationCertificateService::class);
     $url = $service->whatsappMediaUrl($order, force: true);
 
     expect($url)
-        ->toContain('https://donate.sadbhavnadham.org/storage/certificates/sanman-'.$order->id.'-whatsapp.jpg')
-        ->and(Storage::disk('public')->exists('certificates/sanman-'.$order->id.'-whatsapp.jpg'))->toBeTrue();
+        ->toContain('https://donate.sadbhavnadham.org/storage/certificates/sanman-'.$order->id.'-en-whatsapp.jpg')
+        ->and(Storage::disk('public')->exists('certificates/sanman-'.$order->id.'-en-whatsapp.jpg'))->toBeTrue();
 });
 
 it('removes a legacy stored pdf when regenerating a certificate', function () {
-    $order = makeCertificateOrder();
-    $pdfPath = 'certificates/sanman-'.$order->id.'.pdf';
+    $order = makeCertificateOrder(['state' => 'Gujarat']);
+    $pdfPath = 'certificates/sanman-'.$order->id.'-gu.pdf';
 
     Storage::disk('public')->put($pdfPath, 'legacy-pdf');
 
@@ -329,13 +355,13 @@ it('uses a cause-specific certificate template when configured', function () {
             'certificate_template' => 'storage/'.$relativePath,
         ]);
 
-        $order = makeCertificateOrder();
+        $order = makeCertificateOrder(['state' => 'Gujarat']);
         attachCauseToOrder($order, $cause);
 
         $url = app(DonationCertificateService::class)->generate($order, force: true);
 
         expect($url)->not->toBeNull()
-            ->and(Storage::disk('public')->exists('certificates/sanman-'.$order->id.'.png'))->toBeTrue();
+            ->and(Storage::disk('public')->exists('certificates/sanman-'.$order->id.'-gu.png'))->toBeTrue();
     } finally {
         File::put($globalTemplate, $globalBackup);
     }
@@ -352,11 +378,56 @@ it('falls back to the global certificate template when the cause template is mis
         'certificate_template' => 'storage/causes/certificates/missing-template.jpg',
     ]);
 
-    $order = makeCertificateOrder();
+    $order = makeCertificateOrder(['state' => 'Gujarat']);
     attachCauseToOrder($order, $cause);
 
     $url = app(DonationCertificateService::class)->generate($order, force: true);
 
     expect($url)->not->toBeNull()
-        ->and(Storage::disk('public')->exists('certificates/sanman-'.$order->id.'.png'))->toBeTrue();
+        ->and(Storage::disk('public')->exists('certificates/sanman-'.$order->id.'-gu.png'))->toBeTrue();
+});
+
+it('uses the gujarati cause template only for gujarat donors', function () {
+    $relativePath = 'causes/certificates/gujarati-only-template.jpg';
+    createCertificateTemplateImage($relativePath, 420, 580);
+
+    $cause = Cause::factory()->create([
+        'certificate_template' => 'storage/'.$relativePath,
+    ]);
+
+    $gujaratOrder = makeCertificateOrder(['state' => 'gujarat']);
+    attachCauseToOrder($gujaratOrder, $cause);
+
+    $englishOrder = makeCertificateOrder(['state' => 'Rajasthan']);
+    attachCauseToOrder($englishOrder, $cause);
+
+    $service = app(DonationCertificateService::class);
+
+    expect($service->usesGujaratiCertificate($gujaratOrder))->toBeTrue()
+        ->and($service->certificateLocale($englishOrder))->toBe('en')
+        ->and($service->formattedDateLine($englishOrder))->toStartWith('Date : ')
+        ->and($service->formattedDateLine($gujaratOrder))->toStartWith('તારીખ : ');
+});
+
+it('uses a cause-specific english certificate template for non-gujarat donors', function () {
+    $gujaratiRelative = 'causes/certificates/gujarati-template.jpg';
+    $englishRelative = 'causes/certificates/english-template.jpg';
+    createCertificateTemplateImage($gujaratiRelative, 400, 560);
+    createCertificateTemplateImage($englishRelative, 440, 600);
+
+    $cause = Cause::factory()->create([
+        'certificate_template' => 'storage/'.$gujaratiRelative,
+        'certificate_template_english' => 'storage/'.$englishRelative,
+    ]);
+
+    $order = makeCertificateOrder(['state' => 'Maharashtra']);
+    attachCauseToOrder($order, $cause);
+
+    $service = app(DonationCertificateService::class);
+    $resolver = new ReflectionMethod(DonationCertificateService::class, 'resolveTemplatePath');
+    $resolver->setAccessible(true);
+
+    expect($service->certificateLocale($order))->toBe('en')
+        ->and($resolver->invoke($service, $order))
+        ->toBe(Storage::disk('public')->path($englishRelative));
 });

@@ -37,9 +37,10 @@ class GenerateDonationCertificateCommand extends Command
 
         $this->info('Certificate generated successfully.');
         $this->line('Donor: '.$donationCertificateService->donorDisplayName($order));
+        $this->line('Locale: '.$donationCertificateService->certificateLocale($order));
         $this->line('Date: '.$donationCertificateService->formattedDateLine($order));
         $this->line('URL: '.$url);
-        $this->line('PNG: storage/app/public/certificates/sanman-'.$order->id.'.png');
+        $this->line('PNG: storage/app/public/certificates/sanman-'.$order->id.'-'.$donationCertificateService->certificateLocale($order).'.png');
 
         return self::SUCCESS;
     }
