@@ -9,6 +9,7 @@ use App\Models\Setting;
 use App\Services\AiSensyService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -349,9 +350,10 @@ it('sends generated certificate media url in a separate certificate whatsapp pay
     ]);
 
     $cause = Cause::factory()->create([
+        'title' => 'Old Age Home',
         'aisensy_account_id' => $account->id,
         'aisensy_thank_you_campaign' => 'thank-you-campaign',
-        'aisensy_certificate_campaign' => 'certificate-campaign',
+        'aisensy_certificate_campaign' => 'certificate_of_donation_old_age_home_uty',
         'aisensy_thank_you_image' => 'images/static-thank-you.png',
     ]);
 
@@ -364,7 +366,8 @@ it('sends generated certificate media url in a separate certificate whatsapp pay
         'currency' => 'INR',
         'total_amount' => 1000,
         'status' => DonationOrder::STATUS_PAID,
-        'paid_at' => now(),
+        'paid_at' => Carbon::create(2026, 5, 26, 10, 0, 0),
+        'receipt_number' => 42,
     ]);
 
     DonationItem::create([
@@ -382,11 +385,20 @@ it('sends generated certificate media url in a separate certificate whatsapp pay
     Http::assertSent(function (Request $request) use ($order): bool {
         $data = $request->data();
         $mediaUrl = (string) ($data['media']['url'] ?? '');
+        $params = $data['templateParams'] ?? null;
 
-        return ($data['campaignName'] ?? null) === 'certificate-campaign'
+        return ($data['campaignName'] ?? null) === 'certificate_of_donation_old_age_home_uty'
+            && is_array($params)
+            && $params === [
+                'વિજયભાઈ ડોબરીયા',
+                '1000',
+                'Old Age Home',
+                '26-05-2026',
+                DonationOrder::formatReceiptNumber(42, DonationOrder::PROVIDER_RAZORPAY),
+            ]
             && (
-                str_contains($mediaUrl, 'certificates/sanman-'.$order->id.'-whatsapp.jpg')
-                || str_contains($mediaUrl, 'certificates/sanman-'.$order->id.'.png')
+                str_contains($mediaUrl, 'certificates/sanman-'.$order->id)
+                || str_contains($mediaUrl, 'images/static-thank-you.png')
             );
     });
 });

@@ -361,7 +361,7 @@ const submit = () => {
                         <FormInput
                             v-model="form.aisensy_certificate_campaign"
                             label="Certificate campaign"
-                            hint="AiSensy image campaign (e.g. certificate_of_donation_old_age_home)."
+                            hint="AiSensy IMAGE campaign (e.g. certificate_of_donation_old_age_home_uty)."
                             :error="form.errors.aisensy_certificate_campaign"
                         />
                         <div class="grid gap-4 lg:grid-cols-2">

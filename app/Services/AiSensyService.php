@@ -143,7 +143,8 @@ class AiSensyService
 
         $config = $this->resolveAccount($order);
         $apiKey = $config['key'] ?? null;
-        $campaign = $config['certificate_campaign'] ?? null;
+        $campaign = $config['certificate_campaign']
+            ?: config('services.aisensy.default.certificate_campaign');
         $countryCode = $config['country_code'] ?? '91';
         $imageUrl = $this->donationCertificateService->whatsappMediaUrl($order)
             ?? ($config['thank_you_image'] ?? null);
@@ -171,16 +172,26 @@ class AiSensyService
         }
 
         $filename = basename(parse_url($imageUrl, PHP_URL_PATH) ?: 'certificate.jpg');
+        $donorName = trim((string) ($order->donor_name ?? ''));
+        if ($donorName === '') {
+            $donorName = 'Donor';
+        }
 
+        /*
+         * Campaign: certificate_of_donation_old_age_home_uty (IMAGE)
+         * Body: Dear {{1}} / ₹{{2}} / {{3}} / Donation Date {{4}} / Certificate No. {{5}}
+         */
         $payload = [
             'apiKey' => $apiKey,
             'campaignName' => $campaign,
             'destination' => $this->formatMobile($order->donor_phone, $countryCode),
-            'userName' => $order->donor_name ?? 'Website Donor',
+            'userName' => $donorName,
+            'templateParams' => $this->certificateTemplateParams($order),
             'media' => [
                 'url' => $imageUrl,
                 'filename' => $filename,
             ],
+            'source' => (string) config('services.aisensy.certificate_source', 'donate website certificate'),
         ];
 
         return $this->send($payload, 'certificate', ['order_id' => $order->id]);
@@ -660,6 +671,36 @@ class AiSensyService
                 $tokens['cause']
             )
             : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function certificateTemplateParams(DonationOrder $order): array
+    {
+        $donorName = trim((string) ($order->donor_name ?? ''));
+        if ($donorName === '') {
+            $donorName = 'Donor';
+        }
+
+        $causeName = $order->items->first()?->causeModel?->title
+            ?? ucfirst((string) ($order->items->first()?->cause ?? 'Donation'));
+
+        $donationDate = $order->paid_at?->format('d-m-Y')
+            ?? now()->format('d-m-Y');
+
+        $certificateNumber = $order->receiptNumberFormatted();
+        if ($certificateNumber === '') {
+            $certificateNumber = (string) ($order->provider_order_id ?: $order->id);
+        }
+
+        return [
+            $donorName,
+            NumberHelper::formatWholeAmount($order->total_amount),
+            $causeName,
+            $donationDate,
+            $certificateNumber,
+        ];
     }
 
     private function replaceMessageTokens(string $template, array $tokens): string

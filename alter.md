@@ -106,3 +106,58 @@ ALTER TABLE causes
 ALTER TABLE causes
     DROP COLUMN certificate_template_english;
 ```
+
+---
+
+## Certificate WhatsApp campaign (`certificate_of_donation_old_age_home_uty`) (2026-09-22)
+
+AiSensy IMAGE template after a paid donation. Body variables:
+
+1. `{{1}}` — donor name  
+2. `{{2}}` — amount (number only; template already has `₹`)  
+3. `{{3}}` — cause title  
+4. `{{4}}` — donation date (`d-m-Y`)  
+5. `{{5}}` — certificate / receipt number (e.g. `MSCT-RZP-123`)
+
+Media: generated sanman-patra image URL.
+
+### Preview current values
+
+```sql
+SELECT id, slug, title, aisensy_certificate_campaign, aisensy_account_id
+FROM causes
+ORDER BY id;
+```
+
+### Point causes at the new AiSensy campaign
+
+```sql
+UPDATE causes
+SET aisensy_certificate_campaign = 'certificate_of_donation_old_age_home_uty',
+    updated_at = NOW()
+WHERE aisensy_certificate_campaign IS NULL
+   OR aisensy_certificate_campaign IN (
+        'certificate_of_donation_old_age_home',
+        'certificate-campaign'
+   )
+   OR aisensy_certificate_campaign <> 'certificate_of_donation_old_age_home_uty';
+```
+
+### Optional: only Old Age Home
+
+```sql
+UPDATE causes
+SET aisensy_certificate_campaign = 'certificate_of_donation_old_age_home_uty',
+    updated_at = NOW()
+WHERE slug = 'old-age-home';
+```
+
+### Env reminder (not SQL)
+
+Update `.env` (then `php artisan config:clear` if config is cached):
+
+```env
+AISENSY_CERTIFICATE_CAMPAIGN=certificate_of_donation_old_age_home_uty
+```
+
+Code uses cause `aisensy_certificate_campaign` first, then falls back to this env / config default.
