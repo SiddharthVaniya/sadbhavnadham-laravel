@@ -32,11 +32,11 @@ function seedBirthdayPipeline(array $overrides = []): void
 
     BirthdayMessageStep::query()->updateOrCreate(
         ['days_before' => 7, 'kind' => BirthdayMessageStep::KIND_MARKETING],
-        ['enabled' => true, 'campaign_name' => 'happy_birthday_reminder_plant_tree', 'sort_order' => 10],
+        ['enabled' => true, 'campaign_name' => 'happy_birthday_current_day_ut_sid_new_v9', 'sort_order' => 10],
     );
     BirthdayMessageStep::query()->updateOrCreate(
         ['days_before' => 3, 'kind' => BirthdayMessageStep::KIND_MARKETING],
-        ['enabled' => true, 'campaign_name' => 'happy_birthday_reminder_plant_tree', 'sort_order' => 20],
+        ['enabled' => true, 'campaign_name' => 'happy_birthday_current_day_ut_sid_new_v9', 'sort_order' => 20],
     );
     BirthdayMessageStep::query()->updateOrCreate(
         ['days_before' => 0, 'kind' => BirthdayMessageStep::KIND_MARKETING],
@@ -117,7 +117,7 @@ it('on birthday after marketing then paid donation selects warm wish', function 
         'birthday_message_step_id' => $marketingStep->id,
         'days_before' => 7,
         'kind' => BirthdayMessageStep::KIND_MARKETING,
-        'campaign_name' => 'happy_birthday_reminder_plant_tree',
+        'campaign_name' => 'happy_birthday_current_day_ut_sid_new_v9',
         'sent_at' => $runDate->copy()->subDays(7),
     ]);
 
@@ -143,6 +143,17 @@ it('on birthday after marketing then paid donation selects warm wish', function 
 
     expect(app(\App\Services\BirthdayMessageService::class)->shouldSendStep($donor, $warm, $runDate))->toBeTrue();
 
+    $threeDay = BirthdayMessageStep::query()
+        ->where('days_before', 3)
+        ->where('kind', BirthdayMessageStep::KIND_MARKETING)
+        ->first();
+
+    expect(app(\App\Services\BirthdayMessageService::class)->shouldSendStep(
+        $donor,
+        $threeDay,
+        $runDate->copy()->subDays(3),
+    ))->toBeFalse();
+
     $this->artisan('donors:send-birthday-whatsapp', [
         '--date' => $runDate->toDateString(),
         '--dry-run' => true,
@@ -152,18 +163,82 @@ it('on birthday after marketing then paid donation selects warm wish', function 
         ->assertSuccessful();
 });
 
+it('skips remaining day-left marketing after donor pays following first reminder', function () {
+    seedBirthdayPipeline();
+
+    $runDate = now()->startOfDay();
+    $donor = Donor::factory()->create([
+        'name' => 'Stop Marketing Donor',
+        'phone' => '9876543213',
+        'date_of_birth' => $runDate->copy()->addDays(3)->subYears(30)->toDateString(),
+    ]);
+
+    $sevenDay = BirthdayMessageStep::query()
+        ->where('days_before', 7)
+        ->where('kind', BirthdayMessageStep::KIND_MARKETING)
+        ->first();
+
+    BirthdayMessageSend::query()->create([
+        'donor_id' => $donor->id,
+        'year' => (int) $runDate->year,
+        'birthday_message_step_id' => $sevenDay->id,
+        'days_before' => 7,
+        'kind' => BirthdayMessageStep::KIND_MARKETING,
+        'campaign_name' => 'happy_birthday_current_day_ut_sid_new_v9',
+        'sent_at' => $runDate->copy()->subDays(4),
+    ]);
+
+    DonationOrder::query()->create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'bday-paid-stop-mkt',
+        'donor_id' => $donor->id,
+        'donor_name' => $donor->name,
+        'donor_email' => $donor->email,
+        'donor_phone' => $donor->phone,
+        'currency' => 'INR',
+        'total_amount' => 500,
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => $runDate->copy()->subDay(),
+    ]);
+
+    $threeDay = BirthdayMessageStep::query()
+        ->where('days_before', 3)
+        ->where('kind', BirthdayMessageStep::KIND_MARKETING)
+        ->first();
+
+    expect(app(\App\Services\BirthdayMessageService::class)->shouldSendStep($donor, $threeDay, $runDate))->toBeFalse();
+});
+
 it('sends reminder campaign with name and days params', function () {
     seedBirthdayPipeline();
 
+    BirthdayMessageStep::query()
+        ->where('days_before', 7)
+        ->where('kind', BirthdayMessageStep::KIND_MARKETING)
+        ->update(['image_path' => 'https://cdn.example.test/day-left.jpg']);
+
     Http::fake([
         'https://backend.aisensy.com/*' => Http::response(['status' => 'ok'], 200),
+        'https://cdn.example.test/*' => Http::response('img', 200, ['Content-Type' => 'image/jpeg']),
     ]);
 
-    AisensyAccount::create([
+    $account = AisensyAccount::create([
         'name' => 'Default Account',
         'api_key' => 'test-api-key',
         'country_code' => '91',
         'is_active' => true,
+    ]);
+
+    // WA template name → Live API campaign name mapping (as in AiSensy).
+    \App\Models\AisensyWaTemplate::query()->create([
+        'aisensy_account_id' => $account->id,
+        'external_id' => 'tpl-day-left',
+        'name' => 'happy_birthday_current_day_ut_sid_new_v9',
+        'live_campaign_name' => 'happy_birthday_reminder_plant_tree',
+        'status' => 'APPROVED',
+        'param_count' => 2,
+        'is_active' => true,
+        'is_manual' => false,
     ]);
 
     $donor = Donor::factory()->create([
@@ -185,15 +260,21 @@ it('sends reminder campaign with name and days params', function () {
         return ($data['campaignName'] ?? null) === 'happy_birthday_reminder_plant_tree'
             && ($data['templateParams'][0] ?? null) === 'Siddharth'
             && ($data['templateParams'][1] ?? null) === '7'
-            && ! array_key_exists('media', $data);
+            && ($data['media']['url'] ?? null) === 'https://cdn.example.test/day-left.jpg';
     });
 });
 
 it('sends birthday marketing with name only and warm wish with empty params', function () {
     seedBirthdayPipeline();
 
+    BirthdayMessageStep::query()
+        ->where('days_before', 0)
+        ->where('kind', BirthdayMessageStep::KIND_MARKETING)
+        ->update(['image_path' => 'https://cdn.example.test/birthday-header.jpg']);
+
     Http::fake([
         'https://backend.aisensy.com/*' => Http::response(['status' => 'ok'], 200),
+        'https://cdn.example.test/*' => Http::response('img', 200, ['Content-Type' => 'image/jpeg']),
     ]);
 
     AisensyAccount::create([
@@ -233,7 +314,8 @@ it('sends birthday marketing with name only and warm wish with empty params', fu
         $data = $request->data();
 
         return ($data['campaignName'] ?? null) === 'happy_birthday_current_day_warm_msg'
-            && ! array_key_exists('templateParams', $data);
+            && ! array_key_exists('templateParams', $data)
+            && ($data['media']['url'] ?? null) === 'https://cdn.example.test/birthday-header.jpg';
     });
 });
 
@@ -253,7 +335,7 @@ it('does not re-send the same marketing offset in the same year', function () {
         'birthday_message_step_id' => BirthdayMessageStep::query()->where('days_before', 7)->value('id'),
         'days_before' => 7,
         'kind' => BirthdayMessageStep::KIND_MARKETING,
-        'campaign_name' => 'happy_birthday_reminder_plant_tree',
+        'campaign_name' => 'happy_birthday_current_day_ut_sid_new_v9',
         'sent_at' => $runDate->copy()->subHour(),
     ]);
 
@@ -284,4 +366,37 @@ it('lets settings editors open birthday messages admin page', function () {
             ->component('Admin/BirthdayMessages/Index')
             ->has('steps', 4)
             ->where('settings.enabled', true));
+});
+
+it('rejects enabled birthday steps without an AiSensy campaign name', function () {
+    seedBirthdayPipeline();
+
+    Permission::firstOrCreate(['name' => AdminPermissions::SETTINGS_EDIT]);
+    $role = Role::findOrCreate('birthday-settings-editor');
+    $role->givePermissionTo(AdminPermissions::SETTINGS_EDIT);
+
+    $admin = User::factory()->create();
+    $admin->assignRole($role);
+
+    $steps = BirthdayMessageStep::query()->orderBy('id')->get()->map(fn (BirthdayMessageStep $step) => [
+        'id' => $step->id,
+        'days_before' => $step->days_before,
+        'kind' => $step->kind,
+        'enabled' => true,
+        'campaign_name' => $step->kind === BirthdayMessageStep::KIND_MARKETING && $step->days_before === 0
+            ? ''
+            : $step->campaign_name,
+        'sort_order' => $step->sort_order,
+        'remove_image' => false,
+    ])->all();
+
+    actingAs($admin)
+        ->post(route('admin.birthday-messages.update'), [
+            'settings' => [
+                'enabled' => true,
+                'aisensy_account_id' => '',
+            ],
+            'steps' => $steps,
+        ])
+        ->assertSessionHasErrors();
 });

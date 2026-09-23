@@ -42,6 +42,7 @@ Route::prefix('donate')->group(function (): void {
 
     Route::post('/pan-requirement', [DonateApiController::class, 'panRequirement'])->middleware('throttle:30,1')->name('donate.api.pan-requirement');
     Route::post('/track', [DonateApiController::class, 'track'])->middleware('throttle:60,1')->name('donate.api.track');
+    Route::post('/danamojo/notify', [DonateApiController::class, 'danamojoNotify'])->middleware('throttle:30,1')->name('donate.api.danamojo.notify');
     Route::post('/otp/send', [DonateApiController::class, 'sendOtp'])->middleware('throttle:donor-otp-send')->name('donate.api.otp.send');
     Route::post('/otp/verify', [DonateApiController::class, 'verifyOtp'])->middleware('throttle:donor-otp-verify')->name('donate.api.otp.verify');
 

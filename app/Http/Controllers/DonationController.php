@@ -360,11 +360,16 @@ class DonationController extends Controller
         }
 
         $slug = trim((string) $causeSlug);
-        if ($slug === '') {
-            return $base.'/donate/danamojo-widget';
+        $path = $slug === ''
+            ? $base.'/donate/danamojo-widget'
+            : $base.'/donate/danamojo-widget/'.rawurlencode($slug);
+
+        $query = request()->getQueryString();
+        if (is_string($query) && $query !== '') {
+            return $path.'?'.$query;
         }
 
-        return $base.'/donate/danamojo-widget/'.rawurlencode($slug);
+        return $path;
     }
 
     public function wpRazorpay(StoreDonationRequest $request): JsonResponse

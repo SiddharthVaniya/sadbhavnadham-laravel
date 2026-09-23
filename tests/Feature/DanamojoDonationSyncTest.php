@@ -77,6 +77,8 @@ it('imports a verified danamojo donation and is idempotent on resync', function 
         'imported' => 1,
         'updated' => 0,
         'skipped' => 0,
+        'skipped_pending' => 0,
+        'skipped_failed' => 0,
     ]);
 
     $order = DonationOrder::query()->first();
@@ -122,7 +124,71 @@ it('skips non-verified danamojo donations', function () {
     $stats = app(DanamojoDonationImporter::class)->sync(now()->subDay(), now());
 
     expect($stats['skipped'])->toBe(1)
+        ->and($stats['skipped_pending'])->toBe(1)
         ->and(DonationOrder::query()->count())->toBe(0);
+});
+
+it('parses utm params from refererUrl and falls back to api utm_campaign', function () {
+    config([
+        'danamojo.api_key_secret' => 'test-secret',
+        'danamojo.queue_sheet_on_import' => false,
+        'danamojo.send_receipt_email_on_import' => false,
+        'danamojo.send_whatsapp_on_import' => false,
+    ]);
+
+    Cause::factory()->create([
+        'title' => 'Tree Plantation',
+        'slug' => 'tree-plantation',
+    ]);
+
+    Http::fake([
+        'api.danamojo.org/*' => Http::response([
+            'status' => 1,
+            'data' => [sampleDanamojoDonation([
+                'donationInfoId' => 999001,
+                'refererUrl' => 'https://sadbhavnadham.org/donate/danamojo-widget/tree-plantation?utm_source=meta&utm_medium=paid&utm_campaign=url_campaign&utm_content=ad1',
+                'utm_campaign' => 'Danamojo Mailer Name',
+            ])],
+        ], 200),
+    ]);
+
+    app(DanamojoDonationImporter::class)->sync(now()->subDay(), now());
+
+    $order = DonationOrder::query()->first();
+    expect($order)->not->toBeNull()
+        ->and($order->utm_source)->toBe('meta')
+        ->and($order->utm_medium)->toBe('paid')
+        ->and($order->utm_campaign)->toBe('url_campaign')
+        ->and($order->utm_content)->toBe('ad1')
+        ->and($order->landing_path)->toBe('/donate/danamojo-widget/tree-plantation');
+});
+
+it('imports by donationInfoId for notify endpoint', function () {
+    config([
+        'danamojo.api_key_secret' => 'test-secret',
+        'danamojo.queue_sheet_on_import' => false,
+        'danamojo.send_receipt_email_on_import' => false,
+        'danamojo.send_whatsapp_on_import' => false,
+    ]);
+
+    Cause::factory()->create([
+        'title' => 'Tree Plantation',
+        'slug' => 'tree-plantation',
+    ]);
+
+    Http::fake([
+        'api.danamojo.org/*' => Http::response([
+            'status' => 1,
+            'data' => [sampleDanamojoDonation(['donationInfoId' => 555123])],
+        ], 200),
+    ]);
+
+    $this->postJson('/api/donate/danamojo/notify', ['donationInfoId' => 555123])
+        ->assertOk()
+        ->assertJsonPath('result', 'imported')
+        ->assertJsonPath('donationInfoId', 555123);
+
+    expect(DonationOrder::query()->where('provider_order_id', 'danamojo-555123')->exists())->toBeTrue();
 });
 
 it('runs danamojo sync artisan command', function () {

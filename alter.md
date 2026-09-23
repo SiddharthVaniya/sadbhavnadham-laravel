@@ -208,3 +208,52 @@ Code also auto-maps `*_uty` → `*_new` at send time so WhatsApp works before th
 
 Also set `aisensy_send_certificate = 1` for the five causes above. `daily-needs` left off until AiSensy has `certificate_of_donation_daily_need_new`.
 WhatsApp certificate media prefers JPEG (`DONATION_CERTIFICATE_WHATSAPP_PREFER_PNG=false`).
+
+## 2026-09-23 — Birthday messages admin fixes
+
+Live gaps found on `/admin/birthday-messages`:
+- Day-0 marketing step had empty `campaign_name` (would never send).
+- Warm wish used typo campaign `birtday_message_final` (not in AiSensy templates).
+
+Applied:
+
+```sql
+UPDATE birthday_message_steps
+SET campaign_name = 'birthday_marketing_on_birthday', updated_at = NOW()
+WHERE days_before = 0 AND kind = 'marketing';
+
+UPDATE birthday_message_steps
+SET campaign_name = 'happy_birthday_current_day_warm_msg', updated_at = NOW()
+WHERE days_before = 0 AND kind = 'warm_wish';
+
+UPDATE settings SET value = 'happy_birthday_current_day_warm_msg', updated_at = NOW()
+WHERE `key` = 'aisensy_birthday_campaign';
+```
+
+
+## 2026-09-23 — Birthday campaigns + stop marketing after donate
+
+```sql
+UPDATE birthday_message_steps SET campaign_name = 'happy_birthday_current_day_ut_sid_new_v9', updated_at = NOW()
+WHERE kind = 'marketing' AND days_before IN (7, 3);
+
+UPDATE birthday_message_steps SET campaign_name = 'birthday_marketing_on_birthday', updated_at = NOW()
+WHERE kind = 'marketing' AND days_before = 0;
+
+UPDATE birthday_message_steps SET campaign_name = 'happy_birthday_current_day_warm_msg', updated_at = NOW()
+WHERE kind = 'warm_wish' AND days_before = 0;
+```
+
+Logic: after first marketing send, if donor pays, skip remaining day-left marketing; on birthday send warm wish only.
+
+## 2026-09-23 — Birthday day-left Live campaign mapping
+
+WA template `happy_birthday_current_day_ut_sid_new_v9` is Live in AiSensy as API campaign `happy_birthday_reminder_plant_tree`.
+
+```sql
+UPDATE aisensy_wa_templates
+SET live_campaign_name = 'happy_birthday_reminder_plant_tree', updated_at = NOW()
+WHERE name = 'happy_birthday_current_day_ut_sid_new_v9';
+```
+
+Admin steps keep storing the WA template name; send-time resolves to Live campaign name.

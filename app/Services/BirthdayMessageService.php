@@ -128,12 +128,23 @@ class BirthdayMessageService
     }
 
     /**
-     * Birthday day: marketing vs warm_wish. Pre-day: only marketing steps apply.
+     * Birthday day: marketing vs warm_wish.
+     * Pre-day reminders: marketing only, and stop once the donor has paid
+     * after the first marketing/reminder send this year.
      */
     public function resolveKindForStep(Donor $donor, BirthdayMessageStep $step, int $year): ?string
     {
         if ((int) $step->days_before > 0) {
-            return $step->isMarketing() ? BirthdayMessageStep::KIND_MARKETING : null;
+            if (! $step->isMarketing()) {
+                return null;
+            }
+
+            // Already donated after the first reminder → skip remaining day-left marketing.
+            if ($this->donorDonatedAfterFirstMarketing($donor, $year)) {
+                return null;
+            }
+
+            return BirthdayMessageStep::KIND_MARKETING;
         }
 
         // days_before = 0

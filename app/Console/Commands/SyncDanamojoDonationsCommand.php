@@ -10,7 +10,8 @@ class SyncDanamojoDonationsCommand extends Command
 {
     protected $signature = 'danamojo:sync
                             {--from= : Start date (Y-m-d), defaults to lookback window}
-                            {--to= : End date (Y-m-d), defaults to today}';
+                            {--to= : End date (Y-m-d), defaults to today}
+                            {--backfill-attribution : Re-parse UTMs from stored referrer on existing Danamojo orders}';
 
     protected $description = 'Import verified Danamojo donations into the portal';
 
@@ -28,13 +29,20 @@ class SyncDanamojoDonationsCommand extends Command
             return self::FAILURE;
         }
 
+        if ($this->option('backfill-attribution')) {
+            $result = $importer->backfillAttribution();
+            $this->info("Attribution backfill scanned={$result['scanned']} updated={$result['updated']}");
+
+            return self::SUCCESS;
+        }
+
         $to = $this->option('to')
             ? Carbon::parse((string) $this->option('to'), config('app.timezone'))->startOfDay()
             : now()->startOfDay();
 
         $from = $this->option('from')
             ? Carbon::parse((string) $this->option('from'), config('app.timezone'))->startOfDay()
-            : $to->copy()->subDays(max(0, (int) config('danamojo.lookback_days', 3)));
+            : $to->copy()->subDays(max(0, (int) config('danamojo.lookback_days', 14)));
 
         if ($from->gt($to)) {
             $this->error('The --from date must be on or before --to.');
@@ -53,9 +61,25 @@ class SyncDanamojoDonationsCommand extends Command
         }
 
         $this->table(
-            ['Fetched', 'Imported', 'Updated', 'Skipped'],
-            [[$stats['fetched'], $stats['imported'], $stats['updated'], $stats['skipped']]],
+            ['Fetched', 'Imported', 'Updated', 'Skipped', 'Pending', 'Failed', 'Other'],
+            [[
+                $stats['fetched'],
+                $stats['imported'],
+                $stats['updated'],
+                $stats['skipped'],
+                $stats['skipped_pending'],
+                $stats['skipped_failed'],
+                $stats['skipped_other'],
+            ]],
         );
+
+        if (($stats['by_status'] ?? []) !== []) {
+            $rows = [];
+            foreach ($stats['by_status'] as $status => $count) {
+                $rows[] = [$status, $count];
+            }
+            $this->table(['paymentStatus', 'Count'], $rows);
+        }
 
         return self::SUCCESS;
     }

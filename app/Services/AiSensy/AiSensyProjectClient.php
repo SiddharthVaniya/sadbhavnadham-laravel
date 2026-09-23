@@ -179,6 +179,9 @@ class AiSensyProjectClient
                 continue;
             }
 
+            $liveCampaignName = trim((string) ($campaign['name'] ?? ''));
+            $campaignStatus = strtoupper(trim((string) ($campaign['status'] ?? '')));
+
             $templates[] = [
                 'id' => $template['id'] ?? $template['template_id'] ?? null,
                 'name' => $template['name'] ?? $template['label'] ?? null,
@@ -189,6 +192,10 @@ class AiSensyProjectClient
                 'body' => $template['text'] ?? $template['body'] ?? $template['sample_text'] ?? null,
                 'param_count' => $template['total_parameters'] ?? $template['param_count'] ?? 0,
                 'components' => $template['components'] ?? null,
+                // Live API campaign name can differ from the WA template name.
+                'live_campaign_name' => $campaignStatus === 'LIVE' && $liveCampaignName !== ''
+                    ? $liveCampaignName
+                    : null,
             ];
         }
 
@@ -198,7 +205,12 @@ class AiSensyProjectClient
         foreach ($normalized as $row) {
             $key = ($row['external_id'] !== '' ? $row['external_id'] : 'name:'.Str::lower($row['name']));
 
-            if ($row['name'] === '' || isset($unique[$key])) {
+            if ($row['name'] === '') {
+                continue;
+            }
+
+            // Prefer a row that carries a LIVE campaign mapping when duplicates exist.
+            if (isset($unique[$key]) && blank($row['live_campaign_name'] ?? null)) {
                 continue;
             }
 
@@ -258,7 +270,11 @@ class AiSensyProjectClient
                 'synced_at' => now(),
             ]);
 
-            if (blank($record->live_campaign_name)) {
+            $liveCampaignName = trim((string) ($template['live_campaign_name'] ?? ''));
+
+            if ($liveCampaignName !== '') {
+                $record->live_campaign_name = $liveCampaignName;
+            } elseif (blank($record->live_campaign_name)) {
                 $record->live_campaign_name = $name;
             }
 
@@ -784,6 +800,9 @@ class AiSensyProjectClient
                 'body_preview' => $body ?? ($row['body'] ?? $row['text'] ?? $row['body_preview'] ?? null),
                 'param_count' => $paramCount,
                 'components' => $components,
+                'live_campaign_name' => filled($row['live_campaign_name'] ?? null)
+                    ? trim((string) $row['live_campaign_name'])
+                    : null,
             ];
         }
 

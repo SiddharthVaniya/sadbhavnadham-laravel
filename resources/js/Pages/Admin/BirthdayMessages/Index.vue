@@ -177,7 +177,8 @@ const save = () => {
                         <CardTitle class="text-base">Reminders + birthday marketing</CardTitle>
                         <CardDescription>
                             days_before &gt; 0 = reminder (params: name + days). days_before = 0 = birthday marketing if the donor has not donated after the first reminder this year (params: name).
-                            Suggested campaigns: happy_birthday_reminder_plant_tree (7 and 3), birthday_marketing_on_birthday (0).
+                            Suggested campaigns: happy_birthday_current_day_ut_sid_new_v9 (7 and 3; Live API maps to happy_birthday_reminder_plant_tree), birthday_marketing_on_birthday (0).
+                            If the donor donates after the first reminder, remaining day-left marketing stops and only the warm wish is sent on birthday.
                         </CardDescription>
                     </div>
                     <Button
@@ -229,9 +230,15 @@ const save = () => {
                                 <Label>AiSensy campaign name</Label>
                                 <Input
                                     v-model="step.campaign_name"
-                                    :placeholder="Number(step.days_before) === 0 ? 'birthday_marketing_on_birthday' : 'happy_birthday_reminder_plant_tree'"
+                                    :placeholder="Number(step.days_before) === 0 ? 'birthday_marketing_on_birthday' : 'happy_birthday_current_day_ut_sid_new_v9'"
                                     :disabled="! can_edit"
                                 />
+                                <p
+                                    v-if="form.errors[`steps.${localSteps.indexOf(step)}.campaign_name`]"
+                                    class="text-sm text-destructive"
+                                >
+                                    {{ form.errors[`steps.${localSteps.indexOf(step)}.campaign_name`] }}
+                                </p>
                             </div>
                         </div>
                         <FormFile
@@ -274,11 +281,23 @@ const save = () => {
                             placeholder="happy_birthday_current_day_warm_msg"
                             :disabled="! can_edit"
                         />
+                        <p
+                            v-if="form.errors[`steps.${localSteps.indexOf(warmWishStep)}.campaign_name`]"
+                            class="text-sm text-destructive"
+                        >
+                            {{ form.errors[`steps.${localSteps.indexOf(warmWishStep)}.campaign_name`] }}
+                        </p>
                     </div>
                 </CardContent>
             </Card>
 
-            <div v-if="can_edit" class="flex justify-end">
+            <div v-if="can_edit" class="flex flex-col items-end gap-2">
+                <p
+                    v-if="form.hasErrors"
+                    class="text-sm text-destructive"
+                >
+                    Please fix the highlighted errors before saving.
+                </p>
                 <Button type="button" :disabled="form.processing" @click="save">
                     {{ form.processing ? 'Saving…' : 'Save birthday messages' }}
                 </Button>

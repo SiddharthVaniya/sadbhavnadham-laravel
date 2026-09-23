@@ -5,11 +5,13 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\BirthdayMessageSetting;
 use App\Models\BirthdayMessageStep;
+use App\Models\Setting;
 use App\Support\AdminPermissions;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -101,6 +103,17 @@ class AdminBirthdayMessageController extends Controller
             'steps.*.image' => ['nullable', 'image', 'max:5120'],
         ]);
 
+        foreach ($validated['steps'] as $index => $row) {
+            $enabled = filter_var($row['enabled'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $campaign = trim((string) ($row['campaign_name'] ?? ''));
+
+            if ($enabled && $campaign === '') {
+                throw ValidationException::withMessages([
+                    "steps.{$index}.campaign_name" => 'AiSensy campaign name is required when a step is enabled.',
+                ]);
+            }
+        }
+
         $settings = BirthdayMessageSetting::current();
         $settings->update([
             'enabled' => (bool) $validated['settings']['enabled'],
@@ -108,6 +121,24 @@ class AdminBirthdayMessageController extends Controller
                 ? trim((string) $validated['settings']['aisensy_account_id'])
                 : null,
         ]);
+
+        // Keep legacy settings toggles in sync with this panel (cron / older code paths).
+        Setting::query()->updateOrCreate(
+            ['key' => Setting::SEND_BIRTHDAY_WHATSAPP],
+            [
+                'value' => $settings->enabled ? '1' : '0',
+                'label' => 'Send Birthday WhatsApp',
+                'group' => 'notifications',
+            ],
+        );
+        Setting::query()->updateOrCreate(
+            ['key' => Setting::AISENSY_BIRTHDAY_ACCOUNT_ID],
+            [
+                'value' => $settings->aisensy_account_id ?? '',
+                'label' => 'AiSensy Birthday Account Id',
+                'group' => 'notifications',
+            ],
+        );
 
         $keptIds = [];
 
@@ -154,6 +185,22 @@ class AdminBirthdayMessageController extends Controller
             BirthdayMessageStep::query()->whereNotIn('id', $keptIds)->delete();
         } else {
             BirthdayMessageStep::query()->delete();
+        }
+
+        $warmWishCampaign = BirthdayMessageStep::query()
+            ->where('kind', BirthdayMessageStep::KIND_WARM_WISH)
+            ->where('days_before', 0)
+            ->value('campaign_name');
+
+        if (filled($warmWishCampaign)) {
+            Setting::query()->updateOrCreate(
+                ['key' => Setting::AISENSY_BIRTHDAY_CAMPAIGN],
+                [
+                    'value' => $warmWishCampaign,
+                    'label' => 'AiSensy Birthday Campaign',
+                    'group' => 'notifications',
+                ],
+            );
         }
 
         return redirect()

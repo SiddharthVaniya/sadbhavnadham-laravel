@@ -28,7 +28,7 @@ return [
     /*
     | How many days back the scheduled sync looks (overlapping window avoids gaps).
     */
-    'lookback_days' => (int) env('DANAMOJO_LOOKBACK_DAYS', 3),
+    'lookback_days' => (int) env('DANAMOJO_LOOKBACK_DAYS', 14),
 
     /*
     | Map Danamojo donationProductName → local cause slug.

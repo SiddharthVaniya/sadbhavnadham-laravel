@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\CheckPanRequirementRequest;
 use App\Http\Requests\SendDonorOtpRequest;
+use App\Http\Requests\StoreDanamojoNotifyRequest;
 use App\Http\Requests\StoreDonationRequest;
 use App\Http\Requests\StoreLinkTrackingVisitRequest;
 use App\Http\Requests\StoreRecurringDonationRequest;
@@ -13,6 +14,7 @@ use App\Models\CausePackage;
 use App\Models\DonationOrder;
 use App\Models\DonationSubscription;
 use App\Models\Donor;
+use App\Services\Danamojo\DanamojoDonationImporter;
 use App\Services\LinkTrackingService;
 use App\Services\PostalCodeLookupService;
 use App\Services\RazorpaySubscriptionService;
@@ -198,6 +200,36 @@ class DonateApiController extends Controller
     public function track(StoreLinkTrackingVisitRequest $request): JsonResponse
     {
         return response()->json($this->linkTracking->recordVisit($request->validated(), $request));
+    }
+
+    public function danamojoNotify(StoreDanamojoNotifyRequest $request, DanamojoDonationImporter $importer): JsonResponse
+    {
+        $donationInfoId = (int) $request->validated('donationInfoId');
+
+        try {
+            $result = $importer->importByDonationInfoId($donationInfoId);
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'ok' => false,
+                'result' => 'error',
+                'message' => 'Danamojo import failed.',
+            ], 502);
+        }
+
+        $status = match ($result) {
+            'imported', 'updated' => 200,
+            'not_found' => 202,
+            default => 200,
+        };
+
+        return response()->json([
+            'ok' => in_array($result, ['imported', 'updated', 'skipped', 'not_found'], true),
+            'result' => $result,
+            'donationInfoId' => $donationInfoId,
+            'provider_order_id' => DanamojoDonationImporter::providerOrderId($donationInfoId),
+        ], $status);
     }
 
     public function sendOtp(SendDonorOtpRequest $request): JsonResponse

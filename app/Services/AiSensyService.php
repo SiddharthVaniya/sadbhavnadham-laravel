@@ -367,20 +367,23 @@ class AiSensyService
             ? [$donorName, (string) $daysAway]
             : [$donorName];
 
-        // Media optional — AiSensy campaign templates usually already include the header image.
-        $media = null;
-        $imageUrl = $this->normalizeImageUrl($step->publicImageUrl());
+        // IMAGE campaigns require a public header media URL (AiSensy: "Media URL Missing").
+        $media = $this->resolveBirthdayStepMedia($donor, $step);
 
-        if ($imageUrl && $this->validatePublicMediaUrl($imageUrl, ['donor_id' => $donor->id, 'step_id' => $step->id])) {
-            $media = [
-                'url' => $imageUrl,
-                'filename' => basename(parse_url($imageUrl, PHP_URL_PATH) ?: 'birthday-marketing.jpg'),
-            ];
+        if ($media === null) {
+            Log::error('Birthday marketing skipped: media URL missing', [
+                'donor_id' => $donor->id,
+                'step_id' => $step->id,
+                'campaign' => $campaign,
+                'days_before' => $daysAway,
+            ]);
+
+            return false;
         }
 
         return $this->sendApiCampaign(
             $account,
-            $campaign,
+            $this->resolveLiveCampaignName($campaign),
             $this->formatMobile((string) $donor->phone, (string) ($account->country_code ?: '91')),
             $donorName,
             $templateParams,
@@ -390,7 +393,7 @@ class AiSensyService
 
     /**
      * Warm birthday wish (day 0 after paid donation). Campaign name comes from admin step.
-     * Template has no body variables — empty templateParams; no personalized image required.
+     * Template may have 0 body variables but still requires an IMAGE header media URL.
      */
     public function sendBirthdayWarmWishWhatsApp(Donor $donor, BirthdayMessageStep $step): bool
     {
@@ -413,15 +416,93 @@ class AiSensyService
         }
 
         $donorName = $this->birthdayImageService->donorDisplayName($donor);
+        $media = $this->resolveBirthdayStepMedia($donor, $step);
+
+        if ($media === null) {
+            Log::error('Birthday warm wish skipped: media URL missing', [
+                'donor_id' => $donor->id,
+                'step_id' => $step->id,
+                'campaign' => $campaign,
+            ]);
+
+            return false;
+        }
 
         return $this->sendApiCampaign(
             $account,
-            $campaign,
+            $this->resolveLiveCampaignName($campaign),
             $this->formatMobile((string) $donor->phone, (string) ($account->country_code ?: '91')),
             $donorName,
             [],
-            null,
+            $media,
         );
+    }
+
+    /**
+     * Prefer the step header image; fall back to day-0 marketing image, then generated birthday art.
+     *
+     * @return array{url: string, filename: string}|null
+     */
+    private function resolveBirthdayStepMedia(Donor $donor, BirthdayMessageStep $step): ?array
+    {
+        $dayZeroMarketingUrl = BirthdayMessageStep::query()
+            ->where('days_before', 0)
+            ->where('kind', BirthdayMessageStep::KIND_MARKETING)
+            ->first()
+            ?->publicImageUrl();
+
+        $candidates = array_values(array_filter([
+            $step->publicImageUrl(),
+            $dayZeroMarketingUrl,
+            $this->birthdayImageService->whatsappMediaUrl($donor),
+        ]));
+
+        foreach ($candidates as $candidate) {
+            $imageUrl = $this->normalizeImageUrl($candidate);
+            if (! $imageUrl) {
+                continue;
+            }
+
+            if (! $this->validatePublicMediaUrl($imageUrl, ['donor_id' => $donor->id, 'step_id' => $step->id])) {
+                continue;
+            }
+
+            return [
+                'url' => $imageUrl,
+                'filename' => basename(parse_url($imageUrl, PHP_URL_PATH) ?: 'birthday.jpg'),
+            ];
+        }
+
+        return null;
+    }
+
+    /**
+     * Map WA template name → Live API campaign name when they differ in AiSensy.
+     * Example: template happy_birthday_current_day_ut_sid_new_v9 → campaign happy_birthday_reminder_plant_tree.
+     */
+    private function resolveLiveCampaignName(string $campaign): string
+    {
+        $campaign = trim($campaign);
+
+        if ($campaign === '' || ! Schema::hasTable('aisensy_wa_templates')) {
+            return $campaign;
+        }
+
+        $live = AisensyWaTemplate::query()
+            ->where('is_active', true)
+            ->where(function ($query) use ($campaign): void {
+                $query->where('name', $campaign)
+                    ->orWhere('live_campaign_name', $campaign);
+            })
+            ->orderByRaw(
+                'CASE WHEN live_campaign_name = ? THEN 0 WHEN name = ? THEN 1 ELSE 2 END',
+                [$campaign, $campaign],
+            )
+            ->value('live_campaign_name');
+
+        $live = trim((string) $live);
+
+        return $live !== '' ? $live : $campaign;
     }
 
     /**
@@ -457,6 +538,7 @@ class AiSensyService
             'campaignName' => $campaignName,
             'destination' => $this->formatMobile($destination, (string) ($account->country_code ?: '91')),
             'userName' => $userName !== '' ? $userName : 'Donor',
+            'source' => 'birthday whatsapp',
         ];
 
         if ($templateParams !== []) {

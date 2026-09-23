@@ -8,8 +8,11 @@ use App\Models\DonationOrder;
 use App\Models\Donor;
 use App\Services\DonationAttributionService;
 use App\Services\DonationPaymentService;
+use App\Support\Attribution\AttributionNormalizer;
+use App\Support\Attribution\AttributionParameters;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class DanamojoDonationImporter
@@ -21,7 +24,16 @@ class DanamojoDonationImporter
     ) {}
 
     /**
-     * @return array{fetched: int, imported: int, updated: int, skipped: int}
+     * @return array{
+     *     fetched: int,
+     *     imported: int,
+     *     updated: int,
+     *     skipped: int,
+     *     skipped_pending: int,
+     *     skipped_failed: int,
+     *     skipped_other: int,
+     *     by_status: array<string, int>
+     * }
      */
     public function sync(Carbon $fromDate, Carbon $toDate): array
     {
@@ -32,15 +44,122 @@ class DanamojoDonationImporter
             'imported' => 0,
             'updated' => 0,
             'skipped' => 0,
+            'skipped_pending' => 0,
+            'skipped_failed' => 0,
+            'skipped_other' => 0,
+            'by_status' => [],
         ];
 
         foreach ($rows as $row) {
+            $status = trim((string) ($row['paymentStatus'] ?? 'unknown'));
+            $stats['by_status'][$status] = ($stats['by_status'][$status] ?? 0) + 1;
+
             $result = $this->importRow($row);
+
+            if ($result === 'skipped') {
+                $stats['skipped']++;
+                $normalized = mb_strtolower($status);
+
+                if ($normalized === 'pending') {
+                    $stats['skipped_pending']++;
+                } elseif ($normalized === 'failed' || $normalized === 'refunded') {
+                    $stats['skipped_failed']++;
+                } else {
+                    $stats['skipped_other']++;
+                }
+
+                continue;
+            }
 
             $stats[$result]++;
         }
 
+        Log::info('danamojo.sync.completed', [
+            'from' => $fromDate->toDateString(),
+            'to' => $toDate->toDateString(),
+            'stats' => $stats,
+        ]);
+
         return $stats;
+    }
+
+    /**
+     * Fetch a lookback window and import a single donationInfoId when present.
+     *
+     * @return 'imported'|'updated'|'skipped'|'not_found'
+     */
+    public function importByDonationInfoId(int $donationInfoId, ?Carbon $fromDate = null, ?Carbon $toDate = null): string
+    {
+        if ($donationInfoId <= 0) {
+            return 'skipped';
+        }
+
+        $to = $toDate?->copy() ?? now();
+        $from = $fromDate?->copy()
+            ?? $to->copy()->subDays(max(0, (int) config('danamojo.lookback_days', 14)));
+
+        $rows = $this->client->fetchDonations($from->copy()->startOfDay(), $to->copy()->startOfDay());
+
+        foreach ($rows as $row) {
+            if ((int) ($row['donationInfoId'] ?? 0) !== $donationInfoId) {
+                continue;
+            }
+
+            return $this->importRow($row);
+        }
+
+        return 'not_found';
+    }
+
+    /**
+     * Re-apply attribution from stored referrer / item meta for existing Danamojo orders.
+     *
+     * @return array{scanned: int, updated: int}
+     */
+    public function backfillAttribution(?int $limit = null): array
+    {
+        $query = DonationOrder::query()
+            ->where('payment_provider', DonationOrder::PROVIDER_DANAMOJO)
+            ->with('items')
+            ->orderByDesc('id');
+
+        if ($limit !== null && $limit > 0) {
+            $query->limit($limit);
+        }
+
+        $scanned = 0;
+        $updated = 0;
+
+        foreach ($query->cursor() as $order) {
+            $scanned++;
+            $meta = is_array($order->items->first()?->meta) ? $order->items->first()->meta : [];
+            $danamojo = is_array($meta['danamojo'] ?? null) ? $meta['danamojo'] : [];
+
+            $row = [
+                'refererUrl' => $order->referrer,
+                'utm_campaign' => $danamojo['utm_campaign'] ?? $order->utm_campaign,
+                'device' => $order->device_type,
+            ];
+
+            $attribution = $this->attributionFromRow($row);
+            $before = $order->only(array_keys($attribution));
+            $merged = $this->mergeAttribution($order, $attribution);
+
+            if ($merged === []) {
+                continue;
+            }
+
+            $order->fill($merged)->save();
+            DonationAttributionService::normalizeOrderAttributes($order->fresh());
+            DonationAttributionService::resolveIdentifierColumns($order->fresh());
+
+            $after = $order->fresh()->only(array_keys($attribution));
+            if ($before !== $after) {
+                $updated++;
+            }
+        }
+
+        return ['scanned' => $scanned, 'updated' => $updated];
     }
 
     /**
@@ -98,8 +217,9 @@ class DanamojoDonationImporter
         $details = $this->firstDonationDetail($row);
         $cause = $this->resolveCause($details);
         $productName = trim((string) ($details['donationProductName'] ?? 'Danamojo donation'));
+        $attribution = $this->attributionFromRow($row);
 
-        $order = DonationOrder::create([
+        $order = DonationOrder::create(array_merge([
             'payment_provider' => DonationOrder::PROVIDER_DANAMOJO,
             'source_channel' => DonationAttributionService::CHANNEL_DANAMOJO,
             'provider_order_id' => $providerOrderId,
@@ -120,12 +240,9 @@ class DanamojoDonationImporter
             'total_amount' => $amountInr,
             'status' => DonationOrder::STATUS_PAID,
             'paid_at' => $paidAt,
-            'utm_campaign' => $this->nullableString($row['utm_campaign'] ?? null),
-            'referrer' => $this->nullableString($row['refererUrl'] ?? null),
-            'landing_path' => $this->landingPath($row['refererUrl'] ?? null),
             'device_type' => $this->deviceType($row['device'] ?? null),
             'is_recurring' => (bool) ($row['recurring'] ?? false),
-        ]);
+        ], $attribution));
 
         $order->created_at = $paidAt;
         $order->saveQuietly();
@@ -145,6 +262,7 @@ class DanamojoDonationImporter
             ]),
         ]);
 
+        $this->applyNormalizedAttribution($order->fresh(['items.causeModel']));
         $this->finalizeNewImport($order->fresh(['items.causeModel']));
 
         return $order;
@@ -159,8 +277,9 @@ class DanamojoDonationImporter
         $amountInr = $this->amountInr($row);
         $paidAt = $this->donationDate($row);
         $details = $this->firstDonationDetail($row);
+        $attribution = $this->mergeAttribution($order, $this->attributionFromRow($row));
 
-        $order->fill([
+        $order->fill(array_merge([
             'donor_name' => $snapshot['donor_name'],
             'donor_email' => $snapshot['donor_email'] ?: $order->donor_email,
             'donor_phone' => $snapshot['donor_phone'] ?: $order->donor_phone,
@@ -174,12 +293,9 @@ class DanamojoDonationImporter
             'total_amount' => $amountInr,
             'status' => DonationOrder::STATUS_PAID,
             'paid_at' => $order->paid_at ?? $paidAt,
-            'utm_campaign' => $this->nullableString($row['utm_campaign'] ?? null) ?? $order->utm_campaign,
-            'referrer' => $this->nullableString($row['refererUrl'] ?? null) ?? $order->referrer,
-            'landing_path' => $this->landingPath($row['refererUrl'] ?? null) ?? $order->landing_path,
             'device_type' => $this->deviceType($row['device'] ?? null) ?? $order->device_type,
             'is_recurring' => (bool) ($row['recurring'] ?? false),
-        ]);
+        ], $attribution));
         $order->save();
 
         $item = $order->items()->first();
@@ -204,7 +320,119 @@ class DanamojoDonationImporter
             ]);
         }
 
-        $this->donationAttribution->ensureOnPaid($order->fresh(['items.causeModel']));
+        $fresh = $order->fresh(['items.causeModel']);
+        $this->applyNormalizedAttribution($fresh);
+        $this->donationAttribution->ensureOnPaid($fresh->fresh(['items.causeModel']));
+    }
+
+    private function applyNormalizedAttribution(DonationOrder $order): void
+    {
+        DonationAttributionService::normalizeOrderAttributes($order);
+        DonationAttributionService::resolveIdentifierColumns($order->fresh());
+    }
+
+    /**
+     * Prefer URL query UTMs; fall back to Danamojo's root utm_campaign.
+     *
+     * @param  array<string, mixed>  $row
+     * @return array<string, string>
+     */
+    private function attributionFromRow(array $row): array
+    {
+        $referrer = $this->nullableString($row['refererUrl'] ?? null);
+        $query = $this->queryParamsFromUrl($referrer);
+
+        $utmSource = $this->nullableLimited($query['utm_source'] ?? null, 120);
+        $utmMedium = $this->nullableLimited($query['utm_medium'] ?? null, 120);
+        $utmCampaign = $this->nullableLimited($query['utm_campaign'] ?? null, 120)
+            ?? $this->nullableLimited($row['utm_campaign'] ?? null, 120);
+        $utmContent = $this->nullableLimited($query['utm_content'] ?? null, 120);
+        $utmTerm = $this->nullableLimited($query['utm_term'] ?? null, 120);
+
+        $payload = array_filter([
+            'utm_source' => $utmSource,
+            'utm_medium' => $utmMedium,
+            'utm_campaign' => $utmCampaign,
+            'utm_content' => $utmContent,
+            'utm_term' => $utmTerm,
+            'referrer' => $referrer ? mb_substr($referrer, 0, 512) : null,
+            'landing_path' => $this->landingPath($referrer),
+            'meta_campaign_id' => $this->nullableLimited(
+                $query['utm_id'] ?? $query['campaign_id'] ?? $query['fb_campaign_id'] ?? null,
+                40
+            ),
+            'meta_adset_id' => $this->nullableLimited(
+                $query['adset_id'] ?? $query['fb_adset_id'] ?? null,
+                40
+            ),
+            'meta_ad_id' => $this->nullableLimited(
+                $query['aid'] ?? $query['ad_id'] ?? $query['fb_ad_id'] ?? null,
+                40
+            ),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        $normalized = AttributionNormalizer::normalizedPayload([
+            'utm_source' => $payload['utm_source'] ?? null,
+            'utm_medium' => $payload['utm_medium'] ?? null,
+            'utm_campaign' => $payload['utm_campaign'] ?? null,
+            'utm_content' => $payload['utm_content'] ?? null,
+            'utm_term' => $payload['utm_term'] ?? null,
+            'referrer' => $payload['referrer'] ?? null,
+            'landing_path' => $payload['landing_path'] ?? null,
+        ]);
+
+        return array_merge($payload, array_filter($normalized, fn ($value) => $value !== null && $value !== ''));
+    }
+
+    /**
+     * Fill empty attribution columns; keep existing non-empty values.
+     *
+     * @param  array<string, string>  $incoming
+     * @return array<string, string>
+     */
+    private function mergeAttribution(DonationOrder $order, array $incoming): array
+    {
+        $merged = [];
+
+        foreach ($incoming as $key => $value) {
+            $current = $order->getAttribute($key);
+            if ($current === null || $current === '') {
+                $merged[$key] = $value;
+            }
+        }
+
+        return $merged;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function queryParamsFromUrl(?string $url): array
+    {
+        if ($url === null || $url === '') {
+            return [];
+        }
+
+        $query = parse_url($url, PHP_URL_QUERY);
+        if (! is_string($query) || $query === '') {
+            return [];
+        }
+
+        $params = [];
+        parse_str($query, $params);
+
+        $out = [];
+        foreach ($params as $key => $value) {
+            if (! is_string($key) || ! is_scalar($value)) {
+                continue;
+            }
+            $trimmed = trim((string) $value);
+            if ($trimmed !== '') {
+                $out[$key] = AttributionParameters::decodeQueryValue($trimmed);
+            }
+        }
+
+        return $out;
     }
 
     private function finalizeNewImport(DonationOrder $order): void
@@ -396,6 +624,8 @@ class DanamojoDonationImporter
             'international' => (bool) ($row['international'] ?? false),
             'product_name' => $details['donationProductName'] ?? null,
             'sub_id' => $row['subId'] ?? null,
+            'utm_campaign' => $row['utm_campaign'] ?? null,
+            'referer_url' => $row['refererUrl'] ?? null,
         ], fn ($value) => $value !== null && $value !== '');
     }
 
@@ -462,7 +692,7 @@ class DanamojoDonationImporter
 
         $path = parse_url($url, PHP_URL_PATH);
 
-        return is_string($path) && $path !== '' ? $path : null;
+        return is_string($path) && $path !== '' ? mb_substr($path, 0, 255) : null;
     }
 
     private function deviceType(mixed $device): ?string
@@ -481,5 +711,16 @@ class DanamojoDonationImporter
         $string = trim((string) $value);
 
         return $string === '' ? null : $string;
+    }
+
+    private function nullableLimited(mixed $value, int $max): ?string
+    {
+        $string = $this->nullableString($value);
+
+        if ($string === null) {
+            return null;
+        }
+
+        return mb_substr($string, 0, $max);
     }
 }

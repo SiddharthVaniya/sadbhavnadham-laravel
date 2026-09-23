@@ -207,8 +207,14 @@ it('does not dispatch when birthday was already sent today', function () {
 });
 
 it('marks donor after successful birthday whatsapp job', function () {
+    \App\Models\BirthdayMessageStep::query()
+        ->where('days_before', 0)
+        ->where('kind', \App\Models\BirthdayMessageStep::KIND_MARKETING)
+        ->update(['image_path' => 'https://cdn.example.test/birthday-header.jpg']);
+
     Http::fake([
         'https://backend.aisensy.com/*' => Http::response(['status' => 'ok'], 200),
+        'https://cdn.example.test/*' => Http::response('img', 200, ['Content-Type' => 'image/jpeg']),
     ]);
 
     AisensyAccount::create([
@@ -243,7 +249,7 @@ it('marks donor after successful birthday whatsapp job', function () {
 
         return ($data['campaignName'] ?? null) === 'happy_birthday_current_day_warm_msg'
             && ! array_key_exists('templateParams', $data)
-            && ! array_key_exists('media', $data);
+            && ($data['media']['url'] ?? null) === 'https://cdn.example.test/birthday-header.jpg';
     });
 });
 
