@@ -362,10 +362,12 @@ class AiSensyService
 
         $donorName = $this->birthdayImageService->donorDisplayName($donor);
         $daysAway = max(0, (int) $step->days_before);
+        // Reminder (days > 0): {{1}} name, {{2}} days. Birthday-day marketing: {{1}} name only.
         $templateParams = $daysAway > 0
             ? [$donorName, (string) $daysAway]
             : [$donorName];
 
+        // Media optional — AiSensy campaign templates usually already include the header image.
         $media = null;
         $imageUrl = $this->normalizeImageUrl($step->publicImageUrl());
 
@@ -383,6 +385,42 @@ class AiSensyService
             $donorName,
             $templateParams,
             $media,
+        );
+    }
+
+    /**
+     * Warm birthday wish (day 0 after paid donation). Campaign name comes from admin step.
+     * Template has no body variables — empty templateParams; no personalized image required.
+     */
+    public function sendBirthdayWarmWishWhatsApp(Donor $donor, BirthdayMessageStep $step): bool
+    {
+        if (! app(DonationWhatsAppPolicy::class)->hasSendablePhoneNumber($donor->phone)) {
+            return false;
+        }
+
+        $account = $this->resolveBirthdayAccount();
+        $campaign = trim((string) $step->campaign_name);
+
+        if ($account === null || $campaign === '') {
+            Log::error('AiSensy config missing (birthday warm wish)', [
+                'donor_id' => $donor->id,
+                'step_id' => $step->id,
+                'has_account' => $account !== null,
+                'has_campaign' => $campaign !== '',
+            ]);
+
+            return false;
+        }
+
+        $donorName = $this->birthdayImageService->donorDisplayName($donor);
+
+        return $this->sendApiCampaign(
+            $account,
+            $campaign,
+            $this->formatMobile((string) $donor->phone, (string) ($account->country_code ?: '91')),
+            $donorName,
+            [],
+            null,
         );
     }
 

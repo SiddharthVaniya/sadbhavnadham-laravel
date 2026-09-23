@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\SendBirthdayWhatsAppJob;
+use App\Models\AisensyAccount;
 use App\Models\BirthdayMessageSend;
 use App\Models\BirthdayMessageSetting;
 use App\Models\BirthdayMessageStep;
@@ -8,9 +9,12 @@ use App\Models\DonationOrder;
 use App\Models\Donor;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\AiSensyService;
 use App\Support\AdminPermissions;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -28,19 +32,19 @@ function seedBirthdayPipeline(array $overrides = []): void
 
     BirthdayMessageStep::query()->updateOrCreate(
         ['days_before' => 7, 'kind' => BirthdayMessageStep::KIND_MARKETING],
-        ['enabled' => true, 'campaign_name' => 'birthday_7_days', 'sort_order' => 10],
+        ['enabled' => true, 'campaign_name' => 'happy_birthday_reminder_plant_tree', 'sort_order' => 10],
     );
     BirthdayMessageStep::query()->updateOrCreate(
         ['days_before' => 3, 'kind' => BirthdayMessageStep::KIND_MARKETING],
-        ['enabled' => true, 'campaign_name' => 'birthday_3_days', 'sort_order' => 20],
+        ['enabled' => true, 'campaign_name' => 'happy_birthday_reminder_plant_tree', 'sort_order' => 20],
     );
     BirthdayMessageStep::query()->updateOrCreate(
         ['days_before' => 0, 'kind' => BirthdayMessageStep::KIND_MARKETING],
-        ['enabled' => true, 'campaign_name' => 'birthday_day_marketing', 'sort_order' => 30],
+        ['enabled' => true, 'campaign_name' => 'birthday_marketing_on_birthday', 'sort_order' => 30],
     );
     BirthdayMessageStep::query()->updateOrCreate(
         ['days_before' => 0, 'kind' => BirthdayMessageStep::KIND_WARM_WISH],
-        ['enabled' => true, 'campaign_name' => 'birthday_warm_wish', 'sort_order' => 40],
+        ['enabled' => true, 'campaign_name' => 'happy_birthday_current_day_warm_msg', 'sort_order' => 40],
     );
 }
 
@@ -113,7 +117,7 @@ it('on birthday after marketing then paid donation selects warm wish', function 
         'birthday_message_step_id' => $marketingStep->id,
         'days_before' => 7,
         'kind' => BirthdayMessageStep::KIND_MARKETING,
-        'campaign_name' => 'birthday_7_days',
+        'campaign_name' => 'happy_birthday_reminder_plant_tree',
         'sent_at' => $runDate->copy()->subDays(7),
     ]);
 
@@ -148,6 +152,91 @@ it('on birthday after marketing then paid donation selects warm wish', function 
         ->assertSuccessful();
 });
 
+it('sends reminder campaign with name and days params', function () {
+    seedBirthdayPipeline();
+
+    Http::fake([
+        'https://backend.aisensy.com/*' => Http::response(['status' => 'ok'], 200),
+    ]);
+
+    AisensyAccount::create([
+        'name' => 'Default Account',
+        'api_key' => 'test-api-key',
+        'country_code' => '91',
+        'is_active' => true,
+    ]);
+
+    $donor = Donor::factory()->create([
+        'name' => 'Siddharth',
+        'phone' => '9876543299',
+        'date_of_birth' => now()->addDays(7)->subYears(30)->toDateString(),
+    ]);
+
+    $step = BirthdayMessageStep::query()
+        ->where('days_before', 7)
+        ->where('kind', BirthdayMessageStep::KIND_MARKETING)
+        ->first();
+
+    expect(app(AiSensyService::class)->sendBirthdayMarketingWhatsApp($donor, $step))->toBeTrue();
+
+    Http::assertSent(function (Request $request): bool {
+        $data = $request->data();
+
+        return ($data['campaignName'] ?? null) === 'happy_birthday_reminder_plant_tree'
+            && ($data['templateParams'][0] ?? null) === 'Siddharth'
+            && ($data['templateParams'][1] ?? null) === '7'
+            && ! array_key_exists('media', $data);
+    });
+});
+
+it('sends birthday marketing with name only and warm wish with empty params', function () {
+    seedBirthdayPipeline();
+
+    Http::fake([
+        'https://backend.aisensy.com/*' => Http::response(['status' => 'ok'], 200),
+    ]);
+
+    AisensyAccount::create([
+        'name' => 'Default Account',
+        'api_key' => 'test-api-key',
+        'country_code' => '91',
+        'is_active' => true,
+    ]);
+
+    $donor = Donor::factory()->create([
+        'name' => 'Tony',
+        'phone' => '9876543288',
+        'date_of_birth' => now()->subYears(28)->toDateString(),
+    ]);
+
+    $marketing = BirthdayMessageStep::query()
+        ->where('days_before', 0)
+        ->where('kind', BirthdayMessageStep::KIND_MARKETING)
+        ->first();
+    $warm = BirthdayMessageStep::query()
+        ->where('days_before', 0)
+        ->where('kind', BirthdayMessageStep::KIND_WARM_WISH)
+        ->first();
+
+    expect(app(AiSensyService::class)->sendBirthdayMarketingWhatsApp($donor, $marketing))->toBeTrue();
+    expect(app(AiSensyService::class)->sendBirthdayWarmWishWhatsApp($donor, $warm))->toBeTrue();
+
+    Http::assertSent(function (Request $request): bool {
+        $data = $request->data();
+
+        return ($data['campaignName'] ?? null) === 'birthday_marketing_on_birthday'
+            && ($data['templateParams'][0] ?? null) === 'Tony'
+            && count($data['templateParams'] ?? []) === 1;
+    });
+
+    Http::assertSent(function (Request $request): bool {
+        $data = $request->data();
+
+        return ($data['campaignName'] ?? null) === 'happy_birthday_current_day_warm_msg'
+            && ! array_key_exists('templateParams', $data);
+    });
+});
+
 it('does not re-send the same marketing offset in the same year', function () {
     Bus::fake();
     seedBirthdayPipeline();
@@ -164,7 +253,7 @@ it('does not re-send the same marketing offset in the same year', function () {
         'birthday_message_step_id' => BirthdayMessageStep::query()->where('days_before', 7)->value('id'),
         'days_before' => 7,
         'kind' => BirthdayMessageStep::KIND_MARKETING,
-        'campaign_name' => 'birthday_7_days',
+        'campaign_name' => 'happy_birthday_reminder_plant_tree',
         'sent_at' => $runDate->copy()->subHour(),
     ]);
 

@@ -51,7 +51,7 @@ class SendBirthdayWhatsAppJob implements ShouldQueue
         try {
             $donor = $this->donor->fresh();
             $sent = $step->isWarmWish()
-                ? $aiSensyService->sendBirthdayWhatsApp($donor, $step)
+                ? $aiSensyService->sendBirthdayWarmWishWhatsApp($donor, $step)
                 : $aiSensyService->sendBirthdayMarketingWhatsApp($donor, $step);
 
             if (! $sent) {

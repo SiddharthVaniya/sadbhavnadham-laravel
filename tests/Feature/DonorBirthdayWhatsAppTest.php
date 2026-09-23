@@ -46,7 +46,7 @@ beforeEach(function () {
         ['days_before' => 0, 'kind' => \App\Models\BirthdayMessageStep::KIND_MARKETING],
         [
             'enabled' => true,
-            'campaign_name' => 'birthday-day-marketing',
+            'campaign_name' => 'birthday_marketing_on_birthday',
             'sort_order' => 30,
         ],
     );
@@ -55,7 +55,7 @@ beforeEach(function () {
         ['days_before' => 0, 'kind' => \App\Models\BirthdayMessageStep::KIND_WARM_WISH],
         [
             'enabled' => true,
-            'campaign_name' => 'birthday-campaign',
+            'campaign_name' => 'happy_birthday_current_day_warm_msg',
             'sort_order' => 40,
         ],
     );
@@ -209,7 +209,6 @@ it('does not dispatch when birthday was already sent today', function () {
 it('marks donor after successful birthday whatsapp job', function () {
     Http::fake([
         'https://backend.aisensy.com/*' => Http::response(['status' => 'ok'], 200),
-        '*' => Http::response('birthday-image', 200, ['Content-Type' => 'image/jpeg']),
     ]);
 
     AisensyAccount::create([
@@ -218,14 +217,6 @@ it('marks donor after successful birthday whatsapp job', function () {
         'country_code' => '91',
         'is_active' => true,
     ]);
-
-    $this->mock(BirthdayImageService::class, function ($mock): void {
-        $mock->shouldReceive('whatsappMediaUrl')
-            ->once()
-            ->andReturn('https://donate.example.test/storage/birthdays/birthday-1.png');
-        $mock->shouldReceive('donorDisplayName')
-            ->andReturn('Ramesh Patel');
-    });
 
     $donor = Donor::factory()->create([
         'name' => 'Ramesh Patel',
@@ -239,13 +230,21 @@ it('marks donor after successful birthday whatsapp job', function () {
         ->where('kind', \App\Models\BirthdayMessageStep::KIND_WARM_WISH)
         ->first();
 
-    // No prior marketing → day-0 resolves to marketing; force warm wish step id.
+    // Force warm wish step id (day-0 without prior marketing would otherwise pick marketing).
     (new SendBirthdayWhatsAppJob($donor, now()->toDateString(), true, $step->id))->handle(
         app(AiSensyService::class),
         app(\App\Services\BirthdayMessageService::class),
     );
 
     expect($donor->fresh()->birthday_whatsapp_sent_on?->toDateString())->toBe(now()->toDateString());
+
+    Http::assertSent(function (Request $request): bool {
+        $data = $request->data();
+
+        return ($data['campaignName'] ?? null) === 'happy_birthday_current_day_warm_msg'
+            && ! array_key_exists('templateParams', $data)
+            && ! array_key_exists('media', $data);
+    });
 });
 
 it('sends birthday aisensy payload with media url and donor name', function () {

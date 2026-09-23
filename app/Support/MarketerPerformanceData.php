@@ -433,8 +433,8 @@ class MarketerPerformanceData
             return AdminReportsData::rangeForDuration($duration);
         }
 
-        return AdminAnalyticsData::resolveRange($request, $duration);
-    }
+            return AdminAnalyticsData::resolveRange($request, $duration);
+        }
 
     /**
      * @param  array{start: ?Carbon, end: ?Carbon, label: string}  $range
@@ -656,7 +656,7 @@ class MarketerPerformanceData
         }
 
         if ($goal === null || $goal <= 0) {
-            return [
+        return [
                 'goal' => null,
                 'achieved' => $achieved,
                 'remaining' => null,
@@ -812,7 +812,7 @@ class MarketerPerformanceData
         if ($start === null) {
             $firstPaidQuery = self::attributedPaidOrders($user, [
                 'start' => null,
-                'end' => $end,
+            'end' => $end,
             ]);
             self::applyDonationDeviceFilter($firstPaidQuery, $filters);
             $firstPaidAt = $firstPaidQuery->whereNotNull('paid_at')->min('paid_at');

@@ -141,7 +141,7 @@ const save = () => {
     <AdminLayout>
         <PageHeader
             title="Birthday messages"
-            description="Marketing offsets (7 / 3 / custom days) and birthday-day marketing vs warm wish. All config is stored in DB tables."
+            description="Three AiSensy templates from this panel: reminder (7 / 3 days before), birthday-day marketing if not donated, warm wish if donated."
         />
 
         <div class="space-y-6">
@@ -174,10 +174,10 @@ const save = () => {
             <Card>
                 <CardHeader class="flex flex-row items-start justify-between gap-4">
                     <div>
-                        <CardTitle class="text-base">Marketing offsets</CardTitle>
+                        <CardTitle class="text-base">Reminders + birthday marketing</CardTitle>
                         <CardDescription>
-                            Days before birthday. Example: days_before=7 sends when DOB is in 7 days.
-                            Birthday day uses days_before=0 marketing when the donor has not donated after the first marketing message.
+                            days_before &gt; 0 = reminder (params: name + days). days_before = 0 = birthday marketing if the donor has not donated after the first reminder this year (params: name).
+                            Suggested campaigns: happy_birthday_reminder_plant_tree (7 and 3), birthday_marketing_on_birthday (0).
                         </CardDescription>
                     </div>
                     <Button
@@ -229,7 +229,7 @@ const save = () => {
                                 <Label>AiSensy campaign name</Label>
                                 <Input
                                     v-model="step.campaign_name"
-                                    placeholder="e.g. birthday_7_days_left"
+                                    :placeholder="Number(step.days_before) === 0 ? 'birthday_marketing_on_birthday' : 'happy_birthday_reminder_plant_tree'"
                                     :disabled="! can_edit"
                                 />
                             </div>
@@ -237,7 +237,7 @@ const save = () => {
                         <FormFile
                             v-if="can_edit"
                             label="Header image (optional)"
-                            hint="JPG/PNG for IMAGE campaigns. Leave empty if template has no media."
+                            hint="JPG/PNG only if you override the template header. Leave empty when AiSensy already has the image."
                             :preview-url="step.preview"
                             @change="onImageChange(step, $event)"
                         />
@@ -255,10 +255,10 @@ const save = () => {
 
             <Card v-if="warmWishStep">
                 <CardHeader>
-                    <CardTitle class="text-base">Birthday day · warm wish</CardTitle>
+                    <CardTitle class="text-base">Birthday day · warm wish (if donated)</CardTitle>
                     <CardDescription>
-                        Sent on birthday only when the donor paid after the first marketing message this year.
-                        Image is the personalized birthday card (name overlay), not the upload below.
+                        Compulsory branch on birthday when the donor paid after the first marketing/reminder this year.
+                        No body variables — campaign name only (e.g. happy_birthday_current_day_warm_msg).
                     </CardDescription>
                 </CardHeader>
                 <CardContent class="space-y-4">
@@ -271,7 +271,7 @@ const save = () => {
                         <Label>Warm wish AiSensy campaign</Label>
                         <Input
                             v-model="warmWishStep.campaign_name"
-                            placeholder="e.g. happy_birthday_warm"
+                            placeholder="happy_birthday_current_day_warm_msg"
                             :disabled="! can_edit"
                         />
                     </div>

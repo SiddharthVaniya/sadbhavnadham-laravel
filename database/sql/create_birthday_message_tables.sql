@@ -51,27 +51,22 @@ SELECT
 FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM birthday_message_settings LIMIT 1);
 
+-- Reminder: 7 days before (AiSensy campaign happy_birthday_reminder_plant_tree)
 INSERT INTO birthday_message_steps (days_before, kind, enabled, campaign_name, image_path, sort_order, created_at, updated_at)
-SELECT 7, 'marketing', 1, '', NULL, 10, NOW(), NOW()
+SELECT 7, 'marketing', 1, 'happy_birthday_reminder_plant_tree', NULL, 10, NOW(), NOW()
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM birthday_message_steps WHERE days_before = 7 AND kind = 'marketing');
 
+-- Reminder: 3 days before (same reminder template; {{2}} = days left)
 INSERT INTO birthday_message_steps (days_before, kind, enabled, campaign_name, image_path, sort_order, created_at, updated_at)
-SELECT 3, 'marketing', 1, '', NULL, 20, NOW(), NOW()
+SELECT 3, 'marketing', 1, 'happy_birthday_reminder_plant_tree', NULL, 20, NOW(), NOW()
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM birthday_message_steps WHERE days_before = 3 AND kind = 'marketing');
 
+-- Birthday day: not donated → marketing
 INSERT INTO birthday_message_steps (days_before, kind, enabled, campaign_name, image_path, sort_order, created_at, updated_at)
-SELECT 0, 'marketing', 1, '', NULL, 30, NOW(), NOW()
+SELECT 0, 'marketing', 1, 'birthday_marketing_on_birthday', NULL, 30, NOW(), NOW()
 FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM birthday_message_steps WHERE days_before = 0 AND kind = 'marketing');
 
+-- Birthday day: donated → warm wish
 INSERT INTO birthday_message_steps (days_before, kind, enabled, campaign_name, image_path, sort_order, created_at, updated_at)
-SELECT
-  0,
-  'warm_wish',
-  1,
-  COALESCE((SELECT `value` FROM settings WHERE `key` = 'aisensy_birthday_campaign' LIMIT 1), ''),
-  NULL,
-  40,
-  NOW(),
-  NOW()
-FROM DUAL
-WHERE NOT EXISTS (SELECT 1 FROM birthday_message_steps WHERE days_before = 0 AND kind = 'warm_wish');
+SELECT 0, 'warm_wish', 1, 'happy_birthday_current_day_warm_msg', NULL, 40, NOW(), NOW()
+FROM DUAL WHERE NOT EXISTS (SELECT 1 FROM birthday_message_steps WHERE days_before = 0 AND kind = 'warm_wish');
