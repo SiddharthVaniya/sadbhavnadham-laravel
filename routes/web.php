@@ -435,6 +435,11 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
         ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
         ->name('marketers.update');
 
+    Route::get('birthday-messages', [\App\Http\Controllers\Admin\AdminBirthdayMessageController::class, 'index'])
+        ->name('birthday-messages.index');
+    Route::post('birthday-messages', [\App\Http\Controllers\Admin\AdminBirthdayMessageController::class, 'update'])
+        ->name('birthday-messages.update');
+
     Route::get('settings', [AdminSettingController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::SETTINGS_VIEW))
         ->name('settings.index');

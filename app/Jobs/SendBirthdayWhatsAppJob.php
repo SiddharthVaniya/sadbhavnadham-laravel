@@ -2,9 +2,10 @@
 
 namespace App\Jobs;
 
+use App\Models\BirthdayMessageStep;
 use App\Models\Donor;
 use App\Services\AiSensyService;
-use App\Services\DonationWhatsAppPolicy;
+use App\Services\BirthdayMessageService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -21,31 +22,47 @@ class SendBirthdayWhatsAppJob implements ShouldQueue
         private Donor $donor,
         private ?string $onDate = null,
         private bool $forceSend = false,
+        private ?int $stepId = null,
     ) {}
 
-    public function handle(AiSensyService $aiSensyService, DonationWhatsAppPolicy $donationWhatsAppPolicy): void
+    public function handle(AiSensyService $aiSensyService, BirthdayMessageService $birthdayMessages): void
     {
         $date = $this->onDate === null
-            ? now()->toDateString()
-            : Carbon::parse($this->onDate)->toDateString();
+            ? now()->startOfDay()
+            : Carbon::parse($this->onDate)->startOfDay();
 
-        if (! $donationWhatsAppPolicy->shouldSendBirthday($this->donor->fresh(), $date, $this->forceSend)) {
+        $step = $this->stepId !== null
+            ? BirthdayMessageStep::query()->find($this->stepId)
+            : null;
+
+        if ($step === null) {
+            $step = $birthdayMessages->resolveStepForDonorOnDate($this->donor->fresh(), $date, $this->forceSend);
+        }
+
+        if ($step === null) {
+            return;
+        }
+
+        if (! $birthdayMessages->shouldSendStep($this->donor->fresh(), $step, $date, $this->forceSend)
+            && ! $this->forceSend) {
             return;
         }
 
         try {
-            $sent = $aiSensyService->sendBirthdayWhatsApp($this->donor->fresh());
+            $donor = $this->donor->fresh();
+            $sent = $step->isWarmWish()
+                ? $aiSensyService->sendBirthdayWhatsApp($donor, $step)
+                : $aiSensyService->sendBirthdayMarketingWhatsApp($donor, $step);
 
             if (! $sent) {
                 throw new \RuntimeException('AiSensy birthday WhatsApp was not sent.');
             }
 
-            $this->donor->update([
-                'birthday_whatsapp_sent_on' => $date,
-            ]);
+            $birthdayMessages->recordSend($donor, $step, $date);
         } catch (\Throwable $e) {
             Log::error('Birthday WhatsApp job failed', [
                 'donor_id' => $this->donor->id,
+                'step_id' => $step->id,
                 'error' => $e->getMessage(),
             ]);
 

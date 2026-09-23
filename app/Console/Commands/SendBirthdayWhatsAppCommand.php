@@ -3,24 +3,24 @@
 namespace App\Console\Commands;
 
 use App\Jobs\SendBirthdayWhatsAppJob;
+use App\Models\BirthdayMessageStep;
 use App\Models\Donor;
-use App\Models\Setting;
-use App\Services\DonationWhatsAppPolicy;
+use App\Services\BirthdayMessageService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 
 class SendBirthdayWhatsAppCommand extends Command
 {
     protected $signature = 'donors:send-birthday-whatsapp
-                            {--date= : Birthday date to process (Y-m-d). Defaults to today.}
+                            {--date= : Run date (Y-m-d). Defaults to today.}
                             {--phone= : Only send to this phone number (digits; for testing)}
                             {--name= : Display name when creating a test donor for --phone}
                             {--dry-run : List eligible donors without dispatching jobs}
                             {--force : Ignore prior send date, DOB match, and global toggle}';
 
-    protected $description = 'Queue Happy Birthday WhatsApp images for donors whose birthday is today';
+    protected $description = 'Queue birthday marketing / warm-wish WhatsApp messages from birthday_message_steps';
 
-    public function handle(DonationWhatsAppPolicy $donationWhatsAppPolicy): int
+    public function handle(BirthdayMessageService $birthdayMessages): int
     {
         $date = $this->option('date')
             ? Carbon::parse((string) $this->option('date'))->startOfDay()
@@ -30,8 +30,8 @@ class SendBirthdayWhatsAppCommand extends Command
         $dryRun = (bool) $this->option('dry-run');
         $phoneFilter = preg_replace('/\D+/', '', (string) $this->option('phone')) ?? '';
 
-        if (! $force && ! Setting::isEnabled(Setting::SEND_BIRTHDAY_WHATSAPP)) {
-            $this->warn('Birthday WhatsApp is disabled in settings. Use --force to override.');
+        if (! $force && ! $birthdayMessages->settings()->enabled) {
+            $this->warn('Birthday WhatsApp is disabled in birthday_message_settings. Use --force to override.');
 
             return self::SUCCESS;
         }
@@ -40,55 +40,64 @@ class SendBirthdayWhatsAppCommand extends Command
             $this->ensureTestDonorForPhone($phoneFilter, $date);
         }
 
-        $query = Donor::query()->orderBy('id');
-
-        if ($phoneFilter !== '') {
-            $query->where(function ($builder) use ($phoneFilter): void {
-                $builder->where('phone', $phoneFilter)
-                    ->orWhere('phone', '91'.$phoneFilter)
-                    ->orWhere('phone', '+91'.$phoneFilter)
-                    ->orWhere('phone', 'like', '%'.$phoneFilter);
-            });
-        } else {
-            $query->whereNotNull('date_of_birth')
-                ->whereMonth('date_of_birth', $date->month)
-                ->whereDay('date_of_birth', $date->day);
-
-            if (! $force) {
-                $query->where(function ($builder) use ($date): void {
-                    $builder->whereNull('birthday_whatsapp_sent_on')
-                        ->orWhereDate('birthday_whatsapp_sent_on', '!=', $date->toDateString());
-                });
-            }
-        }
-
         $dispatched = 0;
         $skipped = 0;
 
-        $query->chunkById(100, function ($donors) use ($donationWhatsAppPolicy, $date, $force, $dryRun, &$dispatched, &$skipped): void {
+        if ($phoneFilter !== '') {
+            $donors = Donor::query()
+                ->where(function ($builder) use ($phoneFilter): void {
+                    $builder->where('phone', $phoneFilter)
+                        ->orWhere('phone', '91'.$phoneFilter)
+                        ->orWhere('phone', '+91'.$phoneFilter)
+                        ->orWhere('phone', 'like', '%'.$phoneFilter);
+                })
+                ->orderBy('id')
+                ->get();
+
             foreach ($donors as $donor) {
-                if (! $donationWhatsAppPolicy->shouldSendBirthday($donor, $date, $force)) {
+                $step = $birthdayMessages->resolveStepForDonorOnDate($donor, $date, $force);
+
+                if ($step === null) {
                     $skipped++;
 
                     continue;
                 }
 
-                if ($dryRun) {
-                    $this->line(sprintf(
-                        '[dry-run] donor #%d %s (%s)',
-                        $donor->id,
-                        $donor->name,
-                        $donor->phone,
-                    ));
+                if ($this->dispatchOrDryRun($donor, $step, $date, $force, $dryRun)) {
                     $dispatched++;
-
-                    continue;
+                } else {
+                    $skipped++;
                 }
-
-                dispatch(new SendBirthdayWhatsAppJob($donor, $date->toDateString(), $force));
-                $dispatched++;
             }
-        });
+        } else {
+            $steps = $birthdayMessages->enabledSteps();
+
+            foreach ($steps as $step) {
+                $target = $date->copy()->addDays((int) $step->days_before);
+
+                $query = Donor::query()
+                    ->whereNotNull('date_of_birth')
+                    ->whereMonth('date_of_birth', $target->month)
+                    ->whereDay('date_of_birth', $target->day)
+                    ->orderBy('id');
+
+                $query->chunkById(100, function ($donors) use ($birthdayMessages, $step, $date, $force, $dryRun, &$dispatched, &$skipped): void {
+                    foreach ($donors as $donor) {
+                        if (! $birthdayMessages->shouldSendStep($donor, $step, $date, $force)) {
+                            $skipped++;
+
+                            continue;
+                        }
+
+                        if ($this->dispatchOrDryRun($donor, $step, $date, $force, $dryRun)) {
+                            $dispatched++;
+                        } else {
+                            $skipped++;
+                        }
+                    }
+                });
+            }
+        }
 
         if ($phoneFilter !== '' && $dispatched === 0) {
             $this->warn("No eligible donor found for phone {$phoneFilter}.");
@@ -103,6 +112,32 @@ class SendBirthdayWhatsAppCommand extends Command
         ));
 
         return self::SUCCESS;
+    }
+
+    private function dispatchOrDryRun(
+        Donor $donor,
+        BirthdayMessageStep $step,
+        Carbon $date,
+        bool $force,
+        bool $dryRun,
+    ): bool {
+        if ($dryRun) {
+            $this->line(sprintf(
+                '[dry-run] donor #%d %s (%s) step #%d %s days_before=%d',
+                $donor->id,
+                $donor->name,
+                $donor->phone,
+                $step->id,
+                $step->kind,
+                $step->days_before,
+            ));
+
+            return true;
+        }
+
+        dispatch(new SendBirthdayWhatsAppJob($donor, $date->toDateString(), $force, $step->id));
+
+        return true;
     }
 
     private function ensureTestDonorForPhone(string $phone, Carbon $date): void

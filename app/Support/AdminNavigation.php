@@ -157,6 +157,15 @@ class AdminNavigation
                 'permissions_any' => [AdminPermissions::ROLE_MANAGE, AdminPermissions::MANAGE_USERS],
             ],
             [
+                'label' => 'Birthday messages',
+                'route' => 'admin.birthday-messages.index',
+                'permissions_any' => [
+                    AdminPermissions::SETTINGS_VIEW,
+                    AdminPermissions::SETTINGS_EDIT,
+                    AdminPermissions::MANAGE_SETTINGS,
+                ],
+            ],
+            [
                 'label' => 'Settings',
                 'route' => 'admin.settings.index',
                 'permissions_any' => [

@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Helpers\NumberHelper;
 use App\Models\AisensyAccount;
 use App\Models\AisensyWaTemplate;
+use App\Models\BirthdayMessageSetting;
+use App\Models\BirthdayMessageStep;
 use App\Models\DonationOrder;
 use App\Models\Donor;
 use App\Models\Setting;
@@ -283,20 +285,20 @@ class AiSensyService
         return $this->send($payload, 'receipt', ['order_id' => $order->id]);
     }
 
-    public function sendBirthdayWhatsApp(Donor $donor): bool
+    public function sendBirthdayWhatsApp(Donor $donor, ?BirthdayMessageStep $step = null): bool
     {
         if (! app(DonationWhatsAppPolicy::class)->hasSendablePhoneNumber($donor->phone)) {
             return false;
         }
 
         $account = $this->resolveBirthdayAccount();
-        $campaign = Setting::getValue(Setting::AISENSY_BIRTHDAY_CAMPAIGN);
+        $campaign = trim((string) ($step?->campaign_name ?: Setting::getValue(Setting::AISENSY_BIRTHDAY_CAMPAIGN)));
 
-        if ($account === null || $campaign === null || $campaign === '') {
+        if ($account === null || $campaign === '') {
             Log::error('AiSensy config missing (birthday)', [
                 'donor_id' => $donor->id,
                 'has_account' => $account !== null,
-                'has_campaign' => filled($campaign),
+                'has_campaign' => $campaign !== '',
             ]);
 
             return false;
@@ -336,6 +338,52 @@ class AiSensyService
         ];
 
         return $this->send($payload, 'birthday', ['donor_id' => $donor->id]);
+    }
+
+    public function sendBirthdayMarketingWhatsApp(Donor $donor, BirthdayMessageStep $step): bool
+    {
+        if (! app(DonationWhatsAppPolicy::class)->hasSendablePhoneNumber($donor->phone)) {
+            return false;
+        }
+
+        $account = $this->resolveBirthdayAccount();
+        $campaign = trim((string) $step->campaign_name);
+
+        if ($account === null || $campaign === '') {
+            Log::error('AiSensy config missing (birthday marketing)', [
+                'donor_id' => $donor->id,
+                'step_id' => $step->id,
+                'has_account' => $account !== null,
+                'has_campaign' => $campaign !== '',
+            ]);
+
+            return false;
+        }
+
+        $donorName = $this->birthdayImageService->donorDisplayName($donor);
+        $daysAway = max(0, (int) $step->days_before);
+        $templateParams = $daysAway > 0
+            ? [$donorName, (string) $daysAway]
+            : [$donorName];
+
+        $media = null;
+        $imageUrl = $this->normalizeImageUrl($step->publicImageUrl());
+
+        if ($imageUrl && $this->validatePublicMediaUrl($imageUrl, ['donor_id' => $donor->id, 'step_id' => $step->id])) {
+            $media = [
+                'url' => $imageUrl,
+                'filename' => basename(parse_url($imageUrl, PHP_URL_PATH) ?: 'birthday-marketing.jpg'),
+            ];
+        }
+
+        return $this->sendApiCampaign(
+            $account,
+            $campaign,
+            $this->formatMobile((string) $donor->phone, (string) ($account->country_code ?: '91')),
+            $donorName,
+            $templateParams,
+            $media,
+        );
     }
 
     /**
@@ -556,9 +604,10 @@ class AiSensyService
 
     private function resolveBirthdayAccount(): ?AisensyAccount
     {
-        $configuredId = Setting::getValue(Setting::AISENSY_BIRTHDAY_ACCOUNT_ID);
+        $configuredId = BirthdayMessageSetting::current()->aisensy_account_id
+            ?: Setting::getValue(Setting::AISENSY_BIRTHDAY_ACCOUNT_ID);
 
-        if ($configuredId !== null && ctype_digit($configuredId)) {
+        if ($configuredId !== null && ctype_digit((string) $configuredId)) {
             $account = AisensyAccount::query()
                 ->whereKey((int) $configuredId)
                 ->where('is_active', true)

@@ -87,8 +87,13 @@ class DonationWhatsAppPolicy
 
     public function shouldSendBirthday(Donor $donor, CarbonInterface|string|null $onDate = null, bool $force = false): bool
     {
-        if (! $force && ! Setting::isEnabled(Setting::SEND_BIRTHDAY_WHATSAPP)) {
-            return false;
+        if (! $force) {
+            $tableEnabled = \App\Models\BirthdayMessageSetting::query()->value('enabled');
+            $settingsEnabled = Setting::isEnabled(Setting::SEND_BIRTHDAY_WHATSAPP);
+
+            if (! $tableEnabled && ! $settingsEnabled) {
+                return false;
+            }
         }
 
         if (! $this->hasSendablePhoneNumber($donor->phone)) {

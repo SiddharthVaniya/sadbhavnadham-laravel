@@ -35,6 +35,30 @@ beforeEach(function () {
             'group' => 'notifications',
         ],
     );
+
+    $settings = \App\Models\BirthdayMessageSetting::current();
+    $settings->update([
+        'enabled' => true,
+        'aisensy_account_id' => null,
+    ]);
+
+    \App\Models\BirthdayMessageStep::query()->updateOrCreate(
+        ['days_before' => 0, 'kind' => \App\Models\BirthdayMessageStep::KIND_MARKETING],
+        [
+            'enabled' => true,
+            'campaign_name' => 'birthday-day-marketing',
+            'sort_order' => 30,
+        ],
+    );
+
+    \App\Models\BirthdayMessageStep::query()->updateOrCreate(
+        ['days_before' => 0, 'kind' => \App\Models\BirthdayMessageStep::KIND_WARM_WISH],
+        [
+            'enabled' => true,
+            'campaign_name' => 'birthday-campaign',
+            'sort_order' => 40,
+        ],
+    );
 });
 
 it('allows birthday send when dob is today and phone is valid', function () {
@@ -156,10 +180,23 @@ it('dispatches birthday jobs for eligible donors', function () {
 it('does not dispatch when birthday was already sent today', function () {
     Bus::fake();
 
-    Donor::factory()->create([
+    $donor = Donor::factory()->create([
         'date_of_birth' => now()->subYears(40)->toDateString(),
         'phone' => '9876543210',
         'birthday_whatsapp_sent_on' => now()->toDateString(),
+    ]);
+
+    \App\Models\BirthdayMessageSend::query()->create([
+        'donor_id' => $donor->id,
+        'year' => (int) now()->year,
+        'birthday_message_step_id' => \App\Models\BirthdayMessageStep::query()
+            ->where('days_before', 0)
+            ->where('kind', 'marketing')
+            ->value('id'),
+        'days_before' => 0,
+        'kind' => \App\Models\BirthdayMessageStep::KIND_MARKETING,
+        'campaign_name' => 'birthday-day-marketing',
+        'sent_at' => now(),
     ]);
 
     $this->artisan('donors:send-birthday-whatsapp')
@@ -197,9 +234,15 @@ it('marks donor after successful birthday whatsapp job', function () {
         'birthday_whatsapp_sent_on' => null,
     ]);
 
-    (new SendBirthdayWhatsAppJob($donor, now()->toDateString()))->handle(
+    $step = \App\Models\BirthdayMessageStep::query()
+        ->where('days_before', 0)
+        ->where('kind', \App\Models\BirthdayMessageStep::KIND_WARM_WISH)
+        ->first();
+
+    // No prior marketing → day-0 resolves to marketing; force warm wish step id.
+    (new SendBirthdayWhatsAppJob($donor, now()->toDateString(), true, $step->id))->handle(
         app(AiSensyService::class),
-        app(DonationWhatsAppPolicy::class),
+        app(\App\Services\BirthdayMessageService::class),
     );
 
     expect($donor->fresh()->birthday_whatsapp_sent_on?->toDateString())->toBe(now()->toDateString());
