@@ -5,6 +5,7 @@ import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
 import DataTable from '@/Components/Admin/DataTable.vue';
 import { mergeDurationOptions } from '@/utils/periodOptions';
+import { isSingleDayBeforeToday, nextDayYmd, resolveSingleDayYmd } from '@/utils/nextDayFilter';
 
 const props = defineProps({
     can_view_all: { type: Boolean, default: false },
@@ -44,6 +45,28 @@ watch(
 
 const isCustomRange = computed(() => form.duration === 'custom');
 const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
+
+const nextDayFilterOpts = () => ({
+    duration: form.duration,
+    fromDate: form.from_date,
+    toDate: form.to_date,
+});
+
+const showNextDay = computed(() => isSingleDayBeforeToday(nextDayFilterOpts()));
+
+const goNextDay = () => {
+    const day = resolveSingleDayYmd(nextDayFilterOpts());
+    const next = day ? nextDayYmd(day) : null;
+
+    if (! next) {
+        return;
+    }
+
+    form.duration = 'custom';
+    form.from_date = next;
+    form.to_date = next;
+    applyFilters();
+};
 
 const formatMoney = (amount) =>
     `₹ ${Number(amount || 0).toLocaleString('en-IN', {
@@ -259,6 +282,14 @@ const previewRows = computed(() =>
             <div class="mt-4 flex flex-wrap items-center gap-3">
                 <button type="button" class="admin-btn-primary !py-2" @click="applyFilters()">
                     Apply filters
+                </button>
+                <button
+                    v-if="showNextDay"
+                    type="button"
+                    class="admin-btn-secondary !py-2"
+                    @click="goNextDay"
+                >
+                    Next day
                 </button>
                 <p class="text-sm text-muted-foreground">
                     Partner reports include paid donations only, grouped by partner SID / referral code.

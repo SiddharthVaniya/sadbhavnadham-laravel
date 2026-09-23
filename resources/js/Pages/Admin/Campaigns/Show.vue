@@ -6,6 +6,7 @@ import PageHeader from '@/Components/Admin/PageHeader.vue';
 import StatCard from '@/Components/Admin/StatCard.vue';
 import DataTable from '@/Components/Admin/DataTable.vue';
 import { mergeDurationOptions } from '@/utils/periodOptions';
+import { isSingleDayBeforeToday, nextDayYmd, resolveSingleDayYmd } from '@/utils/nextDayFilter';
 
 const props = defineProps({
     campaign: { type: Object, required: true },
@@ -27,6 +28,28 @@ const toDate = ref(props.filters.to_date || '');
 
 const isCustomRange = computed(() => selectedDuration.value === 'custom');
 const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
+
+const nextDayFilterOpts = () => ({
+    duration: selectedDuration.value,
+    fromDate: fromDate.value,
+    toDate: toDate.value,
+});
+
+const showNextDay = computed(() => isSingleDayBeforeToday(nextDayFilterOpts()));
+
+const goNextDay = () => {
+    const day = resolveSingleDayYmd(nextDayFilterOpts());
+    const next = day ? nextDayYmd(day) : null;
+
+    if (! next) {
+        return;
+    }
+
+    selectedDuration.value = 'custom';
+    fromDate.value = next;
+    toDate.value = next;
+    applyFilters();
+};
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
@@ -171,6 +194,14 @@ const copyShareLink = async () => {
                 <input v-model="toDate" type="date" class="rounded-lg border border-border px-3 py-2 text-sm">
             </div>
             <button type="button" class="admin-btn-primary" @click="applyFilters">Apply</button>
+            <button
+                v-if="showNextDay"
+                type="button"
+                class="rounded-lg border border-border px-3 py-2 text-sm"
+                @click="goNextDay"
+            >
+                Next day
+            </button>
         </div>
 
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

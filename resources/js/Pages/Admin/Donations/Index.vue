@@ -9,6 +9,7 @@ import DataTable from '@/Components/Admin/DataTable.vue';
 import PaymentMethodPieChart from '@/Components/Admin/PaymentMethodPieChart.vue';
 import FormDatePicker from '@/Components/Admin/FormDatePicker.vue';
 import { mergeDurationOptions } from '@/utils/periodOptions';
+import { isSingleDayBeforeToday, nextDayYmd, resolveSingleDayYmd } from '@/utils/nextDayFilter';
 
 const page = usePage();
 const canManageDonations = computed(() => page.props.auth.permissions?.includes('manage donations') ?? false);
@@ -98,6 +99,28 @@ const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN
 
 const isCustomRange = computed(() => form.duration === 'custom');
 const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
+
+const nextDayFilterOpts = () => ({
+    duration: form.duration,
+    fromDate: form.from_date,
+    toDate: form.to_date,
+});
+
+const showNextDay = computed(() => isSingleDayBeforeToday(nextDayFilterOpts()));
+
+const goNextDay = () => {
+    const day = resolveSingleDayYmd(nextDayFilterOpts());
+    const next = day ? nextDayYmd(day) : null;
+
+    if (! next) {
+        return;
+    }
+
+    form.duration = 'custom';
+    form.from_date = next;
+    form.to_date = next;
+    submit();
+};
 
 const listQueryParams = (extra = {}) => {
     const payload = { ...form, ...extra };
@@ -233,6 +256,14 @@ const exportUrl = computed(() => {
                 >
                     <option v-for="(label, value) in periodOptions" :key="value" :value="value">{{ label }}</option>
                 </select>
+                <button
+                    v-if="showNextDay"
+                    type="button"
+                    class="admin-btn-primary !py-2"
+                    @click="goNextDay"
+                >
+                    Next day
+                </button>
             </template>
         </PageHeader>
 

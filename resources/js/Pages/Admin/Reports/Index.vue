@@ -5,6 +5,7 @@ import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
 import DataTable from '@/Components/Admin/DataTable.vue';
 import { mergeDurationOptions } from '@/utils/periodOptions';
+import { isSingleDayBeforeToday, nextDayYmd, resolveSingleDayYmd } from '@/utils/nextDayFilter';
 
 const props = defineProps({
     type: { type: String, required: true },
@@ -37,6 +38,28 @@ const partnerUserId = ref(
 
 const isCustomRange = computed(() => selectedDuration.value === 'custom');
 const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
+
+const nextDayFilterOpts = () => ({
+    duration: selectedDuration.value,
+    fromDate: fromDate.value,
+    toDate: toDate.value,
+});
+
+const showNextDay = computed(() => isSingleDayBeforeToday(nextDayFilterOpts()));
+
+const goNextDay = () => {
+    const day = resolveSingleDayYmd(nextDayFilterOpts());
+    const next = day ? nextDayYmd(day) : null;
+
+    if (! next) {
+        return;
+    }
+
+    selectedDuration.value = 'custom';
+    fromDate.value = next;
+    toDate.value = next;
+    applyFilters();
+};
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -324,6 +347,14 @@ const formatLabel = (format) => ({
             <div class="mt-4 flex flex-wrap items-center gap-3">
                 <button type="button" class="admin-btn-secondary !py-2" @click="applyFilters">
                     Apply filters
+                </button>
+                <button
+                    v-if="showNextDay"
+                    type="button"
+                    class="admin-btn-primary !py-2"
+                    @click="goNextDay"
+                >
+                    Next day
                 </button>
                 <button type="button" class="admin-btn-ghost !py-2" @click="clearExtraFilters">
                     Clear cause / state / source / match / SID

@@ -3,6 +3,7 @@ import { computed, reactive } from 'vue';
 import { router } from '@inertiajs/vue3';
 import { Button } from '@/Components/ui/button';
 import { mergeDurationOptions } from '@/utils/periodOptions';
+import { isSingleDayBeforeToday, nextDayYmd, resolveSingleDayYmd } from '@/utils/nextDayFilter';
 
 const props = defineProps({
     action: { type: String, required: true },
@@ -20,6 +21,28 @@ const isTracking = computed(() => ! isDonations.value && ! isCampaigns.value);
 const showDeviceFilter = computed(() => isDonationList.value || isDonations.value || isCampaigns.value || isTracking.value);
 const isCustomRange = computed(() => form.duration === 'custom');
 const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
+
+const nextDayFilterOpts = () => ({
+    duration: form.duration,
+    fromDate: form.from_date,
+    toDate: form.to_date,
+});
+
+const showNextDay = computed(() => isSingleDayBeforeToday(nextDayFilterOpts()));
+
+const goNextDay = () => {
+    const day = resolveSingleDayYmd(nextDayFilterOpts());
+    const next = day ? nextDayYmd(day) : null;
+
+    if (! next) {
+        return;
+    }
+
+    form.duration = 'custom';
+    form.from_date = next;
+    form.to_date = next;
+    applyFilters();
+};
 
 const resolveInitialDuration = () => {
     if (props.filters?.from_date && props.filters?.to_date) {
@@ -329,6 +352,15 @@ const deviceLabel = (value) => {
         </template>
         <div class="flex flex-wrap items-end gap-2">
             <Button type="submit" size="sm">Filter</Button>
+            <Button
+                v-if="showNextDay"
+                type="button"
+                size="sm"
+                variant="secondary"
+                @click="goNextDay"
+            >
+                Next day
+            </Button>
             <Button
                 v-if="hasActiveFilters"
                 type="button"

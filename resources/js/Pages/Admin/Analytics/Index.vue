@@ -7,6 +7,7 @@ import StatCard from '@/Components/Admin/StatCard.vue';
 import DataTable from '@/Components/Admin/DataTable.vue';
 import AnalyticsTrendChart from '@/Components/Admin/AnalyticsTrendChart.vue';
 import { mergeDurationOptions } from '@/utils/periodOptions';
+import { isSingleDayBeforeToday, nextDayYmd, resolveSingleDayYmd } from '@/utils/nextDayFilter';
 
 const props = defineProps({
     duration: { type: String, required: true },
@@ -46,6 +47,28 @@ const indiaFocus = ref(Boolean(props.filters.india_focus));
 
 const isCustomRange = computed(() => selectedDuration.value === 'custom');
 const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
+
+const nextDayFilterOpts = () => ({
+    duration: selectedDuration.value,
+    fromDate: fromDate.value,
+    toDate: toDate.value,
+});
+
+const showNextDay = computed(() => isSingleDayBeforeToday(nextDayFilterOpts()));
+
+const goNextDay = () => {
+    const day = resolveSingleDayYmd(nextDayFilterOpts());
+    const next = day ? nextDayYmd(day) : null;
+
+    if (! next) {
+        return;
+    }
+
+    selectedDuration.value = 'custom';
+    fromDate.value = next;
+    toDate.value = next;
+    applyFilters();
+};
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 const formatRate = (rate) => `${Number(rate || 0).toFixed(1)}%`;
@@ -214,6 +237,14 @@ const formatChange = (metric) => {
                         {{ label }}
                     </option>
                 </select>
+                <button
+                    v-if="showNextDay"
+                    type="button"
+                    class="admin-btn-primary !py-2"
+                    @click="goNextDay"
+                >
+                    Next day
+                </button>
                 <a :href="exportUrl" class="rounded-lg border border-border px-3 py-2 text-sm font-medium text-foreground hover:bg-muted">
                     Export CSV
                 </a>

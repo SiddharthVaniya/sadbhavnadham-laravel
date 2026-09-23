@@ -8,6 +8,7 @@ import Pagination from '@/Components/Admin/Pagination.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/ui/card';
 import { Button } from '@/Components/ui/button';
 import { mergeDurationOptions } from '@/utils/periodOptions';
+import { isSingleDayBeforeToday, nextDayYmd, resolveSingleDayYmd } from '@/utils/nextDayFilter';
 
 const props = defineProps({
     code: { type: String, default: null },
@@ -66,6 +67,28 @@ watch(
 
 const isCustomRange = computed(() => form.duration === 'custom');
 const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
+
+const nextDayFilterOpts = () => ({
+    duration: form.duration,
+    fromDate: form.from_date,
+    toDate: form.to_date,
+});
+
+const showNextDay = computed(() => isSingleDayBeforeToday(nextDayFilterOpts()));
+
+const goNextDay = () => {
+    const day = resolveSingleDayYmd(nextDayFilterOpts());
+    const next = day ? nextDayYmd(day) : null;
+
+    if (! next) {
+        return;
+    }
+
+    form.duration = 'custom';
+    form.from_date = next;
+    form.to_date = next;
+    applyFilters();
+};
 
 const formatMoney = (amount) =>
     `₹ ${Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
@@ -286,6 +309,14 @@ const copyText = async (key, value) => {
                         <span v-if="active_filter_count" class="text-xs text-muted-foreground">
                             {{ active_filter_count }} active
                         </span>
+                        <button
+                            v-if="showNextDay"
+                            type="button"
+                            class="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted"
+                            @click="goNextDay"
+                        >
+                            Next day
+                        </button>
                         <button
                             type="button"
                             class="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted"
