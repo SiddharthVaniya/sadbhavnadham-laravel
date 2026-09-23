@@ -185,8 +185,8 @@ class AiSensyService
         }
 
         /*
-         * Live campaigns are IMAGE headers with 0 body params (*_new).
-         * Legacy *_uty campaigns (5 body params) were retired in AiSensy.
+         * IMAGE campaigns: *_uty use 5 body params; *_new use 0.
+         * Prefer the campaign name configured on the cause — do not remap.
          * Omit templateParams entirely when empty — AiSensy rejects a mismatched count.
          */
         $payload = [
@@ -763,7 +763,7 @@ class AiSensyService
     }
 
     /**
-     * Live *_new IMAGE campaigns have 0 body variables; legacy *_uty had 5.
+     * Live *_new IMAGE campaigns have 0 body variables; *_uty IMAGE campaigns have 5.
      *
      * @return list<string>
      */
@@ -777,7 +777,8 @@ class AiSensyService
     }
 
     /**
-     * Map retired *_uty campaign names to live *_new AiSensy campaigns.
+     * Use the cause/default campaign name as configured.
+     * Do not remap *_uty → *_new: AiSensy currently has *_uty live and *_new "Not Live".
      */
     private function resolveCertificateCampaignName(?string $configured): ?string
     {
@@ -785,19 +786,7 @@ class AiSensyService
         $fallback = trim((string) config('services.aisensy.default.certificate_campaign', ''));
         $campaign = $configured !== '' ? $configured : $fallback;
 
-        if ($campaign === '') {
-            return null;
-        }
-
-        if (str_ends_with($campaign, '_uty')) {
-            $mapped = substr($campaign, 0, -4).'_new';
-
-            if ($this->certificateCampaignIsKnown($mapped) || ! $this->certificateCampaignIsKnown($campaign)) {
-                return $mapped;
-            }
-        }
-
-        return $campaign;
+        return $campaign !== '' ? $campaign : null;
     }
 
     private function certificateCampaignUsesBodyParams(string $campaign): bool
@@ -823,21 +812,6 @@ class AiSensyService
         }
 
         return (int) $paramCount > 0;
-    }
-
-    private function certificateCampaignIsKnown(string $campaign): bool
-    {
-        if (! Schema::hasTable('aisensy_wa_templates')) {
-            return false;
-        }
-
-        return AisensyWaTemplate::query()
-            ->where(function ($query) use ($campaign): void {
-                $query->where('live_campaign_name', $campaign)
-                    ->orWhere('name', $campaign);
-            })
-            ->where('is_active', true)
-            ->exists();
     }
 
     /**

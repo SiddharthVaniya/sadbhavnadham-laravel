@@ -385,9 +385,11 @@ it('sends generated certificate media url in a separate certificate whatsapp pay
     Http::assertSent(function (Request $request) use ($order): bool {
         $data = $request->data();
         $mediaUrl = (string) ($data['media']['url'] ?? '');
+        $params = $data['templateParams'] ?? null;
 
-        return ($data['campaignName'] ?? null) === 'certificate_of_donation_old_age_home_new'
-            && ! array_key_exists('templateParams', $data)
+        return ($data['campaignName'] ?? null) === 'certificate_of_donation_old_age_home_uty'
+            && is_array($params)
+            && count($params) === 5
             && (
                 str_contains($mediaUrl, 'certificates/sanman-'.$order->id)
                 || str_contains($mediaUrl, 'images/static-thank-you.png')
