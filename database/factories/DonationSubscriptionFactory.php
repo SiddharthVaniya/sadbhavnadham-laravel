@@ -62,4 +62,37 @@ class DonationSubscriptionFactory extends Factory
             'billing_cycle_count' => 1,
         ]);
     }
+
+    public function halted(): static
+    {
+        return $this->state(fn () => [
+            'status' => DonationSubscription::STATUS_HALTED,
+            'started_at' => now()->subMonths(2),
+            'next_charge_at' => null,
+            'billing_cycle_count' => 2,
+        ]);
+    }
+
+    public function cancelled(): static
+    {
+        return $this->state(fn () => [
+            'status' => DonationSubscription::STATUS_CANCELLED,
+            'started_at' => now()->subMonths(3),
+            'next_charge_at' => null,
+            'ended_at' => now()->subDay(),
+            'cancelled_at' => now()->subDay(),
+            'cancel_reason' => 'Cancelled for demo / testing',
+            'billing_cycle_count' => 3,
+        ]);
+    }
+
+    public function pending(): static
+    {
+        return $this->state(fn () => [
+            'status' => DonationSubscription::STATUS_PENDING,
+            'started_at' => now()->subWeeks(2),
+            'next_charge_at' => now()->addDays(2),
+            'billing_cycle_count' => 1,
+        ]);
+    }
 }

@@ -4,6 +4,7 @@ import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
 import StatusBadge from '@/Components/Admin/StatusBadge.vue';
+import SubscriptionStatusBadge from '@/Components/Admin/SubscriptionStatusBadge.vue';
 import AttributionSourceCard from '@/Components/Admin/AttributionSourceCard.vue';
 
 const props = defineProps({
@@ -347,19 +348,27 @@ const paymentLinkSmsButtonLabel = computed(() => {
             </template>
         </PageHeader>
 
-        <div class="grid items-start gap-6 xl:grid-cols-12">
-            <div class="space-y-4 xl:col-span-8">
-                <section class="rounded-xl border border-border bg-card p-5 shadow-none">
-                    <div class="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                            <h2 class="text-lg font-semibold text-foreground">{{ donation.donor_name }}</h2>
-                            <p class="mt-0.5 text-sm text-muted-foreground">
-                                {{ donation.donor_email || 'No email' }}
-                                <span class="text-muted-foreground">·</span>
-                                {{ donation.donor_phone || 'No phone' }}
+        <div class="grid min-w-0 items-start gap-6 xl:grid-cols-12">
+            <div class="min-w-0 space-y-4 xl:col-span-8">
+                <section class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none sm:p-5">
+                    <div class="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                        <div class="min-w-0 flex-1 basis-[12rem]">
+                            <h2 class="break-words text-lg font-semibold text-foreground">{{ donation.donor_name }}</h2>
+                            <p class="mt-0.5 break-words text-sm text-muted-foreground">
+                                <span class="block sm:inline">{{ donation.donor_email || 'No email' }}</span>
+                                <span class="hidden text-muted-foreground sm:inline"> · </span>
+                                <span class="block sm:inline">{{ donation.donor_phone || 'No phone' }}</span>
                             </p>
                         </div>
-                        <StatusBadge :status="donation.status" />
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span
+                                v-if="donation.is_recurring"
+                                class="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-700"
+                            >
+                                Subscription
+                            </span>
+                            <StatusBadge :status="donation.status" />
+                        </div>
                     </div>
 
                     <dl class="mt-4 grid gap-x-6 gap-y-3 border-t border-border pt-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
@@ -370,6 +379,31 @@ const paymentLinkSmsButtonLabel = computed(() => {
                         <div>
                             <dt class="text-xs uppercase tracking-wide text-muted-foreground">Provider</dt>
                             <dd class="mt-0.5 font-medium text-foreground">{{ donation.provider }}</dd>
+                        </div>
+                        <div v-if="donation.is_recurring" class="min-w-0 sm:col-span-2 lg:col-span-1">
+                            <dt class="text-xs uppercase tracking-wide text-muted-foreground">Billing type</dt>
+                            <dd class="mt-0.5 space-y-1">
+                                <div class="font-medium text-foreground">
+                                    Recurring
+                                    <span v-if="donation.billing_cycle_number">· Cycle #{{ donation.billing_cycle_number }}</span>
+                                </div>
+                                <div v-if="donation.subscription" class="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                    <span>{{ donation.subscription.frequency_label }}</span>
+                                    <SubscriptionStatusBadge
+                                        :status="donation.subscription.status"
+                                        :label="donation.subscription.status_label"
+                                    />
+                                    <Link
+                                        :href="donation.subscription.url"
+                                        class="font-medium text-indigo-700 hover:underline"
+                                    >
+                                        View subscription
+                                    </Link>
+                                </div>
+                                <div v-else class="text-xs text-muted-foreground">
+                                    Linked subscription record not found
+                                </div>
+                            </dd>
                         </div>
                         <div v-if="donation.paid_at">
                             <dt class="text-xs uppercase tracking-wide text-muted-foreground">Paid at</dt>
@@ -383,18 +417,76 @@ const paymentLinkSmsButtonLabel = computed(() => {
                             <dt class="text-xs uppercase tracking-wide text-muted-foreground">PAN</dt>
                             <dd class="mt-0.5 font-medium text-foreground">{{ donation.pan_number }}</dd>
                         </div>
-                        <div v-if="addressLine" class="sm:col-span-2 lg:col-span-3">
+                        <div v-if="addressLine" class="min-w-0 sm:col-span-2 lg:col-span-3">
                             <dt class="text-xs uppercase tracking-wide text-muted-foreground">Address</dt>
-                            <dd class="mt-0.5 font-medium text-foreground">{{ addressLine }}</dd>
+                            <dd class="mt-0.5 break-words font-medium text-foreground">{{ addressLine }}</dd>
                         </div>
                     </dl>
                 </section>
 
-                <section class="rounded-xl border border-border bg-card p-5 shadow-none">
+                <section class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none sm:p-5">
                     <h3 class="mb-3 text-sm font-semibold text-foreground">Line items</h3>
 
-                    <div v-if="isDailyNeedsDonation" class="overflow-x-auto">
-                        <table class="min-w-full text-sm">
+                    <!-- Mobile: stacked cards (admin main uses overflow-x-hidden) -->
+                    <div v-if="isDailyNeedsDonation" class="space-y-3 md:hidden">
+                        <div
+                            v-for="(row, i) in dailyNeedRows"
+                            :key="`dn-m-${row.title}-${i}`"
+                            class="rounded-lg border border-border bg-muted/20 p-3 text-sm"
+                        >
+                            <div class="font-medium text-foreground">{{ row.title }}</div>
+                            <dl class="mt-2 grid grid-cols-3 gap-2 text-xs">
+                                <div>
+                                    <dt class="text-muted-foreground">Qty</dt>
+                                    <dd class="mt-0.5 font-medium">{{ row.qty_label }}</dd>
+                                </div>
+                                <div>
+                                    <dt class="text-muted-foreground">Rate</dt>
+                                    <dd class="mt-0.5 font-medium">
+                                        {{ row.unit_price > 0 ? formatMoney(row.unit_price) : '—' }}
+                                    </dd>
+                                </div>
+                                <div class="text-right">
+                                    <dt class="text-muted-foreground">Amount</dt>
+                                    <dd class="mt-0.5 font-semibold">{{ formatMoney(row.amount) }}</dd>
+                                </div>
+                            </dl>
+                        </div>
+                        <div class="flex items-center justify-between border-t border-border pt-2 text-sm font-semibold">
+                            <span>Total</span>
+                            <span>{{ formatMoney(dailyNeedTotal || donation.total_amount) }}</span>
+                        </div>
+                    </div>
+
+                    <div v-else class="space-y-3 md:hidden">
+                        <div
+                            v-for="(item, i) in donation.items"
+                            :key="`item-m-${i}`"
+                            class="rounded-lg border border-border bg-muted/20 p-3 text-sm"
+                        >
+                            <div class="text-xs uppercase tracking-wide text-muted-foreground">{{ causeColumnLabel }}</div>
+                            <div class="mt-0.5 font-medium text-foreground">{{ displayCause(item) }}</div>
+                            <div class="mt-2 text-xs uppercase tracking-wide text-muted-foreground">Title</div>
+                            <div class="mt-0.5 break-words leading-relaxed text-foreground">{{ item.title }}</div>
+                            <div
+                                v-if="item.honoree_names?.length"
+                                class="mt-1 space-y-0.5 text-xs text-muted-foreground"
+                            >
+                                <div v-for="(name, nameIndex) in item.honoree_names" :key="nameIndex">{{ name }}</div>
+                            </div>
+                            <div class="mt-2 flex flex-wrap items-end justify-between gap-2">
+                                <div>
+                                    <div class="text-xs uppercase tracking-wide text-muted-foreground">Campaign</div>
+                                    <div class="mt-0.5 text-muted-foreground">{{ item.campaign || '—' }}</div>
+                                </div>
+                                <div class="text-right font-semibold text-foreground">{{ formatMoney(item.amount) }}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Desktop table -->
+                    <div v-if="isDailyNeedsDonation" class="hidden overflow-x-auto md:block">
+                        <table class="w-full min-w-[28rem] text-sm">
                             <thead class="border-b border-border text-xs uppercase text-muted-foreground">
                                 <tr>
                                     <th class="pb-2 text-left font-medium">Item</th>
@@ -428,8 +520,8 @@ const paymentLinkSmsButtonLabel = computed(() => {
                         </table>
                     </div>
 
-                    <div v-else class="overflow-x-auto">
-                        <table class="min-w-full text-sm">
+                    <div v-else class="hidden overflow-x-auto md:block">
+                        <table class="w-full min-w-[36rem] text-sm">
                             <thead class="border-b border-border text-xs uppercase text-muted-foreground">
                                 <tr>
                                     <th class="pb-2 text-left font-medium">{{ causeColumnLabel }}</th>
@@ -445,7 +537,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
                                     class="border-b border-border last:border-0"
                                 >
                                     <td class="py-2.5 pr-3 align-top">{{ displayCause(item) }}</td>
-                                    <td class="py-2.5 pr-3 align-top min-w-[18rem] max-w-2xl">
+                                    <td class="max-w-md py-2.5 pr-3 align-top md:min-w-[14rem]">
                                         <div class="break-words text-sm leading-relaxed">{{ item.title }}</div>
                                         <div
                                             v-if="item.honoree_names?.length"
@@ -466,7 +558,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
 
                 <section
                     v-if="deliveryRows.length || isPaid || donation.receipt_number || showPaymentLink"
-                    class="rounded-xl border border-border bg-card p-4 shadow-none"
+                    class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none"
                 >
                     <div class="flex flex-wrap items-center justify-between gap-2">
                         <h3 class="text-sm font-semibold text-foreground">Delivery & receipt</h3>
@@ -491,12 +583,12 @@ const paymentLinkSmsButtonLabel = computed(() => {
 
                     <div
                         v-if="deliveryRows.length"
-                        class="mt-3 grid grid-cols-2 gap-1.5 sm:grid-cols-3 lg:grid-cols-4"
+                        class="mt-3 grid grid-cols-1 gap-1.5 sm:grid-cols-2 lg:grid-cols-4"
                     >
                         <div
                             v-for="row in deliveryRows"
                             :key="row.key"
-                            class="flex items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5"
+                            class="flex min-w-0 items-center justify-between gap-2 rounded-md bg-muted/40 px-2 py-1.5"
                             :title="row.error || row.at || undefined"
                         >
                             <span class="truncate text-xs text-muted-foreground">{{ row.label }}</span>
@@ -511,7 +603,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
 
                     <p
                         v-if="delivery.email?.error"
-                        class="mt-2 truncate text-xs text-rose-600"
+                        class="mt-2 break-words text-xs text-rose-600"
                         :title="delivery.email.error"
                     >
                         {{ delivery.email.error }}
@@ -519,11 +611,11 @@ const paymentLinkSmsButtonLabel = computed(() => {
 
                     <div
                         v-if="canManageReceipts && isPaid"
-                        class="mt-3 flex flex-wrap gap-1.5 border-t border-border pt-3"
+                        class="mt-3 grid grid-cols-2 gap-1.5 border-t border-border pt-3 sm:flex sm:flex-wrap"
                     >
                         <button
                             type="button"
-                            class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
+                            class="rounded-md border border-border px-2 py-1.5 text-xs disabled:opacity-60"
                             :disabled="!canResendThankYou || Boolean(queuingAction)"
                             @click="queueDelivery('thank_you', donation.whatsapp_thank_you_url, canResendThankYou)"
                         >
@@ -531,7 +623,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
                         </button>
                         <button
                             type="button"
-                            class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
+                            class="rounded-md border border-border px-2 py-1.5 text-xs disabled:opacity-60"
                             :disabled="!canResendCertificate || Boolean(queuingAction)"
                             @click="queueDelivery('certificate', donation.whatsapp_certificate_url, canResendCertificate)"
                         >
@@ -539,7 +631,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
                         </button>
                         <button
                             type="button"
-                            class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
+                            class="rounded-md border border-border px-2 py-1.5 text-xs disabled:opacity-60"
                             :disabled="!canResendReceiptWhatsApp || Boolean(queuingAction)"
                             @click="queueDelivery('receipt_whatsapp', donation.whatsapp_receipt_url, canResendReceiptWhatsApp)"
                         >
@@ -547,7 +639,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
                         </button>
                         <button
                             type="button"
-                            class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
+                            class="rounded-md border border-border px-2 py-1.5 text-xs disabled:opacity-60"
                             :disabled="!canResendSheet || Boolean(queuingAction)"
                             @click="queueDelivery('sheet', donation.sheet_resend_url, canResendSheet)"
                         >
@@ -555,7 +647,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
                         </button>
                         <button
                             type="button"
-                            class="rounded-md bg-foreground px-2 py-1 text-xs text-background disabled:opacity-60"
+                            class="col-span-2 rounded-md bg-foreground px-2 py-1.5 text-xs text-background disabled:opacity-60 sm:col-span-1"
                             :disabled="!canResendEmail || resending"
                             @click="resendReceipt"
                         >
@@ -572,7 +664,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
                         </p>
                         <div
                             v-if="delivery.payment_link_whatsapp.url || donation.payment_link_url"
-                            class="truncate text-xs"
+                            class="break-all text-xs"
                         >
                             <a
                                 :href="delivery.payment_link_whatsapp.url || donation.payment_link_url"
@@ -583,10 +675,10 @@ const paymentLinkSmsButtonLabel = computed(() => {
                                 {{ delivery.payment_link_whatsapp.url || donation.payment_link_url }}
                             </a>
                         </div>
-                        <div class="flex flex-wrap gap-1.5">
+                        <div class="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
                             <button
                                 type="button"
-                                class="rounded-md bg-foreground px-2 py-1 text-xs text-background disabled:opacity-60"
+                                class="rounded-md bg-foreground px-2 py-1.5 text-xs text-background disabled:opacity-60"
                                 :disabled="!canResendPaymentLink || Boolean(queuingAction)"
                                 @click="queueDelivery('payment_link', donation.whatsapp_payment_link_url, canResendPaymentLink)"
                             >
@@ -595,7 +687,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
                             <template v-if="isFailed">
                                 <button
                                     type="button"
-                                    class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
+                                    class="rounded-md border border-border px-2 py-1.5 text-xs disabled:opacity-60"
                                     :disabled="!canNotifyPaymentLinkEmail || Boolean(queuingAction)"
                                     @click="queueDelivery('payment_link_email', donation.payment_link_notify_email_url, canNotifyPaymentLinkEmail)"
                                 >
@@ -603,7 +695,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
                                 </button>
                                 <button
                                     type="button"
-                                    class="rounded-md border border-border px-2 py-1 text-xs disabled:opacity-60"
+                                    class="rounded-md border border-border px-2 py-1.5 text-xs disabled:opacity-60"
                                     :disabled="!canNotifyPaymentLinkSms || Boolean(queuingAction)"
                                     @click="queueDelivery('payment_link_sms', donation.payment_link_notify_sms_url, canNotifyPaymentLinkSms)"
                                 >
@@ -625,7 +717,7 @@ const paymentLinkSmsButtonLabel = computed(() => {
                 </section>
             </div>
 
-            <div class="space-y-4 xl:col-span-4">
+            <div class="min-w-0 space-y-4 xl:col-span-4">
                 <AttributionSourceCard
                     :source="donation.source"
                     empty-message="No UTM or referrer captured for this donation."

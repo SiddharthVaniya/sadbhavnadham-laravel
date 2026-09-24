@@ -58,87 +58,87 @@ const hasMarketingSource = computed(() => Boolean(
 </script>
 
 <template>
-    <section class="rounded-xl border border-border bg-card p-5 shadow-none">
+    <section class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none sm:p-5">
         <h3 class="text-sm font-semibold text-foreground">Source</h3>
         <dl class="mt-3 space-y-2 text-sm">
-            <div class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">Channel</dt>
-                <dd class="text-right font-medium">{{ resolved.channel_label }}</dd>
+            <div class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Channel</dt>
+                <dd class="min-w-0 break-words text-right font-medium">{{ resolved.channel_label }}</dd>
             </div>
-            <div v-if="resolved.campaign_name" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">Campaign</dt>
-                <dd class="text-right font-medium">{{ resolved.campaign_name }}</dd>
+            <div v-if="resolved.campaign_name" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Campaign</dt>
+                <dd class="min-w-0 break-words text-right font-medium">{{ resolved.campaign_name }}</dd>
             </div>
-            <div v-if="resolved.attr_source_label" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">Traffic source</dt>
-                <dd class="text-right font-medium">{{ resolved.attr_source_label }}</dd>
+            <div v-if="resolved.attr_source_label" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Traffic source</dt>
+                <dd class="min-w-0 break-words text-right font-medium">{{ resolved.attr_source_label }}</dd>
             </div>
-            <div v-if="resolved.partner_code" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">Partner</dt>
-                <dd class="text-right font-medium">
+            <div v-if="resolved.partner_code" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Partner</dt>
+                <dd class="min-w-0 break-words text-right font-medium">
                     {{ resolved.partner_name || 'Unregistered' }}
                     <span class="font-mono text-xs text-muted-foreground">({{ resolved.partner_code }})</span>
                 </dd>
             </div>
-            <div v-if="resolved.meta_campaign_id" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">Meta campaign ID</dt>
-                <dd class="text-right font-mono text-xs font-medium">{{ resolved.meta_campaign_id }}</dd>
+            <div v-if="resolved.meta_campaign_id" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Meta campaign ID</dt>
+                <dd class="min-w-0 break-all text-right font-mono text-xs font-medium">{{ resolved.meta_campaign_id }}</dd>
             </div>
-            <div v-if="resolved.meta_adset_id" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">Meta ad set ID</dt>
-                <dd class="text-right font-mono text-xs font-medium">{{ resolved.meta_adset_id }}</dd>
+            <div v-if="resolved.meta_adset_id" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Meta ad set ID</dt>
+                <dd class="min-w-0 break-all text-right font-mono text-xs font-medium">{{ resolved.meta_adset_id }}</dd>
             </div>
-            <div v-if="resolved.meta_ad_id" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">Meta ad ID</dt>
-                <dd class="text-right font-mono text-xs font-medium">{{ resolved.meta_ad_id }}</dd>
+            <div v-if="resolved.meta_ad_id" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Meta ad ID</dt>
+                <dd class="min-w-0 break-all text-right font-mono text-xs font-medium">{{ resolved.meta_ad_id }}</dd>
             </div>
-            <div v-if="resolved.utm_source" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">UTM source</dt>
-                <dd class="text-right font-medium">{{ resolved.utm_source }}</dd>
+            <div v-if="resolved.utm_source" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">UTM source</dt>
+                <dd class="min-w-0 break-words text-right font-medium">{{ resolved.utm_source }}</dd>
             </div>
-            <div v-if="resolved.utm_medium" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">UTM medium</dt>
-                <dd class="text-right font-medium">{{ resolved.utm_medium }}</dd>
+            <div v-if="resolved.utm_medium" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">UTM medium</dt>
+                <dd class="min-w-0 break-words text-right font-medium">{{ resolved.utm_medium }}</dd>
             </div>
-            <div v-if="resolved.utm_campaign" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">UTM campaign</dt>
-                <dd class="text-right font-medium">{{ resolved.utm_campaign }}</dd>
+            <div v-if="resolved.utm_campaign" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">UTM campaign</dt>
+                <dd class="min-w-0 break-words text-right font-medium">{{ resolved.utm_campaign }}</dd>
             </div>
-            <div v-if="resolved.utm_content" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">Employee / content</dt>
-                <dd class="text-right font-medium">{{ resolved.utm_content }}</dd>
+            <div v-if="resolved.utm_content" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Employee / content</dt>
+                <dd class="min-w-0 break-words text-right font-medium">{{ resolved.utm_content }}</dd>
             </div>
-            <div v-if="resolved.utm_term" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">UTM term (ad set)</dt>
-                <dd class="text-right font-medium">{{ resolved.utm_term }}</dd>
+            <div v-if="resolved.utm_term" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">UTM term (ad set)</dt>
+                <dd class="min-w-0 break-words text-right font-medium">{{ resolved.utm_term }}</dd>
             </div>
-            <div v-if="resolved.attr_placement" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">Placement</dt>
-                <dd class="text-right font-medium">{{ resolved.attr_placement }}</dd>
+            <div v-if="resolved.attr_placement" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Placement</dt>
+                <dd class="min-w-0 break-words text-right font-medium">{{ resolved.attr_placement }}</dd>
             </div>
-            <div v-if="resolved.referrer_host || resolved.referrer" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">Referrer</dt>
-                <dd class="max-w-[60%] truncate text-right font-medium" :title="resolved.referrer || ''">
+            <div v-if="resolved.referrer_host || resolved.referrer" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Referrer</dt>
+                <dd class="min-w-0 max-w-[65%] break-all text-right font-medium" :title="resolved.referrer || ''">
                     {{ resolved.referrer_host || resolved.referrer }}
                 </dd>
             </div>
-            <div v-if="resolved.landing_path" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">Landing</dt>
-                <dd class="max-w-[60%] truncate text-right font-medium" :title="resolved.landing_path">
+            <div v-if="resolved.landing_path" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Landing</dt>
+                <dd class="min-w-0 max-w-[65%] break-all text-right font-medium" :title="resolved.landing_path">
                     {{ resolved.landing_path }}
                 </dd>
             </div>
-            <div v-if="resolved.device_type" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">Device</dt>
-                <dd class="text-right font-medium capitalize">{{ resolved.device_type }}</dd>
+            <div v-if="resolved.device_type" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Device</dt>
+                <dd class="min-w-0 break-words text-right font-medium capitalize">{{ resolved.device_type }}</dd>
             </div>
-            <div v-if="resolved.ip_address" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">IP</dt>
-                <dd class="text-right font-mono text-xs font-medium">{{ resolved.ip_address }}</dd>
+            <div v-if="resolved.ip_address" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">IP</dt>
+                <dd class="min-w-0 break-all text-right font-mono text-xs font-medium">{{ resolved.ip_address }}</dd>
             </div>
-            <div v-if="resolved.ip_city || resolved.ip_region_name || resolved.ip_country_name || resolved.ip_country_code" class="flex items-start justify-between gap-3">
-                <dt class="text-muted-foreground">IP location</dt>
-                <dd class="text-right font-medium">
+            <div v-if="resolved.ip_city || resolved.ip_region_name || resolved.ip_country_name || resolved.ip_country_code" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">IP location</dt>
+                <dd class="min-w-0 break-words text-right font-medium">
                     {{
                         [resolved.ip_city, resolved.ip_region_name, resolved.ip_country_name || resolved.ip_country_code]
                             .filter(Boolean)

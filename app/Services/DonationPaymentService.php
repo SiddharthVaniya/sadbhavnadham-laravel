@@ -11,6 +11,7 @@ use App\Jobs\SendReceiptWhatsAppJob;
 use App\Jobs\SendThankYouWhatsAppJob;
 use App\Models\DonationOrder;
 use App\Models\Setting;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -62,7 +63,7 @@ class DonationPaymentService
                         ]);
                     }
 
-                    $existingByPayment->markAsPaid($paymentId);
+                    $existingByPayment->markAsPaid($paymentId, self::resolvePaymentCapturedAt($payment));
 
                     return $existingByPayment->fresh();
                 }
@@ -124,7 +125,7 @@ class DonationPaymentService
             $order->update([
                 'receipt_number' => $receiptNumber,
             ]);
-            $order->markAsPaid($payment['id'] ?? null);
+            $order->markAsPaid($payment['id'] ?? null, self::resolvePaymentCapturedAt($payment));
 
             return $order;
         });
@@ -136,9 +137,41 @@ class DonationPaymentService
         $this->completePaidOrder($order);
     }
 
-    public function captureOrderPayment(DonationOrder $order, string $providerPaymentId): ?DonationOrder
+    /**
+     * Prefer Razorpay capture time so admin dates match the gateway (not webhook lag).
+     *
+     * @param  array<string, mixed>  $payment
+     */
+    public static function resolvePaymentCapturedAt(array $payment): Carbon
     {
-        $order = DB::transaction(function () use ($order, $providerPaymentId) {
+        foreach (['captured_at', 'created_at'] as $key) {
+            $value = $payment[$key] ?? null;
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            if (is_numeric($value)) {
+                return Carbon::createFromTimestamp((int) $value)
+                    ->setTimezone(config('app.timezone'));
+            }
+
+            try {
+                return Carbon::parse((string) $value)->setTimezone(config('app.timezone'));
+            } catch (\Throwable) {
+                continue;
+            }
+        }
+
+        return now();
+    }
+
+    public function captureOrderPayment(
+        DonationOrder $order,
+        string $providerPaymentId,
+        ?\DateTimeInterface $paidAt = null,
+    ): ?DonationOrder {
+        $order = DB::transaction(function () use ($order, $providerPaymentId, $paidAt) {
             $locked = DonationOrder::whereKey($order->getKey())->lockForUpdate()->first();
 
             if (! $locked) {
@@ -156,7 +189,7 @@ class DonationPaymentService
             }
 
             if (! $locked->isPaid()) {
-                $locked->markAsPaid($providerPaymentId);
+                $locked->markAsPaid($providerPaymentId, $paidAt);
             }
 
             return $locked->fresh();

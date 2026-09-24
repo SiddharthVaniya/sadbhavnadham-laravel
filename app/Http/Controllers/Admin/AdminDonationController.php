@@ -842,7 +842,7 @@ class AdminDonationController extends Controller
     {
         $this->authorize('view', $donationOrder);
 
-        $donationOrder->load('items.causeModel');
+        $donationOrder->load(['items.causeModel', 'subscription']);
 
         return Inertia::render('Admin/Donations/Show', [
             'donation' => AdminInertiaResources::donationDetail($donationOrder),
@@ -852,7 +852,7 @@ class AdminDonationController extends Controller
 
     private function filteredDonationsQuery(Request $request, string $duration = 'all'): Builder
     {
-        $query = DonationOrder::query()->with(['items.causeModel', 'items.package']);
+        $query = DonationOrder::query()->with(['items.causeModel', 'items.package', 'subscription']);
 
         DonationVisibility::apply($query, $request->user());
 

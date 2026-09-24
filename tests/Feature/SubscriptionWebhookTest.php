@@ -100,6 +100,46 @@ it('creates a paid recurring donation order from subscription.charged webhook', 
     )->toBeTrue();
 });
 
+it('uses Razorpay captured_at for paid_at and created_at on subscription charges', function () {
+    Bus::fake();
+
+    Setting::updateOrCreate(['key' => Setting::SEND_RECEIPT_EMAIL], ['value' => '0']);
+    Setting::updateOrCreate(['key' => Setting::SEND_WHATSAPP_THANK_YOU], ['value' => '0']);
+
+    $subscription = DonationSubscription::factory()->create([
+        'status' => DonationSubscription::STATUS_AUTHENTICATED,
+        'billing_cycle_count' => 0,
+        'total_amount' => 500,
+        'unit_amount' => 500,
+    ]);
+
+    $capturedAt = now()->subDays(2)->microseconds(0);
+
+    app(DonationSubscriptionWebhookService::class)->handle(
+        'subscription.charged',
+        subscriptionWebhookPayload('subscription.charged', $subscription, [
+            'payload' => [
+                'payment' => [
+                    'entity' => [
+                        'id' => 'pay_sub_captured_at',
+                        'created_at' => $capturedAt->copy()->subHour()->timestamp,
+                        'captured_at' => $capturedAt->timestamp,
+                    ],
+                ],
+            ],
+        ])
+    );
+
+    $order = DonationOrder::query()
+        ->where('provider_payment_id', 'pay_sub_captured_at')
+        ->first();
+
+    expect($order)->not->toBeNull()
+        ->and($order->isPaid())->toBeTrue()
+        ->and($order->paid_at?->equalTo($capturedAt))->toBeTrue()
+        ->and($order->created_at?->equalTo($capturedAt))->toBeTrue();
+});
+
 it('ignores duplicate subscription.charged webhooks for the same payment id', function () {
     Bus::fake();
 

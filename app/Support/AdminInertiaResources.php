@@ -669,6 +669,9 @@ class AdminInertiaResources
             'is_failed' => $order->isFailed(),
             'is_pending' => $order->isPending(),
             'is_paid' => $order->isPaid(),
+            'is_recurring' => (bool) ($row['is_recurring'] ?? false),
+            'billing_cycle_number' => $row['billing_cycle_number'] ?? null,
+            'subscription' => $row['subscription'] ?? AdminInertiaData::donationSubscriptionSummary($order),
             'delivery' => self::donationDeliveryStatus($order),
             'source' => app(DonationAttributionService::class)->detailPayload($order),
             'items' => $order->items->map(function ($item) {

@@ -220,7 +220,7 @@ const donationColumns = [
     { key: 'total_amount', label: 'Amount', sortable: true, align: 'right' },
     { key: 'status', label: 'Status', sortable: true },
     { key: 'city', label: 'City', sortable: true },
-    { key: 'created_at_ts', label: 'Created', sortable: true },
+    { key: 'created_at_ts', label: 'Paid / date', sortable: true },
     { key: 'actions', label: 'Action', sortable: false, align: 'right' },
 ];
 
@@ -397,7 +397,16 @@ const exportUrl = computed(() => {
                 >
                     <template #cell-payment_id="{ row }">
                         <div class="font-medium text-foreground">#{{ row.payment_id }}</div>
-                        <div class="text-xs text-muted-foreground">{{ row.provider }}</div>
+                        <div class="mt-0.5 flex flex-wrap items-center gap-1.5">
+                            <span class="text-xs text-muted-foreground">{{ row.provider }}</span>
+                            <span
+                                v-if="row.is_recurring"
+                                class="inline-flex items-center rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-indigo-700"
+                                title="Charged from a Razorpay subscription"
+                            >
+                                Subscription
+                            </span>
+                        </div>
                     </template>
                     <template #cell-donor_name="{ row }">
                         <div class="font-medium">{{ row.donor_name }}</div>

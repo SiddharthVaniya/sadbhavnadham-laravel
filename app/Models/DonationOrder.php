@@ -226,12 +226,12 @@ class DonationOrder extends Model
      |  Status Helpers
      ========================== */
 
-    public function markAsPaid(?string $providerPaymentId = null): void
+    public function markAsPaid(?string $providerPaymentId = null, ?\DateTimeInterface $paidAt = null): void
     {
         $this->update([
             'status' => self::STATUS_PAID,
             'provider_payment_id' => $providerPaymentId,
-            'paid_at' => now(),
+            'paid_at' => $paidAt ?? now(),
             'failed_at' => null,
         ]);
     }

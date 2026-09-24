@@ -267,7 +267,9 @@ class DonationSubscriptionWebhookService
                 $payment
             );
 
-            $order = $this->createRecurringOrder($subscription, $payment, $billingCycleNumber);
+            $capturedAt = DonationPaymentService::resolvePaymentCapturedAt($payment);
+
+            $order = $this->createRecurringOrder($subscription, $payment, $billingCycleNumber, $capturedAt);
 
             $entity = $subscriptionEntity ?? [
                 'id' => $razorpaySubscriptionId,
@@ -279,7 +281,7 @@ class DonationSubscriptionWebhookService
                 DonationSubscription::STATUS_ACTIVE,
                 [
                     'billing_cycle_count' => $billingCycleNumber,
-                    'started_at' => $subscription->started_at ?? now(),
+                    'started_at' => $subscription->started_at ?? $capturedAt,
                     'next_charge_at' => $this->timestamp($entity['charge_at'] ?? null),
                 ]
             );
@@ -291,19 +293,26 @@ class DonationSubscriptionWebhookService
             return;
         }
 
-        $this->donationPaymentService->captureOrderPayment($order, $paymentId);
+        $this->donationPaymentService->captureOrderPayment(
+            $order,
+            $paymentId,
+            DonationPaymentService::resolvePaymentCapturedAt($payment)
+        );
     }
 
     private function createRecurringOrder(
         DonationSubscription $subscription,
         array $payment,
-        int $billingCycleNumber
+        int $billingCycleNumber,
+        ?Carbon $capturedAt = null,
     ): DonationOrder {
         $subscription->loadMissing(['cause', 'package']);
 
         $amount = isset($payment['amount'])
             ? ((int) $payment['amount']) / 100
             : (float) $subscription->total_amount;
+
+        $capturedAt ??= DonationPaymentService::resolvePaymentCapturedAt($payment);
 
         $order = DonationOrder::create([
             'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
@@ -327,11 +336,20 @@ class DonationSubscriptionWebhookService
             'currency' => $subscription->currency,
             'total_amount' => $amount,
             'status' => DonationOrder::STATUS_PENDING,
+            'created_at' => $capturedAt,
+            'updated_at' => $capturedAt,
 
             // Every billing cycle keeps the attribution captured at signup, so partner
             // and marketing credit survive charges that happen months later.
             ...AttributionParameters::inheritFrom($subscription),
         ]);
+
+        if (! $order->created_at?->equalTo($capturedAt)) {
+            $order->forceFill([
+                'created_at' => $capturedAt,
+                'updated_at' => $capturedAt,
+            ])->saveQuietly();
+        }
 
         DonationItem::create([
             'donation_order_id' => $order->id,

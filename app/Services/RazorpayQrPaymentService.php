@@ -82,10 +82,7 @@ class RazorpayQrPaymentService
         $donorSnapshot = $this->donorSnapshotFromPayment($payment);
         $donor = Donor::resolveFromDonationSnapshot($donorSnapshot);
 
-        $paidAt = isset($payment['created_at'])
-            ? \Illuminate\Support\Carbon::createFromTimestamp((int) $payment['created_at'])
-                ->setTimezone(config('app.timezone'))
-            : now();
+        $paidAt = DonationPaymentService::resolvePaymentCapturedAt($payment);
 
         $order = DonationOrder::query()->create([
             'payment_provider' => DonationOrder::PROVIDER_RAZORPAY_QR,
@@ -107,6 +104,8 @@ class RazorpayQrPaymentService
             'total_amount' => $amount,
             'status' => DonationOrder::STATUS_PAID,
             'paid_at' => $paidAt,
+            'created_at' => $paidAt,
+            'updated_at' => $paidAt,
         ]);
 
         PaymentEvent::query()->create([

@@ -16,6 +16,8 @@ class AdminInertiaData
     {
         $item = $order->items->first();
         $causeTitleLines = self::donationItemCauseTitleLines($item);
+        $isRecurring = (bool) $order->is_recurring || filled($order->donation_subscription_id);
+        $displayAt = $order->paid_at ?? $order->created_at;
 
         return [
             'id' => $order->id,
@@ -34,12 +36,42 @@ class AdminInertiaData
             'city' => $order->city ?: '—',
             'total_amount' => (float) $order->total_amount,
             'status' => $order->status,
-            'created_date' => $order->created_at?->format('d M Y'),
-            'created_time' => $order->created_at?->format('h:i A'),
-            'created_at_ts' => $order->created_at?->timestamp ?? 0,
+            'is_recurring' => $isRecurring,
+            'billing_cycle_number' => $order->billing_cycle_number !== null
+                ? (int) $order->billing_cycle_number
+                : null,
+            'subscription' => self::donationSubscriptionSummary($order),
+            'created_date' => $displayAt?->format('d M Y'),
+            'created_time' => $displayAt?->format('h:i A'),
+            'created_at_ts' => $displayAt?->timestamp ?? 0,
             'edit_url' => $order->isPaid()
                 ? route('admin.donations.edit', $order)
                 : null,
+        ];
+    }
+
+    /**
+     * @return array{uuid: string, status: string, status_label: string, frequency_label: string, url: string}|null
+     */
+    public static function donationSubscriptionSummary(DonationOrder $order): ?array
+    {
+        if (! filled($order->donation_subscription_id)) {
+            return null;
+        }
+
+        $order->loadMissing('subscription');
+        $subscription = $order->subscription;
+
+        if (! $subscription) {
+            return null;
+        }
+
+        return [
+            'uuid' => $subscription->subscription_uuid,
+            'status' => $subscription->status,
+            'status_label' => $subscription->statusLabel(),
+            'frequency_label' => $subscription->frequencyLabel(),
+            'url' => route('admin.subscriptions.show', $subscription),
         ];
     }
 

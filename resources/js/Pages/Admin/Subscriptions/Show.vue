@@ -105,12 +105,12 @@ const syncFromRazorpay = () => {
             </form>
         </div>
 
-        <div class="mb-6 grid gap-4 lg:grid-cols-3">
-            <div class="rounded-xl border border-border bg-card p-5 lg:col-span-2 shadow-none">
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                        <h2 class="text-lg font-semibold text-foreground">{{ subscription.cause.title }}</h2>
-                        <p class="text-sm text-muted-foreground">{{ subscription.package.title }}</p>
+        <div class="mb-6 grid min-w-0 gap-4 lg:grid-cols-3">
+            <div class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none sm:p-5 lg:col-span-2">
+                <div class="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1 basis-[12rem]">
+                        <h2 class="break-words text-lg font-semibold text-foreground">{{ subscription.cause.title }}</h2>
+                        <p class="break-words text-sm text-muted-foreground">{{ subscription.package.title }}</p>
                     </div>
                     <SubscriptionStatusBadge :status="subscription.status" :label="subscription.status_label" />
                 </div>
@@ -178,10 +178,10 @@ const syncFromRazorpay = () => {
             </div>
         </div>
 
-        <div class="mt-6 grid gap-6 xl:grid-cols-12">
-            <div class="space-y-6 xl:col-span-7">
-                <div class="rounded-xl border border-border bg-card p-5 shadow-none">
-                    <div class="flex items-center justify-between gap-3">
+        <div class="mt-6 grid min-w-0 gap-6 xl:grid-cols-12">
+            <div class="min-w-0 space-y-6 xl:col-span-7">
+                <div class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none sm:p-5">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
                         <h3 class="text-sm font-semibold text-foreground">Subscriber details</h3>
                         <Link
                             v-if="subscription.donor.profile_url"
@@ -192,12 +192,18 @@ const syncFromRazorpay = () => {
                         </Link>
                     </div>
                     <dl class="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-                        <div><dt class="text-muted-foreground">Email</dt><dd class="font-medium">{{ subscription.donor.email }}</dd></div>
-                        <div><dt class="text-muted-foreground">Phone</dt><dd class="font-medium">{{ subscription.donor.phone }}</dd></div>
+                        <div class="min-w-0">
+                            <dt class="text-muted-foreground">Email</dt>
+                            <dd class="break-all font-medium">{{ subscription.donor.email }}</dd>
+                        </div>
+                        <div class="min-w-0">
+                            <dt class="text-muted-foreground">Phone</dt>
+                            <dd class="font-medium">{{ subscription.donor.phone }}</dd>
+                        </div>
                         <div v-if="subscription.donor.date_of_birth"><dt class="text-muted-foreground">Date of birth</dt><dd>{{ subscription.donor.date_of_birth }}</dd></div>
                         <div v-if="subscription.donor.pan_number"><dt class="text-muted-foreground">PAN</dt><dd>{{ subscription.donor.pan_number }}</dd></div>
                     </dl>
-                    <p v-if="subscription.donor.address" class="mt-4 text-sm text-muted-foreground">
+                    <p v-if="subscription.donor.address" class="mt-4 break-words text-sm text-muted-foreground">
                         {{ subscription.donor.address }}, {{ subscription.donor.city }}, {{ subscription.donor.state }} {{ subscription.donor.pincode }}
                     </p>
                     <div class="mt-4 flex flex-wrap gap-2 text-xs">
@@ -206,11 +212,11 @@ const syncFromRazorpay = () => {
                     </div>
                 </div>
 
-                <div class="rounded-xl border border-border bg-card p-5 shadow-none">
+                <div class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none sm:p-5">
                     <h3 class="text-sm font-semibold text-foreground">Subscription summary</h3>
                     <dl class="mt-4 space-y-3 text-sm">
-                        <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Cause</dt><dd class="font-medium text-right">{{ subscription.cause.title }}</dd></div>
-                        <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Package</dt><dd class="font-medium text-right">{{ subscription.package.title }}</dd></div>
+                        <div class="flex justify-between gap-4"><dt class="shrink-0 text-muted-foreground">Cause</dt><dd class="min-w-0 break-words text-right font-medium">{{ subscription.cause.title }}</dd></div>
+                        <div class="flex justify-between gap-4"><dt class="shrink-0 text-muted-foreground">Package</dt><dd class="min-w-0 break-words text-right font-medium">{{ subscription.package.title }}</dd></div>
                         <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Unit amount</dt><dd class="font-medium">{{ formatMoney(subscription.unit_amount) }}</dd></div>
                         <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Quantity</dt><dd class="font-medium">{{ subscription.quantity }}</dd></div>
                         <div class="flex justify-between gap-4"><dt class="text-muted-foreground">Created</dt><dd class="font-medium">{{ subscription.created_at }}</dd></div>
@@ -218,7 +224,7 @@ const syncFromRazorpay = () => {
                 </div>
             </div>
 
-            <div class="xl:col-span-5">
+            <div class="min-w-0 xl:col-span-5">
                 <AttributionSourceCard
                     :source="subscription.source"
                     empty-message="No UTM or referrer captured for this subscription."
@@ -226,10 +232,49 @@ const syncFromRazorpay = () => {
             </div>
         </div>
 
-        <div class="mt-6 rounded-xl border border-border bg-card p-5 shadow-none">
+        <div class="mt-6 rounded-xl border border-border bg-card p-4 shadow-none sm:p-5">
             <h3 class="mb-4 text-sm font-semibold text-foreground">Billing history</h3>
-            <div v-if="orders.length" class="overflow-x-auto">
-                <table class="min-w-full text-sm">
+
+            <div v-if="orders.length" class="space-y-3 md:hidden">
+                <div
+                    v-for="order in orders"
+                    :key="`m-${order.uuid}`"
+                    class="rounded-lg border border-border bg-muted/20 p-3 text-sm"
+                >
+                    <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="font-medium text-foreground">
+                            Cycle {{ order.billing_cycle_number || '—' }}
+                        </div>
+                        <StatusBadge :status="order.status" />
+                    </div>
+                    <dl class="mt-2 grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                            <dt class="text-muted-foreground">Date</dt>
+                            <dd class="mt-0.5 font-medium">{{ order.paid_at || order.created_at }}</dd>
+                        </div>
+                        <div class="text-right">
+                            <dt class="text-muted-foreground">Amount</dt>
+                            <dd class="mt-0.5 font-semibold">{{ formatMoney(order.total_amount) }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-muted-foreground">Receipt</dt>
+                            <dd class="mt-0.5 font-medium">{{ order.receipt_number || '—' }}</dd>
+                        </div>
+                        <div class="min-w-0 text-right">
+                            <dt class="text-muted-foreground">Payment ID</dt>
+                            <dd class="mt-0.5 break-all font-mono text-[11px]">{{ order.provider_payment_id || '—' }}</dd>
+                        </div>
+                    </dl>
+                    <div class="mt-2">
+                        <Link :href="order.detail_url" class="text-sm font-medium text-indigo-700 hover:underline">
+                            View donation
+                        </Link>
+                    </div>
+                </div>
+            </div>
+
+            <div v-if="orders.length" class="hidden overflow-x-auto md:block">
+                <table class="w-full min-w-[40rem] text-sm">
                     <thead class="border-b border-border text-left text-xs uppercase tracking-wide text-muted-foreground">
                         <tr>
                             <th class="pb-3 pr-4">Cycle</th>
