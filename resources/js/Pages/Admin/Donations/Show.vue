@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
@@ -14,9 +14,30 @@ const props = defineProps({
 
 const page = usePage();
 const canManageReceipts = computed(() => page.props.auth.permissions?.includes('manage receipts') ?? false);
+const canPreviewReceipts = computed(() =>
+    page.props.auth.permissions?.includes('preview receipts')
+    || canManageReceipts.value
+);
+const canGenerateReceipts = computed(() =>
+    page.props.auth.permissions?.includes('generate receipts')
+    || canManageReceipts.value
+);
 const resending = ref(false);
 const generating = ref(false);
 const queuingAction = ref(null);
+const certificateUrl = ref(props.donation.certificate_url || null);
+const regeneratingCertificate = ref(false);
+const certificateError = ref('');
+const certificateFullscreen = ref(false);
+
+watch(
+    () => props.donation.certificate_url,
+    (url) => {
+        if (url) {
+            certificateUrl.value = url;
+        }
+    },
+);
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -290,6 +311,73 @@ const generateReceipt = () => {
             generating.value = false;
         },
     });
+};
+
+const openCertificateFullscreen = () => {
+    if (!certificateUrl.value) {
+        return;
+    }
+
+    certificateFullscreen.value = true;
+};
+
+const closeCertificateFullscreen = () => {
+    certificateFullscreen.value = false;
+};
+
+const onCertificateKeydown = (event) => {
+    if (event.key === 'Escape' && certificateFullscreen.value) {
+        closeCertificateFullscreen();
+    }
+};
+
+onMounted(() => {
+    window.addEventListener('keydown', onCertificateKeydown);
+});
+
+onUnmounted(() => {
+    window.removeEventListener('keydown', onCertificateKeydown);
+});
+
+const regenerateCertificate = async () => {
+    if (!canGenerateReceipts.value || regeneratingCertificate.value || !props.donation.certificate_regenerate_url) {
+        return;
+    }
+
+    regeneratingCertificate.value = true;
+    certificateError.value = '';
+
+    try {
+        const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const xsrfMatch = document.cookie.match(/(?:^|; )XSRF-TOKEN=([^;]*)/);
+        const xsrf = xsrfMatch ? decodeURIComponent(xsrfMatch[1]) : '';
+
+        const response = await fetch(props.donation.certificate_regenerate_url, {
+            method: 'POST',
+            headers: {
+                Accept: 'application/json',
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+                ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
+                ...(xsrf ? { 'X-XSRF-TOKEN': xsrf } : {}),
+            },
+            credentials: 'same-origin',
+            body: '{}',
+        });
+
+        const payload = await response.json().catch(() => ({}));
+
+        if (!response.ok || !payload.url) {
+            certificateError.value = payload.message || 'Could not regenerate certificate.';
+            return;
+        }
+
+        certificateUrl.value = payload.url;
+    } catch {
+        certificateError.value = 'Could not regenerate certificate.';
+    } finally {
+        regeneratingCertificate.value = false;
+    }
 };
 
 const paymentLinkButtonLabel = computed(() => {
@@ -577,6 +665,64 @@ const paymentLinkSmsButtonLabel = computed(() => {
                 </section>
 
                 <section
+                    v-if="isPaid && (canPreviewReceipts || canGenerateReceipts)"
+                    class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none sm:p-5"
+                >
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h3 class="text-sm font-semibold text-foreground">Donation certificate</h3>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                {{ certificateUrl ? 'Click the image for fullscreen.' : 'Generate to create the Sanman Patra image.' }}
+                            </p>
+                        </div>
+                        <button
+                            v-if="canGenerateReceipts"
+                            type="button"
+                            class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background disabled:opacity-60"
+                            :disabled="regeneratingCertificate"
+                            @click="regenerateCertificate"
+                        >
+                            {{ regeneratingCertificate ? 'Generating…' : (certificateUrl ? 'Regenerate' : 'Generate') }}
+                        </button>
+                    </div>
+
+                    <p
+                        v-if="certificateError"
+                        class="mt-2 text-xs text-rose-600"
+                    >
+                        {{ certificateError }}
+                    </p>
+
+                    <div
+                        v-if="certificateUrl"
+                        class="mt-4"
+                    >
+                        <button
+                            type="button"
+                            class="group relative block w-full overflow-hidden rounded-lg border border-border bg-muted/30 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
+                            @click="openCertificateFullscreen"
+                        >
+                            <img
+                                :src="certificateUrl"
+                                alt="Donation certificate"
+                                class="mx-auto max-h-72 w-auto max-w-full object-contain transition duration-200 group-hover:scale-[1.01]"
+                            >
+                            <span
+                                class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 py-2 text-center text-[11px] font-medium text-white opacity-0 transition group-hover:opacity-100"
+                            >
+                                View fullscreen
+                            </span>
+                        </button>
+                    </div>
+                    <div
+                        v-else
+                        class="mt-4 flex min-h-36 items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-4 text-center text-xs text-muted-foreground"
+                    >
+                        No certificate file yet for this donation.
+                    </div>
+                </section>
+
+                <section
                     v-if="deliveryRows.length || isPaid || donation.receipt_number || showPaymentLink"
                     class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none"
                 >
@@ -744,5 +890,30 @@ const paymentLinkSmsButtonLabel = computed(() => {
                 />
             </div>
         </div>
+
+        <Teleport to="body">
+            <div
+                v-if="certificateFullscreen && certificateUrl"
+                class="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 p-3 backdrop-blur-sm sm:p-6"
+                role="dialog"
+                aria-modal="true"
+                aria-label="Certificate fullscreen"
+                @click.self="closeCertificateFullscreen"
+            >
+                <button
+                    type="button"
+                    class="absolute right-3 top-3 rounded-full bg-white/10 px-3 py-1.5 text-sm font-medium text-white hover:bg-white/20 sm:right-5 sm:top-5"
+                    @click="closeCertificateFullscreen"
+                >
+                    Close · Esc
+                </button>
+                <img
+                    :src="certificateUrl"
+                    alt="Donation certificate fullscreen"
+                    class="max-h-[min(92vh,1200px)] max-w-full rounded-sm object-contain shadow-2xl"
+                    @click.stop
+                >
+            </div>
+        </Teleport>
     </AdminLayout>
 </template>

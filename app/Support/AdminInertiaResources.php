@@ -710,6 +710,16 @@ class AdminInertiaResources
             'whatsapp_payment_link_url' => route('admin.donations.whatsapp.payment-link', $order),
             'payment_link_notify_email_url' => route('admin.donations.payment-link.notify', [$order, 'email']),
             'payment_link_notify_sms_url' => route('admin.donations.payment-link.notify', [$order, 'sms']),
+            'certificate_url' => $order->isPaid()
+                ? app(\App\Services\DonationCertificateService::class)->existingPublicUrl($order)
+                : null,
+            'certificate_show_url' => $order->isPaid()
+                ? route('admin.donations.certificate.show', $order)
+                : null,
+            'certificate_regenerate_url' => $order->isPaid()
+                ? route('admin.donations.certificate.regenerate', $order)
+                : null,
+            'can_regenerate_certificate' => $order->isPaid(),
             'payment_link_url' => $order->payment_link_url,
             'payment_link_id' => $order->payment_link_id,
             'is_failed' => $order->isFailed(),

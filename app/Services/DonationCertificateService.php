@@ -217,6 +217,20 @@ class DonationCertificateService
         return $this->publicUrl($jpegRelativePath);
     }
 
+    /**
+     * Public PNG URL if a certificate file already exists (no generation).
+     */
+    public function existingPublicUrl(DonationOrder $order): ?string
+    {
+        $pngRelativePath = $this->storagePath($order, 'png');
+
+        if (! Storage::disk('public')->exists($pngRelativePath)) {
+            return null;
+        }
+
+        return $this->publicUrl($pngRelativePath);
+    }
+
     public function donorDisplayName(DonationOrder $order): string
     {
         $name = (string) ($order->donor_name ?? '');

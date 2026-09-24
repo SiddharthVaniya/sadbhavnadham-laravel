@@ -21,6 +21,7 @@ use App\Http\Controllers\Admin\AdminStaffReferralsController;
 use App\Http\Controllers\Admin\AdminSubscriptionController;
 use App\Http\Controllers\Admin\AisensyAccountController;
 use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\DonationCertificateController;
 use App\Http\Controllers\Admin\DonationDeliveryController;
 use App\Http\Controllers\Admin\DonationReceiptController;
 use App\Http\Controllers\Admin\PermissionController;
@@ -350,6 +351,12 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::post('/donations/{order}/receipt/generate', [DonationReceiptController::class, 'generate'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::RECEIPT_GENERATE))
         ->name('donations.receipt.generate');
+    Route::get('/donations/{order}/certificate', [DonationCertificateController::class, 'show'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::RECEIPT_PREVIEW))
+        ->name('donations.certificate.show');
+    Route::post('/donations/{order}/certificate/regenerate', [DonationCertificateController::class, 'regenerate'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::RECEIPT_GENERATE))
+        ->name('donations.certificate.regenerate');
     Route::post('/donations/{order}/sheet/resend', [DonationDeliveryController::class, 'resendSheet'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::RECEIPT_RESEND_NOTIFICATIONS))
         ->name('donations.sheet.resend');
