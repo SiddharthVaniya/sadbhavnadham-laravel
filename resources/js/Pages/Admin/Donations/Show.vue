@@ -462,6 +462,16 @@ const paymentLinkSmsButtonLabel = computed(() => {
                             >
                                 QR · {{ donation.qr_code_name || 'QR' }}
                             </span>
+                            <Link
+                                v-if="donation.later_paid && donation.later_paid_url"
+                                :href="donation.later_paid_url"
+                                class="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-amber-800 hover:bg-amber-100"
+                                :title="donation.later_paid_payment_id
+                                    ? `Later payment succeeded (#${donation.later_paid_payment_id})`
+                                    : 'A later payment from this donor succeeded'"
+                            >
+                                Later paid
+                            </Link>
                             <StatusBadge :status="donation.status" />
                         </div>
                     </div>
@@ -474,6 +484,19 @@ const paymentLinkSmsButtonLabel = computed(() => {
                         <div>
                             <dt class="text-xs uppercase tracking-wide text-muted-foreground">Provider</dt>
                             <dd class="mt-0.5 font-medium text-foreground">{{ donation.provider }}</dd>
+                        </div>
+                        <div v-if="donation.later_paid && donation.later_paid_url" class="min-w-0 sm:col-span-2 lg:col-span-1">
+                            <dt class="text-xs uppercase tracking-wide text-muted-foreground">Retry outcome</dt>
+                            <dd class="mt-0.5 space-y-1">
+                                <div class="font-medium text-foreground">Later payment succeeded</div>
+                                <Link
+                                    :href="donation.later_paid_url"
+                                    class="text-xs font-medium text-amber-800 hover:underline"
+                                >
+                                    View successful donation
+                                    <span v-if="donation.later_paid_payment_id">({{ donation.later_paid_payment_id }})</span>
+                                </Link>
+                            </dd>
                         </div>
                         <div v-if="donation.is_qr" class="min-w-0 sm:col-span-2 lg:col-span-1">
                             <dt class="text-xs uppercase tracking-wide text-muted-foreground">QR code</dt>

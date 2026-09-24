@@ -27,6 +27,7 @@ class AdminInertiaData
         $isRecurring = (bool) $order->is_recurring || filled($order->donation_subscription_id);
         $displayAt = $order->paid_at ?? $order->created_at;
         $qr = self::donationQrSummary($order);
+        $laterPaid = AdminDonationLaterPaid::summaryFor($order);
 
         return [
             'id' => $order->id,
@@ -51,6 +52,9 @@ class AdminInertiaData
             'qr_code_id' => $qr['id'] ?? null,
             'qr_code_name' => $qr['name'] ?? null,
             'qr_code_url' => $qr['url'] ?? null,
+            'later_paid' => $laterPaid !== null,
+            'later_paid_url' => $laterPaid['url'] ?? null,
+            'later_paid_payment_id' => $laterPaid['payment_id'] ?? null,
             'billing_cycle_number' => $order->billing_cycle_number !== null
                 ? (int) $order->billing_cycle_number
                 : null,
@@ -410,7 +414,9 @@ class AdminInertiaData
         ?string $causeTitleFilter = null,
     ): array {
         self::clearQrLookupCache();
+        AdminDonationLaterPaid::clearCache();
         self::warmQrLookups($paginator->items());
+        AdminDonationLaterPaid::warm($paginator->items());
 
         $mapper = $offline
             ? fn (DonationOrder $order) => self::offlineDonationTableRows($order, $causeTitleFilter)
@@ -429,6 +435,7 @@ class AdminInertiaData
             ];
         } finally {
             self::clearQrLookupCache();
+            AdminDonationLaterPaid::clearCache();
         }
     }
 

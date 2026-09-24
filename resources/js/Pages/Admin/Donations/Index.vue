@@ -431,7 +431,21 @@ const exportUrl = computed(() => {
                         </div>
                     </template>
                     <template #cell-total_amount="{ row }">{{ formatMoney(row.total_amount) }}</template>
-                    <template #cell-status="{ row }"><StatusBadge :status="row.status" /></template>
+                    <template #cell-status="{ row }">
+                        <div class="flex flex-col items-start gap-1">
+                            <StatusBadge :status="row.status" />
+                            <Link
+                                v-if="row.later_paid && row.later_paid_url"
+                                :href="row.later_paid_url"
+                                class="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 hover:bg-amber-100"
+                                :title="row.later_paid_payment_id
+                                    ? `Later payment succeeded (#${row.later_paid_payment_id})`
+                                    : 'A later payment from this donor succeeded'"
+                            >
+                                Later paid
+                            </Link>
+                        </div>
+                    </template>
                     <template #cell-created_at_ts="{ row }">
                         <div>{{ row.created_date }}</div>
                         <div class="text-xs text-muted-foreground">{{ row.created_time }}</div>
