@@ -95,6 +95,11 @@ class AdminNavigation
                 'permission' => AdminPermissions::SUBSCRIPTION_VIEW,
             ],
             [
+                'label' => 'QR Codes',
+                'route' => 'admin.qr-codes.index',
+                'permission' => AdminPermissions::QR_CODE_VIEW,
+            ],
+            [
                 'label' => 'Donors',
                 'route' => 'admin.donors.index',
                 'permission' => AdminPermissions::DONOR_VIEW,

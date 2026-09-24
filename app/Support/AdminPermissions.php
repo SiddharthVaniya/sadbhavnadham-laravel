@@ -110,6 +110,16 @@ class AdminPermissions
 
     public const MANAGE_SUBSCRIPTIONS = 'manage subscriptions';
 
+    public const QR_CODE_VIEW = 'view qr codes';
+
+    public const QR_CODE_CREATE = 'create qr codes';
+
+    public const QR_CODE_CLOSE = 'close qr codes';
+
+    public const QR_CODE_SYNC = 'sync qr codes';
+
+    public const MANAGE_QR_CODES = 'manage qr codes';
+
     // Engagement
     public const AISENSY_VIEW = 'view aisensy accounts';
 
@@ -207,6 +217,14 @@ class AdminPermissions
                 self::SUBSCRIPTION_CANCEL,
                 self::SUBSCRIPTION_SYNC,
             ],
+            self::QR_CODE_VIEW => [
+                self::QR_CODE_VIEW,
+            ],
+            self::MANAGE_QR_CODES => [
+                self::QR_CODE_CREATE,
+                self::QR_CODE_CLOSE,
+                self::QR_CODE_SYNC,
+            ],
             self::MANAGE_AISENSY => self::aisensyPermissionNames(),
             self::MANAGE_WHATSAPP_CAMPAIGNS => self::whatsappBroadcastPermissionNames(),
             self::MANAGE_USERS => [
@@ -271,6 +289,11 @@ class AdminPermissions
             self::SUBSCRIPTION_CANCEL,
             self::SUBSCRIPTION_SYNC,
             self::MANAGE_SUBSCRIPTIONS,
+            self::QR_CODE_VIEW,
+            self::QR_CODE_CREATE,
+            self::QR_CODE_CLOSE,
+            self::QR_CODE_SYNC,
+            self::MANAGE_QR_CODES,
             ...self::aisensyPermissionNames(),
             self::MANAGE_AISENSY,
             ...self::whatsappBroadcastPermissionNames(),
@@ -605,6 +628,10 @@ class AdminPermissions
                     [self::SUBSCRIPTION_EXPORT, 'Export subscriptions', 'Download subscription exports.'],
                     [self::SUBSCRIPTION_CANCEL, 'Cancel subscriptions', 'Cancel recurring mandates.'],
                     [self::SUBSCRIPTION_SYNC, 'Sync subscriptions', 'Sync subscription status from gateway.'],
+                    [self::QR_CODE_VIEW, 'View QR codes', 'Open Razorpay QR code list.'],
+                    [self::QR_CODE_CREATE, 'Create QR codes', 'Create UPI QR codes in Razorpay.'],
+                    [self::QR_CODE_CLOSE, 'Close QR codes', 'Close active Razorpay QR codes.'],
+                    [self::QR_CODE_SYNC, 'Sync QR codes', 'Sync QR codes from Razorpay.'],
                 ]),
             ],
             [
@@ -649,6 +676,7 @@ class AdminPermissions
                     [self::MANAGE_RECEIPTS, 'Manage receipts (full)', 'All receipt and notification operations.'],
                     [self::MANAGE_DONOR_CRM, 'Manage donor CRM (full)', 'All donor CRM operations.'],
                     [self::MANAGE_SUBSCRIPTIONS, 'Manage subscriptions (full)', 'Cancel and sync subscriptions.'],
+                    [self::MANAGE_QR_CODES, 'Manage QR codes (full)', 'Create, close, and sync Razorpay QR codes.'],
                     [self::MANAGE_AISENSY, 'Manage WhatsApp accounts (full)', 'All AiSensy account operations.'],
                     [self::MANAGE_WHATSAPP_CAMPAIGNS, 'Manage WhatsApp broadcasts (full)', 'All broadcast operations.'],
                     [self::MANAGE_USERS, 'Manage users (full)', 'All user, role, and department operations.'],

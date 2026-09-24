@@ -5,25 +5,35 @@ namespace App\Support;
 use App\Models\Cause;
 use App\Models\DonationItem;
 use App\Models\DonationOrder;
+use App\Models\PaymentEvent;
+use App\Models\RazorpayQrCode;
 use App\Services\DonationAttributionService;
 use App\Services\DonationWhatsAppPolicy;
 use App\Services\RazorpayPaymentLinkService;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 
 class AdminInertiaData
 {
+    /**
+     * @var array<int, array{id: string, name: string, uuid: ?string, url: ?string}|null>
+     */
+    private static array $qrSummaryByOrderId = [];
+
     public static function donationRow(DonationOrder $order): array
     {
         $item = $order->items->first();
         $causeTitleLines = self::donationItemCauseTitleLines($item);
         $isRecurring = (bool) $order->is_recurring || filled($order->donation_subscription_id);
         $displayAt = $order->paid_at ?? $order->created_at;
+        $qr = self::donationQrSummary($order);
 
         return [
             'id' => $order->id,
             'uuid' => $order->order_uuid,
             'payment_id' => $order->provider_payment_id ?: $order->provider_order_id ?: (string) $order->id,
             'provider' => DonationOrder::providerDisplayName($order->payment_provider),
+            'provider_key' => $order->payment_provider,
             'donor_name' => $order->donor_name,
             'donor_email' => $order->donor_email,
             'donor_phone' => $order->donor_phone,
@@ -37,6 +47,10 @@ class AdminInertiaData
             'total_amount' => (float) $order->total_amount,
             'status' => $order->status,
             'is_recurring' => $isRecurring,
+            'is_qr' => $qr !== null,
+            'qr_code_id' => $qr['id'] ?? null,
+            'qr_code_name' => $qr['name'] ?? null,
+            'qr_code_url' => $qr['url'] ?? null,
             'billing_cycle_number' => $order->billing_cycle_number !== null
                 ? (int) $order->billing_cycle_number
                 : null,
@@ -73,6 +87,114 @@ class AdminInertiaData
             'frequency_label' => $subscription->frequencyLabel(),
             'url' => route('admin.subscriptions.show', $subscription),
         ];
+    }
+
+    /**
+     * @return array{id: string, name: string, uuid: ?string, url: ?string}|null
+     */
+    public static function donationQrSummary(DonationOrder $order): ?array
+    {
+        if ($order->payment_provider !== DonationOrder::PROVIDER_RAZORPAY_QR) {
+            return null;
+        }
+
+        if (! array_key_exists($order->id, self::$qrSummaryByOrderId)) {
+            self::warmQrLookups(collect([$order]));
+        }
+
+        return self::$qrSummaryByOrderId[$order->id] ?? null;
+    }
+
+    public static function clearQrLookupCache(): void
+    {
+        self::$qrSummaryByOrderId = [];
+    }
+
+    /**
+     * @param  Collection<int, DonationOrder>|iterable<DonationOrder>  $orders
+     */
+    public static function warmQrLookups(iterable $orders): void
+    {
+        $qrOrders = collect($orders)
+            ->filter(fn (DonationOrder $order): bool => $order->payment_provider === DonationOrder::PROVIDER_RAZORPAY_QR)
+            ->filter(fn (DonationOrder $order): bool => ! array_key_exists($order->id, self::$qrSummaryByOrderId))
+            ->values();
+
+        if ($qrOrders->isEmpty()) {
+            return;
+        }
+
+        $codeIdByOrderId = [];
+
+        foreach ($qrOrders as $order) {
+            $fromItem = $order->relationLoaded('items')
+                ? $order->items->first()
+                : null;
+
+            $meta = is_array($fromItem?->meta) ? $fromItem->meta : [];
+            $fromMeta = trim((string) ($meta['razorpay_qr_code_id'] ?? ''));
+
+            if ($fromMeta !== '') {
+                $codeIdByOrderId[$order->id] = $fromMeta;
+            }
+        }
+
+        $missingOrderIds = $qrOrders
+            ->reject(fn (DonationOrder $order): bool => isset($codeIdByOrderId[$order->id]))
+            ->pluck('id')
+            ->all();
+
+        if ($missingOrderIds !== []) {
+            PaymentEvent::query()
+                ->whereIn('donation_order_id', $missingOrderIds)
+                ->orderByDesc('id')
+                ->get(['donation_order_id', 'payload'])
+                ->each(function (PaymentEvent $event) use (&$codeIdByOrderId): void {
+                    if (isset($codeIdByOrderId[$event->donation_order_id])) {
+                        return;
+                    }
+
+                    $payload = is_array($event->payload) ? $event->payload : [];
+                    $qrCodeId = trim((string) ($payload['qr_code_id'] ?? ''));
+
+                    if ($qrCodeId !== '') {
+                        $codeIdByOrderId[$event->donation_order_id] = $qrCodeId;
+                    }
+                });
+        }
+
+        $uniqueCodeIds = array_values(array_unique(array_filter($codeIdByOrderId)));
+
+        $qrModels = $uniqueCodeIds === []
+            ? collect()
+            : RazorpayQrCode::query()
+                ->whereIn('razorpay_qr_code_id', $uniqueCodeIds)
+                ->get(['razorpay_qr_code_id', 'qr_uuid', 'name'])
+                ->keyBy('razorpay_qr_code_id');
+
+        foreach ($qrOrders as $order) {
+            $codeId = $codeIdByOrderId[$order->id] ?? null;
+
+            if ($codeId === null || $codeId === '') {
+                self::$qrSummaryByOrderId[$order->id] = [
+                    'id' => '',
+                    'name' => 'QR payment',
+                    'uuid' => null,
+                    'url' => null,
+                ];
+
+                continue;
+            }
+
+            $qr = $qrModels->get($codeId);
+
+            self::$qrSummaryByOrderId[$order->id] = [
+                'id' => $codeId,
+                'name' => $qr?->name ?: $codeId,
+                'uuid' => $qr?->qr_uuid,
+                'url' => $qr ? route('admin.qr-codes.show', $qr) : null,
+            ];
+        }
     }
 
     /**
@@ -287,20 +409,27 @@ class AdminInertiaData
         bool $offline = false,
         ?string $causeTitleFilter = null,
     ): array {
+        self::clearQrLookupCache();
+        self::warmQrLookups($paginator->items());
+
         $mapper = $offline
             ? fn (DonationOrder $order) => self::offlineDonationTableRows($order, $causeTitleFilter)
             : fn (DonationOrder $order) => self::donationTableRows($order, $causeTitleFilter);
 
-        return [
-            'data' => collect($paginator->items())->flatMap($mapper)->values()->all(),
-            'links' => $paginator->linkCollection()->toArray(),
-            'meta' => [
-                'current_page' => $paginator->currentPage(),
-                'from' => $paginator->firstItem(),
-                'to' => $paginator->lastItem(),
-                'total' => $paginator->total(),
-            ],
-        ];
+        try {
+            return [
+                'data' => collect($paginator->items())->flatMap($mapper)->values()->all(),
+                'links' => $paginator->linkCollection()->toArray(),
+                'meta' => [
+                    'current_page' => $paginator->currentPage(),
+                    'from' => $paginator->firstItem(),
+                    'to' => $paginator->lastItem(),
+                    'total' => $paginator->total(),
+                ],
+            ];
+        } finally {
+            self::clearQrLookupCache();
+        }
     }
 
     public static function recoveryRow(DonationOrder $order): array

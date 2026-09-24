@@ -406,6 +406,13 @@ const exportUrl = computed(() => {
                             >
                                 Subscription
                             </span>
+                            <span
+                                v-if="row.is_qr"
+                                class="inline-flex max-w-[11rem] items-center truncate rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-800"
+                                :title="row.qr_code_name ? `Razorpay QR · ${row.qr_code_name}` : 'Razorpay QR payment'"
+                            >
+                                QR · {{ row.qr_code_name || 'QR' }}
+                            </span>
                         </div>
                     </template>
                     <template #cell-donor_name="{ row }">

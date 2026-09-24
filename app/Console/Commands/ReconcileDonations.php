@@ -199,7 +199,7 @@ class ReconcileDonations extends Command
 
     private function reconcileQrPayments(Api $api, DonationPaymentService $donationPaymentService): int
     {
-        $qrCodeIds = app(\App\Services\RazorpayQrPaymentService::class)->configuredQrCodeIds();
+        $qrCodeIds = app(\App\Services\RazorpayQrPaymentService::class)->reconcileQrCodeIds();
 
         if ($qrCodeIds === []) {
             return 0;

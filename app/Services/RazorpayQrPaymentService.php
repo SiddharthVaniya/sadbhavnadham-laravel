@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\DonationItem;
 use App\Models\DonationOrder;
 use App\Models\Donor;
 use App\Models\PaymentEvent;
+use App\Models\RazorpayQrCode;
 use Illuminate\Support\Facades\Log;
 
 class RazorpayQrPaymentService
@@ -108,6 +110,8 @@ class RazorpayQrPaymentService
             'updated_at' => $paidAt,
         ]);
 
+        $this->attachMappedCauseItem($order, $qrCodeId, $amount);
+
         PaymentEvent::query()->create([
             'donation_order_id' => $order->id,
             'payment_provider' => DonationOrder::PROVIDER_RAZORPAY_QR,
@@ -131,10 +135,78 @@ class RazorpayQrPaymentService
         return $order;
     }
 
+    private function attachMappedCauseItem(DonationOrder $order, ?string $qrCodeId, float $amount): void
+    {
+        if ($qrCodeId === null || $qrCodeId === '') {
+            return;
+        }
+
+        $qr = RazorpayQrCode::query()
+            ->with(['cause:id,title,slug', 'package:id,title,amount'])
+            ->where('razorpay_qr_code_id', $qrCodeId)
+            ->first();
+
+        if (! $qr?->cause_id || ! $qr->cause) {
+            return;
+        }
+
+        $title = $qr->package?->title
+            ?: ($qr->name ?: 'QR Donation');
+
+        DonationItem::query()->create([
+            'donation_order_id' => $order->id,
+            'cause_id' => $qr->cause_id,
+            'cause_package_id' => $qr->cause_package_id,
+            'cause' => $qr->cause->slug ?: $qr->cause->title,
+            'title' => $title,
+            'quantity' => 1,
+            'unit_amount' => $amount,
+            'amount' => $amount,
+            'meta' => [
+                'cause_title' => $qr->cause->title,
+                'cause_slug' => $qr->cause->slug,
+                'razorpay_qr_code_id' => $qr->razorpay_qr_code_id,
+                'qr_uuid' => $qr->qr_uuid,
+            ],
+        ]);
+    }
+
     /**
+     * Whitelist for webhook auto-create.
+     * Empty env = accept any QR (legacy default).
+     * Non-empty env = env ids + admin Active ids (env acts as optional fallback/extra list).
+     *
      * @return list<string>
      */
     public function configuredQrCodeIds(): array
+    {
+        $fromEnv = $this->envQrCodeIds();
+
+        if ($fromEnv === []) {
+            return [];
+        }
+
+        return array_values(array_unique([...$fromEnv, ...$this->localActiveQrCodeIds()]));
+    }
+
+    /**
+     * Ids to poll during donations:reconcile.
+     * Primary: admin Active QRs. Fallback/extra: RAZORPAY_QR_IDS from .env.
+     *
+     * @return list<string>
+     */
+    public function reconcileQrCodeIds(): array
+    {
+        return array_values(array_unique([
+            ...$this->localActiveQrCodeIds(),
+            ...$this->envQrCodeIds(),
+        ]));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function envQrCodeIds(): array
     {
         $configured = config('payments.razorpay.qr_code_ids', []);
 
@@ -146,6 +218,20 @@ class RazorpayQrPaymentService
             static fn (mixed $id): string => trim((string) $id),
             $configured
         )));
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function localActiveQrCodeIds(): array
+    {
+        return RazorpayQrCode::query()
+            ->active()
+            ->pluck('razorpay_qr_code_id')
+            ->map(static fn (mixed $id): string => trim((string) $id))
+            ->filter()
+            ->values()
+            ->all();
     }
 
     /**

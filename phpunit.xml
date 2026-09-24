@@ -34,5 +34,6 @@
         <env name="AISENSY_API_KEY" value=""/>
         <env name="AISENSY_OTP_API_KEY" value=""/>
         <env name="AISENSY_OTP_CAMPAIGN" value=""/>
+        <env name="RAZORPAY_QR_IDS" value=""/>
     </php>
 </phpunit>

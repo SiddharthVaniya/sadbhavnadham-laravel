@@ -17,7 +17,8 @@ return [
         'key' => env('RAZORPAY_KEY'),
         'secret' => env('RAZORPAY_SECRET'),
         'webhook_secret' => env('WEBHOOK_SECRET'),
-        // Comma-separated Razorpay QR ids (qr_xxx). Empty = accept any QR payment.
+        // Optional fallback QR ids (comma-separated qr_xxx), merged with admin Active QRs.
+        // Empty = webhook accepts any QR; reconcile still uses admin Active list.
         'qr_code_ids' => array_values(array_filter(array_map(
             static fn (string $id): string => trim($id),
             explode(',', (string) env('RAZORPAY_QR_IDS', ''))

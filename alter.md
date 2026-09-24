@@ -1,4 +1,4 @@
-# Database alter queries (do not run automatically)
+﻿# Database alter queries (do not run automatically)
 
 Apply these manually after reviewing. Agents must **not** change the database directly.
 
@@ -257,3 +257,85 @@ WHERE name = 'happy_birthday_current_day_ut_sid_new_v9';
 ```
 
 Admin steps keep storing the WA template name; send-time resolves to Live campaign name.
+
+## 2026-09-24 - Razorpay QR codes admin registry
+
+Local cache of Razorpay UPI QR codes for Finance > QR Codes (create / close / sync).
+
+### Preview
+
+```sql
+SHOW TABLES LIKE 'razorpay_qr_codes';
+```
+
+### Create table
+
+```sql
+CREATE TABLE razorpay_qr_codes (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    qr_uuid CHAR(36) NOT NULL,
+    razorpay_qr_code_id VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT NULL,
+    type VARCHAR(32) NOT NULL DEFAULT 'upi_qr',
+    `usage` VARCHAR(32) NOT NULL DEFAULT 'multiple_use',
+    fixed_amount TINYINT(1) NOT NULL DEFAULT 0,
+    payment_amount_paise BIGINT UNSIGNED NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'active',
+    image_url VARCHAR(500) NULL,
+    payments_count_received INT UNSIGNED NOT NULL DEFAULT 0,
+    payments_amount_received_paise BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    close_reason VARCHAR(255) NULL,
+    closed_at TIMESTAMP NULL,
+    razorpay_created_at TIMESTAMP NULL,
+    meta JSON NULL,
+    created_by BIGINT UNSIGNED NULL,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    UNIQUE KEY razorpay_qr_codes_qr_uuid_unique (qr_uuid),
+    UNIQUE KEY razorpay_qr_codes_razorpay_qr_code_id_unique (razorpay_qr_code_id),
+    KEY razorpay_qr_codes_status_index (status),
+    CONSTRAINT razorpay_qr_codes_created_by_foreign
+        FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### Rollback
+
+```sql
+DROP TABLE IF EXISTS razorpay_qr_codes;
+```
+
+Also run `php artisan db:seed --class=AdminRolePermissionSeeder` (or grant new QR permissions) after deploy so roles get view/create/close/sync qr codes.
+
+## 2026-09-24 - QR codes cause mapping (Phase 2)
+
+Map each Razorpay QR to a cause (optional package) so auto-created QR donations get a line item.
+
+### Preview
+
+```sql
+SHOW COLUMNS FROM razorpay_qr_codes LIKE 'cause%';
+```
+
+### Alter
+
+```sql
+ALTER TABLE razorpay_qr_codes
+    ADD COLUMN cause_id BIGINT UNSIGNED NULL AFTER created_by,
+    ADD COLUMN cause_package_id BIGINT UNSIGNED NULL AFTER cause_id,
+    ADD CONSTRAINT razorpay_qr_codes_cause_id_foreign
+        FOREIGN KEY (cause_id) REFERENCES causes (id) ON DELETE SET NULL,
+    ADD CONSTRAINT razorpay_qr_codes_cause_package_id_foreign
+        FOREIGN KEY (cause_package_id) REFERENCES cause_packages (id) ON DELETE SET NULL;
+```
+
+### Rollback
+
+```sql
+ALTER TABLE razorpay_qr_codes
+    DROP FOREIGN KEY razorpay_qr_codes_cause_package_id_foreign,
+    DROP FOREIGN KEY razorpay_qr_codes_cause_id_foreign,
+    DROP COLUMN cause_package_id,
+    DROP COLUMN cause_id;
+```

@@ -16,6 +16,7 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     Bus::fake();
+    config(['payments.razorpay.qr_code_ids' => []]);
     Setting::updateOrCreate(['key' => Setting::SEND_RECEIPT_EMAIL], ['value' => '0']);
     Setting::updateOrCreate(['key' => Setting::SEND_WHATSAPP_THANK_YOU], ['value' => '0']);
 });

@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\AdminDonorController;
 use App\Http\Controllers\Admin\AdminDonorCrmController;
 use App\Http\Controllers\Admin\AdminMarketerBudgetController;
 use App\Http\Controllers\Admin\AdminPartnerReportsController;
+use App\Http\Controllers\Admin\AdminRazorpayQrCodeController;
 use App\Http\Controllers\Admin\AdminReportsController;
 use App\Http\Controllers\Admin\AdminSettingController;
 use App\Http\Controllers\Admin\AdminStaffReferralsController;
@@ -266,6 +267,31 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::post('/subscriptions/{subscription}/sync', [AdminSubscriptionController::class, 'sync'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::SUBSCRIPTION_SYNC))
         ->name('subscriptions.sync');
+
+    Route::get('/qr-codes', [AdminRazorpayQrCodeController::class, 'index'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::QR_CODE_VIEW))
+        ->name('qr-codes.index');
+    Route::get('/qr-codes/create', [AdminRazorpayQrCodeController::class, 'create'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::QR_CODE_CREATE))
+        ->name('qr-codes.create');
+    Route::post('/qr-codes', [AdminRazorpayQrCodeController::class, 'store'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::QR_CODE_CREATE))
+        ->name('qr-codes.store');
+    Route::post('/qr-codes/sync', [AdminRazorpayQrCodeController::class, 'syncAll'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::QR_CODE_SYNC))
+        ->name('qr-codes.sync-all');
+    Route::get('/qr-codes/{qrCode}', [AdminRazorpayQrCodeController::class, 'show'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::QR_CODE_VIEW))
+        ->name('qr-codes.show');
+    Route::put('/qr-codes/{qrCode}', [AdminRazorpayQrCodeController::class, 'update'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::QR_CODE_CREATE))
+        ->name('qr-codes.update');
+    Route::post('/qr-codes/{qrCode}/close', [AdminRazorpayQrCodeController::class, 'close'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::QR_CODE_CLOSE))
+        ->name('qr-codes.close');
+    Route::post('/qr-codes/{qrCode}/sync', [AdminRazorpayQrCodeController::class, 'sync'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::QR_CODE_SYNC))
+        ->name('qr-codes.sync');
 
     Route::get('/donors', [AdminDonorController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::DONOR_VIEW))

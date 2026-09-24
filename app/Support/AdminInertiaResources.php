@@ -627,6 +627,52 @@ class AdminInertiaResources
         ];
     }
 
+    public static function qrCodeListRow(\App\Models\RazorpayQrCode $qr): array
+    {
+        $qr->loadMissing(['cause:id,title,slug', 'package:id,title,amount']);
+
+        return [
+            'uuid' => $qr->qr_uuid,
+            'razorpay_qr_code_id' => $qr->razorpay_qr_code_id,
+            'name' => $qr->name,
+            'description' => $qr->description,
+            'usage' => $qr->usage,
+            'usage_label' => $qr->usageLabel(),
+            'fixed_amount' => (bool) $qr->fixed_amount,
+            'payment_amount' => $qr->paymentAmountRupees(),
+            'status' => $qr->status,
+            'status_label' => $qr->statusLabel(),
+            'image_url' => $qr->image_url,
+            'payments_count_received' => (int) $qr->payments_count_received,
+            'payments_amount_received' => $qr->paymentsAmountReceivedRupees(),
+            'cause_id' => $qr->cause_id,
+            'cause_title' => $qr->cause?->title,
+            'cause_package_id' => $qr->cause_package_id,
+            'package_title' => $qr->package?->title,
+            'created_at' => $qr->created_at?->format('d M Y, h:i A'),
+            'created_at_ts' => $qr->created_at?->timestamp ?? 0,
+        ];
+    }
+
+    public static function qrCodeDetail(\App\Models\RazorpayQrCode $qr): array
+    {
+        return [
+            ...self::qrCodeListRow($qr),
+            'type' => $qr->type,
+            'close_reason' => $qr->close_reason,
+            'closed_at' => $qr->closed_at?->format('d M Y, h:i A'),
+            'razorpay_created_at' => $qr->razorpay_created_at?->format('d M Y, h:i A'),
+            'can_close' => $qr->isActive(),
+            'close_url' => route('admin.qr-codes.close', $qr),
+            'sync_url' => route('admin.qr-codes.sync', $qr),
+            'update_url' => route('admin.qr-codes.update', $qr),
+            'donations_url' => route('admin.donations.index', [
+                'duration' => 'all',
+                'provider' => DonationOrder::PROVIDER_RAZORPAY_QR,
+            ]),
+        ];
+    }
+
     public static function donationDetail(DonationOrder $order): array
     {
         $order->loadMissing('items.causeModel');
@@ -670,6 +716,10 @@ class AdminInertiaResources
             'is_pending' => $order->isPending(),
             'is_paid' => $order->isPaid(),
             'is_recurring' => (bool) ($row['is_recurring'] ?? false),
+            'is_qr' => (bool) ($row['is_qr'] ?? false),
+            'qr_code_id' => $row['qr_code_id'] ?? null,
+            'qr_code_name' => $row['qr_code_name'] ?? null,
+            'qr_code_url' => $row['qr_code_url'] ?? null,
             'billing_cycle_number' => $row['billing_cycle_number'] ?? null,
             'subscription' => $row['subscription'] ?? AdminInertiaData::donationSubscriptionSummary($order),
             'delivery' => self::donationDeliveryStatus($order),

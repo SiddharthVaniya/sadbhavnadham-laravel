@@ -367,6 +367,13 @@ const paymentLinkSmsButtonLabel = computed(() => {
                             >
                                 Subscription
                             </span>
+                            <span
+                                v-if="donation.is_qr"
+                                class="inline-flex max-w-[16rem] items-center truncate rounded-full bg-teal-50 px-2.5 py-1 text-xs font-semibold uppercase tracking-wide text-teal-800"
+                                :title="donation.qr_code_name || 'Razorpay QR'"
+                            >
+                                QR · {{ donation.qr_code_name || 'QR' }}
+                            </span>
                             <StatusBadge :status="donation.status" />
                         </div>
                     </div>
@@ -379,6 +386,19 @@ const paymentLinkSmsButtonLabel = computed(() => {
                         <div>
                             <dt class="text-xs uppercase tracking-wide text-muted-foreground">Provider</dt>
                             <dd class="mt-0.5 font-medium text-foreground">{{ donation.provider }}</dd>
+                        </div>
+                        <div v-if="donation.is_qr" class="min-w-0 sm:col-span-2 lg:col-span-1">
+                            <dt class="text-xs uppercase tracking-wide text-muted-foreground">QR code</dt>
+                            <dd class="mt-0.5 space-y-1">
+                                <div class="font-medium text-foreground">{{ donation.qr_code_name || 'Razorpay QR' }}</div>
+                                <Link
+                                    v-if="donation.qr_code_url"
+                                    :href="donation.qr_code_url"
+                                    class="text-xs font-medium text-teal-700 hover:underline"
+                                >
+                                    View QR details
+                                </Link>
+                            </dd>
                         </div>
                         <div v-if="donation.is_recurring" class="min-w-0 sm:col-span-2 lg:col-span-1">
                             <dt class="text-xs uppercase tracking-wide text-muted-foreground">Billing type</dt>
