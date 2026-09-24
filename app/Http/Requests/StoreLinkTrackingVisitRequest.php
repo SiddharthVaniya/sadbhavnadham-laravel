@@ -17,6 +17,7 @@ class StoreLinkTrackingVisitRequest extends FormRequest
         return [
             'visitor_id' => ['required', 'uuid'],
             'sid' => ['nullable', 'string', 'max:255'],
+            'utm_sid' => ['nullable', 'string', 'max:255'],
             'utm_source' => ['nullable', 'string', 'max:120'],
             'utm_medium' => ['nullable', 'string', 'max:120'],
             'utm_campaign' => ['nullable', 'string', 'max:120'],

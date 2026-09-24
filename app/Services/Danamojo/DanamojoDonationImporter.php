@@ -335,7 +335,7 @@ class DanamojoDonationImporter
      * Prefer URL query UTMs; fall back to Danamojo's root utm_campaign.
      *
      * @param  array<string, mixed>  $row
-     * @return array<string, string>
+     * @return array<string, int|string>
      */
     private function attributionFromRow(array $row): array
     {
@@ -370,6 +370,22 @@ class DanamojoDonationImporter
                 40
             ),
         ], fn ($value) => $value !== null && $value !== '');
+
+        $partner = AttributionParameters::resolvePartner(
+            AttributionParameters::withSidAlias([
+                'sid' => $query['sid'] ?? null,
+                'utm_sid' => $query['utm_sid'] ?? null,
+                'pid' => $query['pid'] ?? null,
+                'utm_source' => $utmSource,
+                'utm_content' => $utmContent,
+            ])
+        );
+        if (($partner['partner_code'] ?? null) !== null) {
+            $payload['partner_code'] = $partner['partner_code'];
+        }
+        if (($partner['partner_user_id'] ?? null) !== null) {
+            $payload['partner_user_id'] = $partner['partner_user_id'];
+        }
 
         $normalized = AttributionNormalizer::normalizedPayload([
             'utm_source' => $payload['utm_source'] ?? null,

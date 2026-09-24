@@ -203,7 +203,8 @@ class AttributionParameters
     }
 
     /**
-     * Copy a leftover `pid` onto `sid` when the payload has no referral code yet.
+     * Copy a leftover `pid` or ChatGPT `utm_sid` onto `sid` when the payload has
+     * no referral code yet.
      *
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>
@@ -212,8 +213,15 @@ class AttributionParameters
     {
         $sid = trim((string) ($payload['sid'] ?? ''));
         $pid = trim((string) ($payload['pid'] ?? ''));
+        $utmSid = trim((string) ($payload['utm_sid'] ?? ''));
         $pidCode = self::normalizePartnerCode($pid !== '' ? $pid : null);
         $sidIsAdset = $sid !== '' && self::normalizeAdId($sid) !== null;
+
+        if ($sid === '' && $utmSid !== '') {
+            $payload['sid'] = $utmSid;
+            $sid = $utmSid;
+            $sidIsAdset = self::normalizeAdId($sid) !== null;
+        }
 
         if ($sid === '' && $pid !== '') {
             $payload['sid'] = $pid;
@@ -224,6 +232,8 @@ class AttributionParameters
 
             $payload['sid'] = $pidCode;
         }
+
+        unset($payload['utm_sid']);
 
         return $payload;
     }
@@ -247,6 +257,10 @@ class AttributionParameters
 
         if ($code === null) {
             $code = self::normalizePartnerCode($payload['pid'] ?? null);
+        }
+
+        if ($code === null) {
+            $code = self::normalizePartnerCode($payload['utm_sid'] ?? null);
         }
 
         if ($code === null && ($payload['utm_source'] ?? null) === 'staff') {
