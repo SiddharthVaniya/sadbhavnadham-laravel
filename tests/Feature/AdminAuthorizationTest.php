@@ -102,12 +102,14 @@ it('rate limits repeated admin login failures', function () {
         $this->post(route('admin.login.submit'), [
             'email' => 'missing@example.com',
             'password' => 'wrong-password',
+            'fingerprint' => 'visitor-rate-limit-'.$attempt.'x',
         ])->assertRedirect();
     }
 
     $response = $this->post(route('admin.login.submit'), [
         'email' => 'missing@example.com',
         'password' => 'wrong-password',
+        'fingerprint' => 'visitor-rate-limit-final',
     ]);
 
     $response->assertTooManyRequests();

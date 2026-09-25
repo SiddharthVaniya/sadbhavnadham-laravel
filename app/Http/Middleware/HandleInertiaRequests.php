@@ -59,6 +59,9 @@ class HandleInertiaRequests extends Middleware
             'appName' => Branding::name(),
             'branding' => Branding::toArray(),
             'currentRoute' => $request->route()?->getName(),
+            'session' => [
+                'lifetime_minutes' => (int) config('session.lifetime', 30),
+            ],
         ];
     }
 }

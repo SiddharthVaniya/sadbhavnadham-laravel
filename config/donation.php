@@ -147,4 +147,7 @@ return [
         'max_attempts' => (int) env('DONATION_OTP_MAX_ATTEMPTS', 5),
         'daily_send_limit' => (int) env('DONATION_OTP_DAILY_SEND_LIMIT', 10),
     ],
+
+    // Max trusted FingerprintJS devices per super_admin account.
+    'admin_fingerprint_max_devices' => (int) env('ADMIN_FINGERPRINT_MAX_DEVICES', 5),
 ];

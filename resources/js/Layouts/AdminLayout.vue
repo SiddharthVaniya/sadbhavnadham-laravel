@@ -1,12 +1,13 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
 import { Link, router, usePage } from '@inertiajs/vue3';
-import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, X } from '@lucide/vue';
+import { LogOut, Menu, PanelLeftClose, PanelLeftOpen, ShieldOff, X } from '@lucide/vue';
 import FlashAlert from '@/Components/Admin/FlashAlert.vue';
 import ValidationAlert from '@/Components/Admin/ValidationAlert.vue';
 import { Button } from '@/Components/ui/button';
 import { Avatar, AvatarFallback } from '@/Components/ui/avatar';
 import { Separator } from '@/Components/ui/separator';
+import { useIdleLogout } from '@/Composables/useIdleLogout';
 
 const SIDEBAR_STORAGE_KEY = 'admin-sidebar-collapsed';
 
@@ -18,8 +19,11 @@ const navigation = computed(() => page.props.navigation ?? []);
 const currentRoute = computed(() => page.props.currentRoute ?? '');
 const portalHome = computed(() => page.props.portal?.home || '/admin');
 const portalLabel = computed(() => page.props.portal?.label || 'Admin');
+const sessionLifetimeMinutes = computed(() => Number(page.props.session?.lifetime_minutes || 30));
 const sidebarOpen = ref(false);
 const sidebarCollapsed = ref(false);
+
+useIdleLogout('/admin/logout', sessionLifetimeMinutes);
 
 const isActive = (routeName) => {
     if (! routeName) {
@@ -45,6 +49,14 @@ const isItemOrChildActive = (item) => {
 
 const logout = () => {
     router.post('/admin/logout');
+};
+
+const logoutAllDevices = () => {
+    if (! window.confirm('Sign out from all devices? Every open session will be ended and you will need to sign in again.')) {
+        return;
+    }
+
+    router.post('/admin/logout-all-devices');
 };
 
 const closeSidebar = () => {
@@ -177,6 +189,16 @@ watch(currentRoute, () => {
                         <div class="truncate text-[13px] font-medium">{{ user?.name }}</div>
                         <div class="truncate text-[11px] text-muted-foreground">{{ user?.email }}</div>
                     </div>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        title="Sign out everywhere"
+                        aria-label="Sign out everywhere"
+                        @click="logoutAllDevices"
+                    >
+                        <ShieldOff />
+                    </Button>
                     <Button
                         type="button"
                         variant="ghost"

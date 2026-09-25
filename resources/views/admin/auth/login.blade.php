@@ -77,8 +77,9 @@
                     </div>
                 @endif
 
-                <form method="POST" action="{{ route('admin.login.submit') }}" class="space-y-5" novalidate>
+                <form method="POST" action="{{ route('admin.login.submit') }}" class="space-y-5" id="admin-login-form" novalidate>
                     @csrf
+                    <input type="hidden" name="fingerprint" id="fingerprint" value="{{ old('fingerprint') }}">
                     <div class="space-y-1.5">
                         <label for="email" class="text-sm font-medium text-zinc-700">Email</label>
                         <input
@@ -139,11 +140,15 @@
                         @error('password')
                             <p class="text-xs text-rose-600">{{ $message }}</p>
                         @enderror
+                        @error('fingerprint')
+                            <p class="text-xs text-rose-600">{{ $message }}</p>
+                        @enderror
                     </div>
 
                     <button
                         type="submit"
-                        class="inline-flex w-full items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900"
+                        id="admin-login-submit"
+                        class="inline-flex w-full items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-900 disabled:opacity-60"
                     >
                         Sign in
                     </button>
@@ -152,27 +157,43 @@
         </main>
     </div>
 
+    <script src="{{ \App\Support\PublicAsset::url('js/fingerprintjs.min.js') }}"></script>
     <script>
         (() => {
             const passwordInput = document.getElementById('password');
             const toggleButton = document.getElementById('toggle-password');
+            const fingerprintInput = document.getElementById('fingerprint');
 
-            if (! passwordInput || ! toggleButton) {
+            if (passwordInput && toggleButton) {
+                const eyeOpen = toggleButton.querySelector('[data-eye-open]');
+                const eyeClosed = toggleButton.querySelector('[data-eye-closed]');
+
+                toggleButton.addEventListener('click', () => {
+                    const isVisible = passwordInput.type === 'text';
+                    passwordInput.type = isVisible ? 'password' : 'text';
+                    const nowVisible = ! isVisible;
+                    toggleButton.setAttribute('aria-pressed', nowVisible ? 'true' : 'false');
+                    toggleButton.setAttribute('aria-label', nowVisible ? 'Hide password' : 'Show password');
+                    eyeOpen.classList.toggle('hidden', nowVisible);
+                    eyeClosed.classList.toggle('hidden', ! nowVisible);
+                });
+            }
+
+            if (! fingerprintInput || typeof FingerprintJS === 'undefined') {
                 return;
             }
 
-            const eyeOpen = toggleButton.querySelector('[data-eye-open]');
-            const eyeClosed = toggleButton.querySelector('[data-eye-closed]');
-
-            toggleButton.addEventListener('click', () => {
-                const isVisible = passwordInput.type === 'text';
-                passwordInput.type = isVisible ? 'password' : 'text';
-                const nowVisible = ! isVisible;
-                toggleButton.setAttribute('aria-pressed', nowVisible ? 'true' : 'false');
-                toggleButton.setAttribute('aria-label', nowVisible ? 'Hide password' : 'Show password');
-                eyeOpen.classList.toggle('hidden', nowVisible);
-                eyeClosed.classList.toggle('hidden', ! nowVisible);
-            });
+            // Used only for super_admin device lock on the server.
+            FingerprintJS.load()
+                .then((agent) => agent.get())
+                .then((result) => {
+                    fingerprintInput.value = result.visitorId || '';
+                    console.log('FingerprintJS visitorId:', fingerprintInput.value);
+                })
+                .catch((error) => {
+                    fingerprintInput.value = '';
+                    console.log('FingerprintJS error:', error);
+                });
         })();
     </script>
 </body>

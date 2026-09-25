@@ -93,6 +93,9 @@ Route::prefix('admin')->group(function () {
     Route::get('login', [AdminAuthController::class, 'showLogin'])->name('login');
     Route::post('login', [AdminAuthController::class, 'login'])->name('admin.login.submit')->middleware('throttle:5,1');
     Route::post('logout', [AdminAuthController::class, 'logout'])->name('admin.logout');
+    Route::post('logout-all-devices', [AdminAuthController::class, 'logoutAllDevices'])
+        ->middleware('auth')
+        ->name('admin.logout-all-devices');
 });
 
 Route::prefix('marketer')->name('marketer.')->middleware(['auth', 'marketer.portal'])->group(function () {

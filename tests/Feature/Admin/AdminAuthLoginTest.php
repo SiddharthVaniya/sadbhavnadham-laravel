@@ -13,6 +13,7 @@ it('shows admin login page for guests', function () {
         ->assertOk()
         ->assertSee('Sign in', false)
         ->assertSee('id="toggle-password"', false)
+        ->assertSee('fingerprintjs.min.js', false)
         ->assertSee('object-contain', false)
         ->assertDontSee('Dashboard', false);
 });
@@ -22,6 +23,7 @@ it('shows friendly validation messages on admin login', function () {
         ->post(route('admin.login.submit'), [
             'email' => '',
             'password' => '',
+            'fingerprint' => 'visitor-test-fingerprint',
         ])
         ->assertRedirect(route('login'))
         ->assertSessionHasErrors([
@@ -35,6 +37,7 @@ it('shows a clear message for invalid admin credentials', function () {
         ->post(route('admin.login.submit'), [
             'email' => 'admin@example.com',
             'password' => 'wrong-password',
+            'fingerprint' => 'visitor-test-fingerprint',
         ])
         ->assertRedirect(route('login'))
         ->assertSessionHasErrors([

@@ -339,3 +339,235 @@ ALTER TABLE razorpay_qr_codes
     DROP COLUMN cause_package_id,
     DROP COLUMN cause_id;
 ```
+
+## 2026-09-25 - Admin login FingerprintJS + login logs
+
+Device lock for admin login: first successful login binds FingerprintJS visitor ID on `users`. Later logins from a different fingerprint are **blocked**. Every login attempt is stored in `user_login_logs` with IP + geo location.
+
+Migration file (do **not** auto-run): `database/migrations/2026_09_25_103500_add_device_fingerprint_and_user_login_logs.php`
+
+### Preview
+
+```sql
+SHOW COLUMNS FROM users LIKE 'device_fingerprint%';
+SHOW TABLES LIKE 'user_login_logs';
+```
+
+### Alter
+
+```sql
+ALTER TABLE users
+    ADD COLUMN device_fingerprint VARCHAR(128) NULL AFTER remember_token,
+    ADD COLUMN device_fingerprint_bound_at TIMESTAMP NULL AFTER device_fingerprint;
+
+CREATE TABLE user_login_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NULL,
+    email VARCHAR(255) NULL,
+    fingerprint VARCHAR(128) NULL,
+    fingerprint_matched TINYINT(1) NULL,
+    status VARCHAR(40) NOT NULL,
+    ip_address VARCHAR(45) NULL,
+    country VARCHAR(100) NULL,
+    region VARCHAR(100) NULL,
+    city VARCHAR(100) NULL,
+    location VARCHAR(255) NULL,
+    user_agent TEXT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT user_login_logs_user_id_foreign
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL,
+    INDEX user_login_logs_email_index (email),
+    INDEX user_login_logs_ip_address_index (ip_address),
+    INDEX user_login_logs_user_id_created_at_index (user_id, created_at),
+    INDEX user_login_logs_status_index (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### Reset a user's device lock (manual unlock)
+
+```sql
+-- Preview
+SELECT id, email, device_fingerprint, device_fingerprint_bound_at
+FROM users
+WHERE email = 'admin@example.com';
+
+-- Reset so the next successful login rebinds a new fingerprint
+UPDATE users
+SET device_fingerprint = NULL,
+    device_fingerprint_bound_at = NULL,
+    updated_at = NOW()
+WHERE email = 'admin@example.com';
+```
+
+### Rollback
+
+```sql
+DROP TABLE IF EXISTS user_login_logs;
+
+ALTER TABLE users
+    DROP COLUMN device_fingerprint_bound_at,
+    DROP COLUMN device_fingerprint;
+```
+
+## 2026-09-25 - Auto logout 30 min + logout all devices
+
+Idle sessions expire after **30 minutes** (`SESSION_LIFETIME=30`). “Sign out everywhere” bumps `users.session_version` so every other open session is rejected on the next request (works with `SESSION_DRIVER=file`).
+
+Also set in `.env` (then `php artisan config:clear`):
+
+```env
+SESSION_LIFETIME=30
+```
+
+Migration file (do **not** auto-run): `database/migrations/2026_09_25_110000_add_session_version_to_users_table.php`
+
+### Preview
+
+```sql
+SHOW COLUMNS FROM users LIKE 'session_version';
+```
+
+### Alter
+
+```sql
+ALTER TABLE users
+    ADD COLUMN session_version INT UNSIGNED NOT NULL DEFAULT 0;
+```
+
+### Rollback
+
+```sql
+ALTER TABLE users
+    DROP COLUMN session_version;
+```
+
+## 2026-09-25 - Multiple fingerprints per super_admin
+
+Super admins may have **multiple** trusted FingerprintJS devices in `user_device_fingerprints`.  
+Login **never auto-adds** fingerprints — add rows manually in phpMyAdmin (or SQL below). Unknown devices are blocked and the fingerprint is shown in the error.
+
+Migration file (do **not** auto-run): `database/migrations/2026_09_25_161900_create_user_device_fingerprints_table.php`
+
+### Preview
+
+```sql
+SHOW TABLES LIKE 'user_device_fingerprints';
+SELECT id, email, device_fingerprint FROM users WHERE device_fingerprint IS NOT NULL;
+```
+
+### Alter
+
+```sql
+CREATE TABLE user_device_fingerprints (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT UNSIGNED NOT NULL,
+    fingerprint VARCHAR(128) NOT NULL,
+    last_used_at TIMESTAMP NULL,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    CONSTRAINT user_device_fingerprints_user_id_foreign
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE,
+    UNIQUE KEY user_device_fingerprints_user_id_fingerprint_unique (user_id, fingerprint),
+    INDEX user_device_fingerprints_fingerprint_index (fingerprint)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Optional one-time backfill from legacy single-column fingerprints
+INSERT IGNORE INTO user_device_fingerprints (user_id, fingerprint, last_used_at, created_at, updated_at)
+SELECT id, device_fingerprint, device_fingerprint_bound_at, COALESCE(device_fingerprint_bound_at, NOW()), NOW()
+FROM users
+WHERE device_fingerprint IS NOT NULL
+  AND device_fingerprint <> '';
+```
+
+### Add a trusted fingerprint (manual)
+
+Copy the fingerprint from the login error / browser console, then:
+
+```sql
+INSERT INTO user_device_fingerprints (user_id, fingerprint, last_used_at, created_at, updated_at)
+SELECT u.id, 'PASTE_FINGERPRINT_HERE', NULL, NOW(), NOW()
+FROM users u
+WHERE u.email = 'sid@sadbhavnadham.org';
+```
+
+### List / remove fingerprints for a user
+
+```sql
+SELECT udf.*
+FROM user_device_fingerprints udf
+INNER JOIN users u ON u.id = udf.user_id
+WHERE u.email = 'sid@sadbhavnadham.org';
+
+-- Remove one device
+DELETE udf
+FROM user_device_fingerprints udf
+INNER JOIN users u ON u.id = udf.user_id
+WHERE u.email = 'sid@sadbhavnadham.org'
+  AND udf.fingerprint = 'PASTE_FINGERPRINT_HERE';
+
+-- Clear all trusted devices
+DELETE udf
+FROM user_device_fingerprints udf
+INNER JOIN users u ON u.id = udf.user_id
+WHERE u.email = 'sid@sadbhavnadham.org';
+```
+
+### Rollback
+
+```sql
+DROP TABLE IF EXISTS user_device_fingerprints;
+```
+
+## 2026-09-25 - Grant all permissions to sid@sadbhavnadham.org
+
+User `sid@sadbhavnadham.org` (id `28`) currently has **no roles**, which causes admin `403 USER DOES NOT HAVE THE RIGHT ROLES.` Assign `super_admin` (has all 75 permissions).
+
+### Preview
+
+```sql
+SELECT u.id, u.email, r.name AS role_name
+FROM users u
+LEFT JOIN model_has_roles mhr
+    ON mhr.model_id = u.id
+   AND mhr.model_type = 'App\\Models\\User'
+LEFT JOIN roles r ON r.id = mhr.role_id
+WHERE u.email = 'sid@sadbhavnadham.org';
+
+SELECT id, name FROM roles WHERE name = 'super_admin';
+```
+
+### Alter (assign super_admin)
+
+```sql
+INSERT INTO model_has_roles (role_id, model_type, model_id)
+SELECT r.id, 'App\\Models\\User', u.id
+FROM users u
+CROSS JOIN roles r
+WHERE u.email = 'sid@sadbhavnadham.org'
+  AND r.name = 'super_admin'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM model_has_roles mhr
+      WHERE mhr.role_id = r.id
+        AND mhr.model_type = 'App\\Models\\User'
+        AND mhr.model_id = u.id
+  );
+```
+
+After running, clear permission cache:
+
+```bash
+php artisan permission:cache-reset
+```
+
+### Rollback
+
+```sql
+DELETE mhr
+FROM model_has_roles mhr
+INNER JOIN users u ON u.id = mhr.model_id
+INNER JOIN roles r ON r.id = mhr.role_id
+WHERE u.email = 'sid@sadbhavnadham.org'
+  AND r.name = 'super_admin'
+  AND mhr.model_type = 'App\\Models\\User';
+```

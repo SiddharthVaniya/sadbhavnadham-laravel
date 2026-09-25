@@ -28,6 +28,9 @@ class User extends Authenticatable
         'donation_target',
         'department_id',
         'password',
+        'device_fingerprint',
+        'device_fingerprint_bound_at',
+        'session_version',
     ];
 
     /**
@@ -51,7 +54,19 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'donation_target' => 'integer',
+            'device_fingerprint_bound_at' => 'datetime',
+            'session_version' => 'integer',
         ];
+    }
+
+    public function loginLogs(): HasMany
+    {
+        return $this->hasMany(UserLoginLog::class);
+    }
+
+    public function deviceFingerprints(): HasMany
+    {
+        return $this->hasMany(UserDeviceFingerprint::class);
     }
 
     public function department(): BelongsTo

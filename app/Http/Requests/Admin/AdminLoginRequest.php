@@ -16,6 +16,7 @@ class AdminLoginRequest extends FormRequest
         return [
             'email' => ['required', 'email'],
             'password' => ['required', 'string'],
+            'fingerprint' => ['nullable', 'string', 'min:8', 'max:128'],
             'remember' => ['nullable', 'boolean'],
         ];
     }
@@ -25,10 +26,17 @@ class AdminLoginRequest extends FormRequest
      */
     public function messages(): array
     {
+        $fingerprint = trim((string) $this->input('fingerprint', ''));
+        $fingerprintHint = $fingerprint !== ''
+            ? ' Error id: '.$fingerprint
+            : '';
+
         return [
             'email.required' => 'Please enter your admin email address.',
             'email.email' => 'Please enter a valid email address.',
             'password.required' => 'Please enter your password.',
+            'fingerprint.min' => 'Device unrecognized.'.$fingerprintHint,
+            'fingerprint.max' => 'Device unrecognized.'.$fingerprintHint,
         ];
     }
 }

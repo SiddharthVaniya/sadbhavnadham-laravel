@@ -23,6 +23,8 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\ApplyBrandingConfig::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
             \App\Http\Middleware\AllowWordPressEmbed::class,
+            \App\Http\Middleware\EnsureUserSessionVersion::class,
+            \App\Http\Middleware\EnsureTrustedDeviceFingerprint::class,
         ]);
 
         $middleware->alias([
