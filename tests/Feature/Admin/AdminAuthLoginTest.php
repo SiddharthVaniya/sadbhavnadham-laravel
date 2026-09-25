@@ -56,6 +56,35 @@ it('redirects authenticated users away from admin login page', function () {
         ->assertRedirect(route('admin.dashboard'));
 });
 
+it('redirects authenticated users to the dashboard when posting login again', function () {
+    Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+
+    $user = User::factory()->create();
+    $user->assignRole('admin');
+
+    actingAs($user)
+        ->post(route('admin.login.submit'), [
+            'email' => $user->email,
+            'password' => 'password',
+            'fingerprint' => 'any-device',
+        ])
+        ->assertRedirect(route('admin.dashboard'));
+});
+
+it('redirects expired csrf login posts back to the login form', function () {
+    $request = \Illuminate\Http\Request::create('/admin/login', 'POST', [
+        'email' => 'admin@example.com',
+        'password' => 'secret',
+    ]);
+    $request->setLaravelSession(app('session')->driver());
+
+    $response = app(\Illuminate\Contracts\Debug\ExceptionHandler::class)
+        ->render($request, new \Illuminate\Session\TokenMismatchException('CSRF token mismatch.'));
+
+    expect($response->isRedirect())->toBeTrue();
+    expect($response->headers->get('Location'))->toContain('/admin/login');
+});
+
 it('forces a full page redirect to login after inertia logout', function () {
     Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
 

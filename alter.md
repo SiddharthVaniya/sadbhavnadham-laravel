@@ -571,3 +571,90 @@ WHERE u.email = 'sid@sadbhavnadham.org'
   AND r.name = 'super_admin'
   AND mhr.model_type = 'App\\Models\\User';
 ```
+
+## 2026-09-25 - DB-IP local geolocation columns
+
+Free local MMDB geo (City Lite + ASN Lite). Migration file (do **not** auto-run): `database/migrations/2026_09_25_180000_add_geoip_columns_to_tracking_and_analytics.php`
+
+### Preview
+
+```sql
+SHOW COLUMNS FROM link_tracking_visits LIKE 'ip_%';
+SHOW COLUMNS FROM analytics_events LIKE 'postal_code';
+SHOW COLUMNS FROM donation_orders LIKE 'ip_postal%';
+SHOW COLUMNS FROM user_login_logs LIKE 'isp';
+```
+
+### Alter
+
+```sql
+ALTER TABLE link_tracking_visits
+    ADD COLUMN ip_country_code VARCHAR(2) NULL AFTER ip_address,
+    ADD COLUMN ip_country_name VARCHAR(100) NULL AFTER ip_country_code,
+    ADD COLUMN ip_region_name VARCHAR(100) NULL AFTER ip_country_name,
+    ADD COLUMN ip_city VARCHAR(100) NULL AFTER ip_region_name,
+    ADD COLUMN ip_postal_code VARCHAR(32) NULL AFTER ip_city,
+    ADD COLUMN ip_lat DECIMAL(10,7) NULL AFTER ip_postal_code,
+    ADD COLUMN ip_lng DECIMAL(10,7) NULL AFTER ip_lat,
+    ADD COLUMN ip_timezone VARCHAR(64) NULL AFTER ip_lng,
+    ADD COLUMN ip_asn INT UNSIGNED NULL AFTER ip_timezone,
+    ADD COLUMN ip_isp VARCHAR(255) NULL AFTER ip_asn,
+    ADD INDEX link_tracking_visits_ip_country_code_index (ip_country_code),
+    ADD INDEX link_tracking_visits_ip_city_index (ip_city),
+    ADD INDEX link_tracking_visits_ip_isp_index (ip_isp);
+
+ALTER TABLE analytics_events
+    ADD COLUMN postal_code VARCHAR(32) NULL AFTER city,
+    ADD COLUMN latitude DECIMAL(10,7) NULL AFTER postal_code,
+    ADD COLUMN longitude DECIMAL(10,7) NULL AFTER latitude,
+    ADD COLUMN timezone VARCHAR(64) NULL AFTER longitude,
+    ADD COLUMN asn INT UNSIGNED NULL AFTER timezone,
+    ADD COLUMN isp VARCHAR(255) NULL AFTER asn,
+    ADD INDEX analytics_events_isp_index (isp);
+
+ALTER TABLE donation_orders
+    ADD COLUMN ip_postal_code VARCHAR(32) NULL AFTER ip_city,
+    ADD COLUMN ip_timezone VARCHAR(64) NULL AFTER ip_lng,
+    ADD COLUMN ip_asn INT UNSIGNED NULL AFTER ip_timezone,
+    ADD COLUMN ip_isp VARCHAR(255) NULL AFTER ip_asn;
+
+ALTER TABLE user_login_logs
+    ADD COLUMN postal_code VARCHAR(32) NULL AFTER location,
+    ADD COLUMN latitude DECIMAL(10,7) NULL AFTER postal_code,
+    ADD COLUMN longitude DECIMAL(10,7) NULL AFTER latitude,
+    ADD COLUMN timezone VARCHAR(64) NULL AFTER longitude,
+    ADD COLUMN asn INT UNSIGNED NULL AFTER timezone,
+    ADD COLUMN isp VARCHAR(255) NULL AFTER asn;
+```
+
+### Ops
+
+```bash
+php artisan geoip:update
+php artisan geoip:backfill-visits
+php artisan config:clear
+```
+
+### Rollback
+
+```sql
+ALTER TABLE link_tracking_visits
+    DROP INDEX link_tracking_visits_ip_country_code_index,
+    DROP INDEX link_tracking_visits_ip_city_index,
+    DROP INDEX link_tracking_visits_ip_isp_index,
+    DROP COLUMN ip_country_code, DROP COLUMN ip_country_name, DROP COLUMN ip_region_name,
+    DROP COLUMN ip_city, DROP COLUMN ip_postal_code, DROP COLUMN ip_lat, DROP COLUMN ip_lng,
+    DROP COLUMN ip_timezone, DROP COLUMN ip_asn, DROP COLUMN ip_isp;
+
+ALTER TABLE analytics_events
+    DROP INDEX analytics_events_isp_index,
+    DROP COLUMN postal_code, DROP COLUMN latitude, DROP COLUMN longitude,
+    DROP COLUMN timezone, DROP COLUMN asn, DROP COLUMN isp;
+
+ALTER TABLE donation_orders
+    DROP COLUMN ip_postal_code, DROP COLUMN ip_timezone, DROP COLUMN ip_asn, DROP COLUMN ip_isp;
+
+ALTER TABLE user_login_logs
+    DROP COLUMN postal_code, DROP COLUMN latitude, DROP COLUMN longitude,
+    DROP COLUMN timezone, DROP COLUMN asn, DROP COLUMN isp;
+```

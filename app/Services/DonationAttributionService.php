@@ -715,8 +715,12 @@ class DonationAttributionService
             'ip_country_name' => $record instanceof DonationOrder ? $record->ip_country_name : null,
             'ip_region_name' => $record instanceof DonationOrder ? $record->ip_region_name : null,
             'ip_city' => $record instanceof DonationOrder ? $record->ip_city : null,
+            'ip_postal_code' => $record instanceof DonationOrder ? $record->ip_postal_code : null,
             'ip_lat' => $record instanceof DonationOrder ? $record->ip_lat : null,
             'ip_lng' => $record instanceof DonationOrder ? $record->ip_lng : null,
+            'ip_timezone' => $record instanceof DonationOrder ? $record->ip_timezone : null,
+            'ip_asn' => $record instanceof DonationOrder ? $record->ip_asn : null,
+            'ip_isp' => $record instanceof DonationOrder ? $record->ip_isp : null,
             'campaign_name' => $campaignName,
         ];
     }

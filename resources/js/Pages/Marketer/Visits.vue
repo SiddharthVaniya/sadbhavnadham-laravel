@@ -127,6 +127,15 @@ const visitColumns = [
     { key: 'converted_amount', label: 'Donation', sortable: true, align: 'right' },
     { key: 'converted_at', label: 'Converted at', sortable: true },
     { key: 'ip_address', label: 'IP', sortable: true },
+    { key: 'ip_country_name', label: 'Country', sortable: true },
+    { key: 'ip_region_name', label: 'Region', sortable: true },
+    { key: 'ip_city', label: 'City', sortable: true },
+    { key: 'ip_postal_code', label: 'ZIP', sortable: true },
+    { key: 'ip_lat', label: 'Lat', sortable: true },
+    { key: 'ip_lng', label: 'Lng', sortable: true },
+    { key: 'ip_timezone', label: 'Timezone', sortable: true },
+    { key: 'ip_asn', label: 'ASN', sortable: true },
+    { key: 'ip_isp', label: 'ISP', sortable: true },
     { key: 'device_type', label: 'Device', sortable: true },
     { key: 'is_unique', label: 'Unique', sortable: true },
     { key: 'utm_source', label: 'Source', sortable: true },
@@ -154,6 +163,15 @@ const visitRows = computed(() =>
         created_at: dash(row.created_at),
         converted_at: dash(row.converted_at),
         ip_address: dash(row.ip_address),
+        ip_country_name: dash(row.ip_country_name || row.ip_country_code),
+        ip_region_name: dash(row.ip_region_name),
+        ip_city: dash(row.ip_city),
+        ip_postal_code: dash(row.ip_postal_code),
+        ip_lat: row.ip_lat != null && String(row.ip_lat).trim() !== '' ? String(row.ip_lat) : '—',
+        ip_lng: row.ip_lng != null && String(row.ip_lng).trim() !== '' ? String(row.ip_lng) : '—',
+        ip_timezone: dash(row.ip_timezone),
+        ip_asn: row.ip_asn != null && String(row.ip_asn).trim() !== '' ? String(row.ip_asn) : '—',
+        ip_isp: dash(row.ip_isp),
         device_type: deviceLabel(row.device_type),
         utm_source: dash(row.utm_source),
         utm_medium: dash(row.utm_medium),
@@ -259,7 +277,7 @@ const visitRows = computed(() =>
             <CardHeader>
                 <CardTitle class="text-base font-semibold">Click history</CardTitle>
                 <CardDescription>
-                    Every tracked visit with conversion, donation amount, IP, and full tracking details
+                    Every tracked visit with conversion, donation amount, IP location (country, region, city, ZIP, lat/lng, timezone, ASN, ISP), and full tracking details
                 </CardDescription>
             </CardHeader>
             <CardContent class="p-0">
@@ -288,6 +306,21 @@ const visitRows = computed(() =>
                     </template>
                     <template #cell-ip_address="{ row }">
                         <span class="font-mono text-[12px] tabular-nums">{{ row.ip_address }}</span>
+                    </template>
+                    <template #cell-ip_isp="{ row }">
+                        <span class="block max-w-[180px] truncate" :title="row.ip_isp">{{ row.ip_isp }}</span>
+                    </template>
+                    <template #cell-ip_asn="{ row }">
+                        <span class="font-mono text-[12px] tabular-nums">{{ row.ip_asn }}</span>
+                    </template>
+                    <template #cell-ip_lat="{ row }">
+                        <span class="font-mono text-[12px] tabular-nums">{{ row.ip_lat }}</span>
+                    </template>
+                    <template #cell-ip_lng="{ row }">
+                        <span class="font-mono text-[12px] tabular-nums">{{ row.ip_lng }}</span>
+                    </template>
+                    <template #cell-ip_timezone="{ row }">
+                        <span class="block max-w-[140px] truncate" :title="row.ip_timezone">{{ row.ip_timezone }}</span>
                     </template>
                     <template #cell-is_unique="{ row }">
                         {{ row.is_unique ? 'Yes' : 'No' }}

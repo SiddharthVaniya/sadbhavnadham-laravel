@@ -400,19 +400,26 @@ it('includes paid source breakdowns in analytics report', function () {
         ->toContain('facebook.com');
 });
 
-it('saves ip and location on donate checkout but not on visit clicks', function () {
-    Illuminate\Support\Facades\Http::fake([
-        'http://ip-api.com/*' => Illuminate\Support\Facades\Http::response([
-            'status' => 'success',
-            'country' => 'India',
-            'countryCode' => 'IN',
-            'regionName' => 'Gujarat',
-            'city' => 'Ahmedabad',
-            'lat' => 23.0225,
-            'lon' => 72.5714,
-            'query' => '203.0.113.10',
-        ]),
-    ]);
+it('saves ip and location on donate checkout and visit events', function () {
+    $result = new \App\Services\GeoIp\GeoIpResult(
+        ipAddress: '203.0.113.10',
+        countryCode: 'IN',
+        countryName: 'India',
+        regionName: 'Gujarat',
+        city: 'Ahmedabad',
+        latitude: 23.0225,
+        longitude: 72.5714,
+        postalCode: '380001',
+        timezone: 'Asia/Kolkata',
+        asn: 55410,
+        isp: 'Reliance Jio',
+    );
+
+    $geo = \Pest\Laravel\mock(\App\Services\GeoIp\GeoIpLookupService::class);
+    $geo->shouldReceive('lookupFromRequest')->andReturn($result);
+    $geo->shouldReceive('lookup')->andReturn($result);
+    $geo->shouldReceive('clientIp')->andReturn('203.0.113.10');
+    $this->app->instance(\App\Services\GeoIp\GeoIpLookupService::class, $geo);
 
     $cause = Cause::factory()->create(['title' => 'Old Age Home']);
 
@@ -450,10 +457,13 @@ it('saves ip and location on donate checkout but not on visit clicks', function 
         ->and($order->ip_region_name)->toBe('Gujarat')
         ->and($order->ip_city)->toBe('Ahmedabad')
         ->and($order->ip_lat)->toBe(23.0225)
-        ->and($order->ip_lng)->toBe(72.5714);
+        ->and($order->ip_lng)->toBe(72.5714)
+        ->and($order->ip_postal_code)->toBe('380001')
+        ->and($order->ip_isp)->toBe('Reliance Jio')
+        ->and($order->ip_asn)->toBe(55410);
 
     $visitRequest = Request::create('/donate/old-age-home', 'GET', [], [], [], [
-        'REMOTE_ADDR' => '203.0.113.20',
+        'REMOTE_ADDR' => '203.0.113.10',
     ]);
 
     app(\App\Services\AnalyticsService::class)->trackVisitCause($visitRequest, $cause);
@@ -464,7 +474,8 @@ it('saves ip and location on donate checkout but not on visit clicks', function 
         ->first();
 
     expect($visitEvent)->not->toBeNull()
-        ->and($visitEvent->ip_address)->toBeNull()
-        ->and($visitEvent->country_code)->toBeNull()
-        ->and($visitEvent->city)->toBeNull();
+        ->and($visitEvent->ip_address)->toBe('203.0.113.10')
+        ->and($visitEvent->country_code)->toBe('IN')
+        ->and($visitEvent->city)->toBe('Ahmedabad')
+        ->and($visitEvent->isp)->toBe('Reliance Jio');
 });

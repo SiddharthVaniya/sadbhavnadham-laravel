@@ -26,6 +26,16 @@ class LinkTrackingVisit extends Model
         'ip_address',
         'user_agent',
         'device_type',
+        'ip_country_code',
+        'ip_country_name',
+        'ip_region_name',
+        'ip_city',
+        'ip_postal_code',
+        'ip_lat',
+        'ip_lng',
+        'ip_timezone',
+        'ip_asn',
+        'ip_isp',
         'is_unique',
         'converted',
         'donation_order_id',
@@ -41,6 +51,9 @@ class LinkTrackingVisit extends Model
             'converted_amount' => 'decimal:2',
             'converted_at' => 'datetime',
             'extra_params' => 'array',
+            'ip_lat' => 'float',
+            'ip_lng' => 'float',
+            'ip_asn' => 'integer',
         ];
     }
 

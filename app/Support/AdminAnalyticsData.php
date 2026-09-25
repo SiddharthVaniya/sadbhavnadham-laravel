@@ -1506,6 +1506,7 @@ class AdminAnalyticsData
             'countries' => self::topCountries($start, $end, $indiaFocus),
             'regions' => self::topRegions($start, $end, $indiaFocus),
             'cities' => self::topCities($start, $end, $indiaFocus),
+            'isps' => self::topIsps($start, $end, $indiaFocus),
         ];
     }
 
@@ -1684,6 +1685,27 @@ class AdminAnalyticsData
                     'pageviews' => (int) $row->pageviews,
                 ];
             })
+            ->values()
+            ->all();
+    }
+
+    private static function topIsps(?Carbon $start, ?Carbon $end, bool $indiaFocus): array
+    {
+        return self::visitorEventsQuery($start, $end, $indiaFocus)
+            ->whereNotNull('isp')
+            ->where('isp', '!=', '')
+            ->select('isp')
+            ->selectRaw('COUNT(DISTINCT session_id) as visitors')
+            ->selectRaw('COUNT(*) as pageviews')
+            ->groupBy('isp')
+            ->orderByDesc('visitors')
+            ->limit(10)
+            ->get()
+            ->map(fn ($row) => [
+                'label' => $row->isp,
+                'visitors' => (int) $row->visitors,
+                'pageviews' => (int) $row->pageviews,
+            ])
             ->values()
             ->all();
     }

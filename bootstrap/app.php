@@ -5,6 +5,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -36,6 +37,31 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        $exceptions->render(function (HttpException $e, Request $request) {
+            if ($e->getStatusCode() !== 419) {
+                return null;
+            }
+
+            if ($request->is('admin/login') || $request->is('admin/logout') || $request->is('admin/logout-all-devices')) {
+                return redirect()
+                    ->route('login')
+                    ->withInput($request->except('password', '_token'))
+                    ->withErrors([
+                        'email' => 'Your session expired. Please try again.',
+                    ]);
+            }
+
+            if ($request->is('admin/*') || $request->is('marketer/*')) {
+                return redirect()
+                    ->route('login')
+                    ->withErrors([
+                        'email' => 'Your session expired. Please sign in again.',
+                    ]);
+            }
+
+            return null;
+        });
+
         $exceptions->render(function (NotFoundHttpException $e, Request $request) {
             if ($request->is('admin*') || $request->is('marketer*') || $request->expectsJson()) {
                 return null;

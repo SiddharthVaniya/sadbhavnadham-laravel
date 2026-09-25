@@ -90,6 +90,9 @@ const emptyFilters = () => {
         page_path: '',
         referrer: '',
         aid: '',
+        ip_country_code: '',
+        ip_city: '',
+        ip_isp: '',
     };
 };
 
@@ -347,6 +350,27 @@ const deviceLabel = (value) => {
                 <select v-model="form.referrer" class="admin-input !py-2">
                     <option value="">All referrers</option>
                     <option v-for="option in optionsFor('referrer')" :key="option" :value="option">{{ option }}</option>
+                </select>
+            </div>
+            <div>
+                <label class="admin-label !mb-1 !text-xs">Country</label>
+                <select v-model="form.ip_country_code" class="admin-input !py-2">
+                    <option value="">All countries</option>
+                    <option v-for="option in optionsFor('ip_country_code')" :key="option" :value="option">{{ option }}</option>
+                </select>
+            </div>
+            <div>
+                <label class="admin-label !mb-1 !text-xs">City</label>
+                <select v-model="form.ip_city" class="admin-input !py-2">
+                    <option value="">All cities</option>
+                    <option v-for="option in optionsFor('ip_city')" :key="option" :value="option">{{ option }}</option>
+                </select>
+            </div>
+            <div>
+                <label class="admin-label !mb-1 !text-xs">ISP</label>
+                <select v-model="form.ip_isp" class="admin-input !py-2">
+                    <option value="">All ISPs</option>
+                    <option v-for="option in optionsFor('ip_isp')" :key="option" :value="option">{{ option }}</option>
                 </select>
             </div>
         </template>

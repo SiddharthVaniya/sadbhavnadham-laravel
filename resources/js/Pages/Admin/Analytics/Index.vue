@@ -35,7 +35,7 @@ const props = defineProps({
     subscriptions: { type: Object, default: () => ({}) },
     donors: { type: Object, default: () => ({}) },
     hourlyActivity: { type: Array, default: () => [] },
-    locations: { type: Object, default: () => ({ countries: [], regions: [], cities: [] }) },
+    locations: { type: Object, default: () => ({ countries: [], regions: [], cities: [], isps: [] }) },
 });
 
 const selectedDuration = ref(
@@ -550,6 +550,18 @@ const formatChange = (metric) => {
                     <li v-if="! locations.cities.length" class="text-muted-foreground">No city data yet.</li>
                 </ul>
             </div>
+        </div>
+
+        <div class="mt-4 rounded-xl border border-border bg-card p-4 sm:p-5 shadow-none">
+            <h3 class="mb-1 text-sm font-semibold text-foreground">Top ISPs</h3>
+            <p class="mb-4 text-xs text-muted-foreground">Unique visitors by network / ASN organization</p>
+            <ul class="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                <li v-for="(row, index) in (locations.isps || [])" :key="index" class="flex items-center justify-between gap-4">
+                    <span class="min-w-0 truncate text-foreground">{{ row.label }}</span>
+                    <span class="shrink-0 font-medium text-foreground">{{ row.visitors }}</span>
+                </li>
+                <li v-if="! (locations.isps || []).length" class="text-muted-foreground">No ISP data yet.</li>
+            </ul>
         </div>
     </AdminLayout>
 </template>

@@ -4,12 +4,13 @@ namespace App\Services;
 
 use App\Models\User;
 use App\Models\UserLoginLog;
+use App\Services\GeoIp\GeoIpLookupService;
 use Illuminate\Http\Request;
 
 class AdminLoginAuditService
 {
     public function __construct(
-        private IpGeolocationService $geolocation,
+        private GeoIpLookupService $geoIp,
     ) {}
 
     public function log(
@@ -20,8 +21,11 @@ class AdminLoginAuditService
         ?string $fingerprint = null,
         ?bool $fingerprintMatched = null,
     ): UserLoginLog {
-        $ip = $request->ip();
-        $geo = $this->geolocation->lookup($ip);
+        $result = $this->geoIp->lookupFromRequest($request);
+        $geo = $result->toLoginLogArray();
+        $ip = $result->ipAddress
+            ?? $this->geoIp->clientIp($request, publicOnly: false)
+            ?? $request->ip();
 
         return UserLoginLog::query()->create([
             'user_id' => $user?->id,
@@ -34,6 +38,12 @@ class AdminLoginAuditService
             'region' => $geo['region'],
             'city' => $geo['city'],
             'location' => $geo['location'],
+            'postal_code' => $geo['postal_code'] ?? null,
+            'latitude' => $geo['latitude'] ?? null,
+            'longitude' => $geo['longitude'] ?? null,
+            'timezone' => $geo['timezone'] ?? null,
+            'asn' => $geo['asn'] ?? null,
+            'isp' => $geo['isp'] ?? null,
             'user_agent' => substr((string) $request->userAgent(), 0, 2000) ?: null,
             'created_at' => now(),
         ]);

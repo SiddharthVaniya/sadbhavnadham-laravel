@@ -160,6 +160,13 @@
     <script src="{{ \App\Support\PublicAsset::url('js/fingerprintjs.min.js') }}"></script>
     <script>
         (() => {
+            // Avoid submitting a cached login page with an expired CSRF token (bfcache / back button).
+            window.addEventListener('pageshow', (event) => {
+                if (event.persisted) {
+                    window.location.reload();
+                }
+            });
+
             const passwordInput = document.getElementById('password');
             const toggleButton = document.getElementById('toggle-password');
             const fingerprintInput = document.getElementById('fingerprint');

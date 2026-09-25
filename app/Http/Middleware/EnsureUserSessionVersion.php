@@ -18,10 +18,17 @@ class EnsureUserSessionVersion
             return $next($request);
         }
 
-        $sessionVersion = (int) $request->session()->get('auth_session_version', -1);
+        $sessionVersion = $request->session()->get('auth_session_version');
         $userVersion = (int) ($user->session_version ?? 0);
 
-        if ($sessionVersion !== $userVersion) {
+        // Older sessions / actingAs() may not have the key yet — bind instead of forcing logout.
+        if ($sessionVersion === null) {
+            $request->session()->put('auth_session_version', $userVersion);
+
+            return $next($request);
+        }
+
+        if ((int) $sessionVersion !== $userVersion) {
             Auth::logout();
             $request->session()->invalidate();
             $request->session()->regenerateToken();

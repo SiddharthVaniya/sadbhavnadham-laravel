@@ -52,6 +52,16 @@ class MarketerPerformanceData
         'converted_amount' => 'converted_amount',
         'converted_at' => 'converted_at',
         'ip_address' => 'ip_address',
+        'ip_location' => 'ip_city',
+        'ip_country_name' => 'ip_country_name',
+        'ip_region_name' => 'ip_region_name',
+        'ip_city' => 'ip_city',
+        'ip_postal_code' => 'ip_postal_code',
+        'ip_lat' => 'ip_lat',
+        'ip_lng' => 'ip_lng',
+        'ip_timezone' => 'ip_timezone',
+        'ip_isp' => 'ip_isp',
+        'ip_asn' => 'ip_asn',
         'device_type' => 'device_type',
         'is_unique' => 'is_unique',
         'utm_source' => 'utm_source',
@@ -1307,6 +1317,21 @@ class MarketerPerformanceData
             filled($order->ip_country_name)
                 ? (string) $order->ip_country_name
                 : (filled($order->ip_country_code) ? (string) $order->ip_country_code : null),
+            filled($order->ip_postal_code) ? 'ZIP '.(string) $order->ip_postal_code : null,
+            filled($order->ip_isp) ? (string) $order->ip_isp : null,
+        ]));
+
+        return $parts === [] ? '—' : implode(', ', $parts);
+    }
+
+    private static function formatVisitIpLocation(LinkTrackingVisit $visit): string
+    {
+        $parts = array_values(array_filter([
+            filled($visit->ip_city) ? (string) $visit->ip_city : null,
+            filled($visit->ip_region_name) ? (string) $visit->ip_region_name : null,
+            filled($visit->ip_country_name)
+                ? (string) $visit->ip_country_name
+                : (filled($visit->ip_country_code) ? (string) $visit->ip_country_code : null),
         ]));
 
         return $parts === [] ? '—' : implode(', ', $parts);
@@ -1372,6 +1397,15 @@ class MarketerPerformanceData
             'Donation' => $row['converted_amount'] ?? '',
             'Converted at' => $row['converted_at'] ?? '',
             'IP' => $row['ip_address'] ?? '',
+            'Country' => $row['ip_country_name'] ?? ($row['ip_country_code'] ?? ''),
+            'Region' => $row['ip_region_name'] ?? '',
+            'City' => $row['ip_city'] ?? '',
+            'ZIP' => $row['ip_postal_code'] ?? '',
+            'Latitude' => $row['ip_lat'] ?? '',
+            'Longitude' => $row['ip_lng'] ?? '',
+            'Timezone' => $row['ip_timezone'] ?? '',
+            'ASN' => $row['ip_asn'] ?? '',
+            'ISP' => $row['ip_isp'] ?? '',
             'Device' => self::deviceLabel($row['device_type'] ?? null),
             'Unique' => $row['is_unique'] ? 'Yes' : 'No',
             'Source' => $row['utm_source'] ?? '',
@@ -1461,6 +1495,9 @@ class MarketerPerformanceData
             'page_path',
             'referrer',
             'aid',
+            'ip_country_code',
+            'ip_city',
+            'ip_isp',
         ] as $key) {
             $filters[$key] = trim((string) $request->input($key, ''));
         }
@@ -1507,6 +1544,16 @@ class MarketerPerformanceData
         if ($aid !== '') {
             $query->where('extra_params->aid', $aid);
         }
+
+        foreach (['ip_country_code', 'ip_city', 'ip_isp'] as $column) {
+            $value = $filters[$column] ?? '';
+
+            if ($value === '') {
+                continue;
+            }
+
+            $query->where($column, $value);
+        }
     }
 
     /**
@@ -1527,6 +1574,9 @@ class MarketerPerformanceData
             'referrer' => self::distinctVisitColumn($user, 'referrer'),
             'aid' => self::distinctVisitAids($user),
             'device_type' => self::distinctVisitDevices($user),
+            'ip_country_code' => self::distinctVisitColumn($user, 'ip_country_code'),
+            'ip_city' => self::distinctVisitColumn($user, 'ip_city'),
+            'ip_isp' => self::distinctVisitColumn($user, 'ip_isp'),
         ];
     }
 
@@ -1894,6 +1944,17 @@ class MarketerPerformanceData
             'converted_amount' => $visit->converted_amount !== null ? round((float) $visit->converted_amount, 2) : null,
             'converted_at' => $visit->converted_at?->timezone(config('app.timezone'))?->toDateTimeString(),
             'ip_address' => $visit->ip_address,
+            'ip_location' => self::formatVisitIpLocation($visit),
+            'ip_postal_code' => $visit->ip_postal_code,
+            'ip_isp' => $visit->ip_isp,
+            'ip_asn' => $visit->ip_asn,
+            'ip_timezone' => $visit->ip_timezone,
+            'ip_country_code' => $visit->ip_country_code,
+            'ip_country_name' => $visit->ip_country_name,
+            'ip_region_name' => $visit->ip_region_name,
+            'ip_city' => $visit->ip_city,
+            'ip_lat' => $visit->ip_lat,
+            'ip_lng' => $visit->ip_lng,
             'device_type' => $visit->device_type,
             'is_unique' => (bool) $visit->is_unique,
             'user_agent' => $visit->user_agent,

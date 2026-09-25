@@ -50,6 +50,12 @@ class AnalyticsEvent extends Model
         'country_name',
         'region_name',
         'city',
+        'postal_code',
+        'latitude',
+        'longitude',
+        'timezone',
+        'asn',
+        'isp',
         'amount',
         'created_at',
     ];
@@ -57,6 +63,9 @@ class AnalyticsEvent extends Model
     protected $casts = [
         'amount' => 'decimal:2',
         'created_at' => 'datetime',
+        'latitude' => 'float',
+        'longitude' => 'float',
+        'asn' => 'integer',
     ];
 
     public function cause(): BelongsTo

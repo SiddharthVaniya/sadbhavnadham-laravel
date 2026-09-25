@@ -13,6 +13,10 @@ use Illuminate\Support\Str;
 
 class LinkTrackingService
 {
+    public function __construct(
+        private AnalyticsGeoLocator $geoLocator,
+    ) {}
+
     /** @var list<string> */
     public const CAMPAIGN_FIELDS = [
         'sid',
@@ -80,6 +84,8 @@ class LinkTrackingService
         $deviceType = DeviceType::normalize(isset($payload['device_type']) ? (string) $payload['device_type'] : null)
             ?? DeviceType::fromUserAgent($userAgent);
 
+        $geo = $this->geoLocator->donationLocationFromRequest($request);
+
         $visit = LinkTrackingVisit::query()->create([
             'visitor_id' => $visitorId,
             'sid' => $sid,
@@ -96,7 +102,17 @@ class LinkTrackingService
             'landing_url' => $this->nullableString($payload['landing_url'] ?? null, 2048),
             'page_path' => $pagePath,
             'referrer' => $this->nullableString($payload['referrer'] ?? null, 512),
-            'ip_address' => $request->ip(),
+            'ip_address' => $geo['ip_address'] ?? $request->ip(),
+            'ip_country_code' => $geo['ip_country_code'] ?? null,
+            'ip_country_name' => $geo['ip_country_name'] ?? null,
+            'ip_region_name' => $geo['ip_region_name'] ?? null,
+            'ip_city' => $geo['ip_city'] ?? null,
+            'ip_postal_code' => $geo['ip_postal_code'] ?? null,
+            'ip_lat' => $geo['ip_lat'] ?? null,
+            'ip_lng' => $geo['ip_lng'] ?? null,
+            'ip_timezone' => $geo['ip_timezone'] ?? null,
+            'ip_asn' => $geo['ip_asn'] ?? null,
+            'ip_isp' => $geo['ip_isp'] ?? null,
             'user_agent' => $userAgent,
             'device_type' => $deviceType,
             'is_unique' => $isUnique,

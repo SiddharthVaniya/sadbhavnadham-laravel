@@ -29,6 +29,12 @@ class UserLoginLog extends Model
         'region',
         'city',
         'location',
+        'postal_code',
+        'latitude',
+        'longitude',
+        'timezone',
+        'asn',
+        'isp',
         'user_agent',
         'created_at',
     ];
@@ -41,6 +47,9 @@ class UserLoginLog extends Model
         return [
             'fingerprint_matched' => 'boolean',
             'created_at' => 'datetime',
+            'latitude' => 'float',
+            'longitude' => 'float',
+            'asn' => 'integer',
         ];
     }
 

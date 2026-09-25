@@ -33,8 +33,12 @@ const resolved = computed(() => ({
     ip_country_name: null,
     ip_region_name: null,
     ip_city: null,
+    ip_postal_code: null,
     ip_lat: null,
     ip_lng: null,
+    ip_timezone: null,
+    ip_asn: null,
+    ip_isp: null,
     campaign_name: null,
     ...props.source,
 }));
@@ -53,7 +57,9 @@ const hasMarketingSource = computed(() => Boolean(
     || resolved.value.meta_campaign_id
     || resolved.value.ip_address
     || resolved.value.ip_city
-    || resolved.value.ip_country_code,
+    || resolved.value.ip_country_code
+    || resolved.value.ip_isp
+    || resolved.value.ip_asn,
 ));
 </script>
 
@@ -145,6 +151,22 @@ const hasMarketingSource = computed(() => Boolean(
                             .join(', ')
                     }}
                 </dd>
+            </div>
+            <div v-if="resolved.ip_postal_code" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">ZIP</dt>
+                <dd class="min-w-0 break-words text-right font-medium">{{ resolved.ip_postal_code }}</dd>
+            </div>
+            <div v-if="resolved.ip_isp" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">ISP</dt>
+                <dd class="min-w-0 break-words text-right font-medium">{{ resolved.ip_isp }}</dd>
+            </div>
+            <div v-if="resolved.ip_asn" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">ASN</dt>
+                <dd class="min-w-0 break-words text-right font-mono text-xs font-medium">{{ resolved.ip_asn }}</dd>
+            </div>
+            <div v-if="resolved.ip_timezone" class="flex min-w-0 items-start justify-between gap-3">
+                <dt class="shrink-0 text-muted-foreground">Timezone</dt>
+                <dd class="min-w-0 break-words text-right font-medium">{{ resolved.ip_timezone }}</dd>
             </div>
         </dl>
         <p v-if="! hasMarketingSource" class="mt-3 text-xs text-muted-foreground">

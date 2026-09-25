@@ -203,15 +203,8 @@ class AnalyticsService
             return;
         }
 
-        // IP location lookup only for donate/checkout — not visit/click tracking.
-        $locateIp = in_array($eventType, [
-            AnalyticsEvent::TYPE_CHECKOUT_STARTED,
-            AnalyticsEvent::TYPE_SUBSCRIPTION_CHECKOUT_STARTED,
-        ], true);
-
-        $geo = $locateIp
-            ? $this->geoLocator->fromRequest($request)
-            : $this->geoLocator->emptyLocation();
+        // Local MMDB geo on every analytics event (visits + checkout).
+        $geo = $this->geoLocator->fromRequest($request);
 
         $sessionId = $this->sessionId($request);
 
@@ -227,6 +220,12 @@ class AnalyticsService
             'country_name' => $geo['country_name'] ?? null,
             'region_name' => $geo['region_name'] ?? null,
             'city' => $geo['city'] ?? null,
+            'postal_code' => $geo['postal_code'] ?? null,
+            'latitude' => $geo['lat'] ?? null,
+            'longitude' => $geo['lng'] ?? null,
+            'timezone' => $geo['timezone'] ?? null,
+            'asn' => $geo['asn'] ?? null,
+            'isp' => $geo['isp'] ?? null,
             ...$attributes,
             'created_at' => now(),
         ]);

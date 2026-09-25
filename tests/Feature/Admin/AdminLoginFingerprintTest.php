@@ -3,22 +3,32 @@
 use App\Models\User;
 use App\Models\UserDeviceFingerprint;
 use App\Models\UserLoginLog;
+use App\Services\GeoIp\GeoIpLookupService;
+use App\Services\GeoIp\GeoIpResult;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+
+use function Pest\Laravel\mock;
 
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
-    Http::fake([
-        'ip-api.com/*' => Http::response([
-            'status' => 'success',
-            'country' => 'India',
-            'regionName' => 'Gujarat',
-            'city' => 'Ahmedabad',
-        ], 200),
-    ]);
+    $result = new GeoIpResult(
+        ipAddress: '8.8.8.8',
+        countryCode: 'IN',
+        countryName: 'India',
+        regionName: 'Gujarat',
+        city: 'Ahmedabad',
+    );
+
+    $geo = mock(GeoIpLookupService::class);
+    $geo->shouldReceive('lookupFromRequest')->andReturn($result);
+    $geo->shouldReceive('lookup')->andReturn($result);
+    $geo->shouldReceive('clientIp')->andReturnUsing(function ($request, $publicOnly = true) {
+        return $request->ip();
+    });
+    $this->app->instance(GeoIpLookupService::class, $geo);
 });
 
 function makeSuperAdmin(array $overrides = []): User

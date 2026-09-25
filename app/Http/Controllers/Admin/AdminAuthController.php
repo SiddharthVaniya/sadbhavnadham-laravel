@@ -12,6 +12,7 @@ use App\Services\AdminSessionService;
 use App\Support\MarketerPortal;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\View\View;
@@ -26,7 +27,7 @@ class AdminAuthController extends Controller
         private AdminDeviceFingerprintService $deviceFingerprints,
     ) {}
 
-    public function showLogin(): View|RedirectResponse
+    public function showLogin(): View|Response|RedirectResponse
     {
         if (Auth::check()) {
             /** @var \App\Models\User $user */
@@ -35,11 +36,21 @@ class AdminAuthController extends Controller
             return redirect()->route(MarketerPortal::homeRouteName($user));
         }
 
-        return view('admin.auth.login');
+        return response()
+            ->view('admin.auth.login')
+            ->header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
+            ->header('Pragma', 'no-cache');
     }
 
     public function login(AdminLoginRequest $request): RedirectResponse
     {
+        if (Auth::check()) {
+            /** @var \App\Models\User $user */
+            $user = Auth::user();
+
+            return redirect()->route(MarketerPortal::homeRouteName($user));
+        }
+
         $email = trim((string) $request->input('email'));
         $password = (string) $request->input('password');
         $fingerprint = trim((string) $request->input('fingerprint'));

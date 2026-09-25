@@ -50,8 +50,12 @@ class DonationOrder extends Model
         'ip_country_name',
         'ip_region_name',
         'ip_city',
+        'ip_postal_code',
         'ip_lat',
         'ip_lng',
+        'ip_timezone',
+        'ip_asn',
+        'ip_isp',
         'source_campaign_id',
 
         'donor_name',
@@ -109,6 +113,7 @@ class DonationOrder extends Model
         'is_recurring' => 'boolean',
         'ip_lat' => 'float',
         'ip_lng' => 'float',
+        'ip_asn' => 'integer',
 
         'paid_at' => 'datetime',
         'failed_at' => 'datetime',

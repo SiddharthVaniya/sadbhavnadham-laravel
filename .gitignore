@@ -30,3 +30,5 @@ Thumbs.db
 /bpk.sql
 *.sql.bak
 /storage/fonts/cache/
+/storage/geoip/*.mmdb
+/storage/geoip/*.mmdb.gz

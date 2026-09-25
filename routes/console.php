@@ -16,3 +16,4 @@ Schedule::command('donors:send-birthday-whatsapp')->dailyAt('09:00');
 Schedule::command('donations:email-daily-report')->dailyAt('01:00');
 Schedule::command('danamojo:sync')->everyFifteenMinutes();
 Schedule::command('aisensy:sync-templates')->hourly();
+Schedule::command('geoip:update --force')->monthlyOn(3, '04:15');

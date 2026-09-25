@@ -7,16 +7,37 @@ use App\Models\User;
 use App\Services\AnalyticsGeoLocator;
 use App\Services\AnalyticsService;
 use App\Services\DonationPaymentService;
+use App\Services\GeoIp\GeoIpLookupService;
+use App\Services\GeoIp\GeoIpResult;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 use function Pest\Laravel\actingAs;
+use function Pest\Laravel\mock;
 
 uses(RefreshDatabase::class);
+
+function mockGeoIpLookup(?GeoIpResult $result = null): void
+{
+    $result ??= new GeoIpResult(
+        ipAddress: '8.8.8.8',
+        countryCode: 'US',
+        countryName: 'United States',
+        regionName: 'California',
+        city: 'Mountain View',
+    );
+
+    $geo = mock(GeoIpLookupService::class);
+    $geo->shouldReceive('lookupFromRequest')->andReturn($result);
+    $geo->shouldReceive('lookup')->andReturn($result);
+    $geo->shouldReceive('clientIp')->andReturnUsing(function ($request, $publicOnly = true) {
+        return $result->ipAddress ?? $request->ip();
+    });
+    app()->instance(GeoIpLookupService::class, $geo);
+}
 
 function createAnalyticsAdmin(): User
 {
@@ -57,16 +78,13 @@ function createPendingOrder(Cause $cause, array $attributes = []): DonationOrder
 }
 
 it('tracks public donate page visits', function () {
-    Http::fake([
-        'ip-api.com/*' => Http::response([
-            'status' => 'success',
-            'query' => '8.8.8.8',
-            'country' => 'United States',
-            'countryCode' => 'US',
-            'regionName' => 'California',
-            'city' => 'Mountain View',
-        ]),
-    ]);
+    mockGeoIpLookup(new GeoIpResult(
+        ipAddress: '8.8.8.8',
+        countryCode: 'US',
+        countryName: 'United States',
+        regionName: 'California',
+        city: 'Mountain View',
+    ));
 
     $cause = Cause::factory()->create(['is_active' => true]);
 
@@ -92,16 +110,13 @@ it('tracks public donate page visits', function () {
 it('stores location on checkout and copies it to paid donation events', function () {
     Queue::fake();
 
-    Http::fake([
-        'ip-api.com/*' => Http::response([
-            'status' => 'success',
-            'query' => '103.21.244.0',
-            'country' => 'India',
-            'countryCode' => 'IN',
-            'regionName' => 'Gujarat',
-            'city' => 'Ahmedabad',
-        ]),
-    ]);
+    mockGeoIpLookup(new GeoIpResult(
+        ipAddress: '103.21.244.0',
+        countryCode: 'IN',
+        countryName: 'India',
+        regionName: 'Gujarat',
+        city: 'Ahmedabad',
+    ));
 
     $cause = Cause::factory()->create();
     $order = createPendingOrder($cause, ['provider_order_id' => 'order-geo']);
