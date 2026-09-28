@@ -205,6 +205,9 @@ class DonateApiController extends Controller
     public function danamojoNotify(StoreDanamojoNotifyRequest $request, DanamojoDonationImporter $importer): JsonResponse
     {
         $donationInfoId = (int) $request->validated('donationInfoId');
+        $validated = $request->validated();
+
+        $importer->recordNotify($donationInfoId, $validated);
 
         try {
             $result = $importer->importByDonationInfoId($donationInfoId);
@@ -218,6 +221,13 @@ class DonateApiController extends Controller
             ], 502);
         }
 
+        $queued = in_array($result, ['not_found', 'skipped'], true);
+
+        if ($queued) {
+            \App\Jobs\ImportDanamojoDonationJob::dispatch($donationInfoId)
+                ->delay(now()->addSeconds(45));
+        }
+
         $status = match ($result) {
             'imported', 'updated' => 200,
             'not_found' => 202,
@@ -227,6 +237,7 @@ class DonateApiController extends Controller
         return response()->json([
             'ok' => in_array($result, ['imported', 'updated', 'skipped', 'not_found'], true),
             'result' => $result,
+            'queued_retry' => $queued,
             'donationInfoId' => $donationInfoId,
             'provider_order_id' => DanamojoDonationImporter::providerOrderId($donationInfoId),
         ], $status);

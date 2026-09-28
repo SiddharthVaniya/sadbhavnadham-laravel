@@ -54,6 +54,7 @@ const toggleDefault = (pkg) => {
                 <ul v-if="cause.packages?.length" class="mt-4 divide-y divide-border rounded-lg border border-border">
                     <li v-for="pkg in cause.packages" :key="pkg.id" class="flex items-center justify-between gap-4 px-4 py-3 text-sm">
                         <span class="min-w-0 font-medium text-foreground">
+                            <span class="mr-2 inline-flex rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-semibold text-foreground">Pkg ID {{ pkg.id }}</span>
                             {{ pkg.title }}
                             <span class="ml-2 font-normal text-muted-foreground">₹{{ pkg.amount }}</span>
                             <span

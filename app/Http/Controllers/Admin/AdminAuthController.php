@@ -76,7 +76,8 @@ class AdminAuthController extends Controller
                 ->withInput($request->except('password'));
         }
 
-        $requiresFingerprint = ! MarketerPortal::isMarketerOnly($user);
+        $requiresFingerprint = config('auth.require_device_fingerprint', false)
+            && ! MarketerPortal::isMarketerOnly($user);
         $fingerprintMatched = null;
 
         if ($requiresFingerprint) {

@@ -23,14 +23,23 @@ class AdminCausePackageController extends Controller
             ->orderBy('cause_id')
             ->orderBy('sort_order')
             ->orderBy('title')
-            ->paginate(AdminInertiaResources::LIST_PER_PAGE)
-            ->withQueryString();
+            ->get();
 
         return Inertia::render('Admin/Packages/Index', [
-            'packages' => AdminInertiaResources::paginated(
-                $packages,
-                fn (CausePackage $package) => AdminInertiaResources::packageListRow($package, $viewer)
-            ),
+            'packages' => [
+                'data' => $packages
+                    ->map(fn (CausePackage $package) => AdminInertiaResources::packageListRow($package, $viewer))
+                    ->values()
+                    ->all(),
+                'links' => [],
+                'meta' => [
+                    'current_page' => 1,
+                    'last_page' => 1,
+                    'from' => $packages->isEmpty() ? null : 1,
+                    'to' => $packages->count(),
+                    'total' => $packages->count(),
+                ],
+            ],
             'abilities' => AdminPermissions::packageAbilities($viewer),
         ]);
     }

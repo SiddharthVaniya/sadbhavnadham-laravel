@@ -3,6 +3,7 @@
 namespace App\Services\Danamojo;
 
 use App\Models\Cause;
+use App\Models\DanamojoDonation;
 use App\Models\DonationItem;
 use App\Models\DonationOrder;
 use App\Models\Donor;
@@ -108,7 +109,48 @@ class DanamojoDonationImporter
             return $this->importRow($row);
         }
 
+        $this->markRetry($donationInfoId, 'not_found');
+
         return 'not_found';
+    }
+
+    /**
+     * Save a widget callback immediately, before Danamojo's API lists the payment.
+     *
+     * @param  array<string, mixed>  $input
+     */
+    public function recordNotify(int $donationInfoId, array $input): DanamojoDonation
+    {
+        $record = DanamojoDonation::query()->firstOrNew([
+            'donation_info_id' => $donationInfoId,
+        ]);
+
+        $tracking = $this->trackingFromNotify($input);
+        foreach ($tracking as $key => $value) {
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            if (blank($record->getAttribute($key))) {
+                $record->setAttribute($key, $value);
+            }
+        }
+
+        if ($record->sync_state !== DanamojoDonation::STATE_IMPORTED) {
+            $record->sync_state = $record->payment_status
+                ? $this->syncStateForStatus((string) $record->payment_status, $record)
+                : DanamojoDonation::STATE_NOTIFIED;
+        }
+
+        $this->applyPartner($record);
+        $record->notified_at = $record->notified_at ?? now();
+        $record->notify_payload = $input;
+        $record->next_retry_at = $record->sync_state === DanamojoDonation::STATE_IMPORTED
+            ? null
+            : now();
+        $record->save();
+
+        return $record;
     }
 
     /**
@@ -174,6 +216,9 @@ class DanamojoDonationImporter
             return 'skipped';
         }
 
+        $tracked = $this->upsertApiRow($row);
+        $row = $this->mergeTrackedAttribution($row, $tracked);
+
         if (! $this->isVerifiedStatus((string) ($row['paymentStatus'] ?? ''))) {
             return 'skipped';
         }
@@ -184,7 +229,7 @@ class DanamojoDonationImporter
             ->where('provider_order_id', $providerOrderId)
             ->first();
 
-        return DB::transaction(function () use ($row, $donationInfoId, $providerOrderId, $existing) {
+        $result = DB::transaction(function () use ($row, $donationInfoId, $providerOrderId, $existing) {
             if ($existing) {
                 $this->updateExistingOrder($existing, $row);
 
@@ -195,6 +240,25 @@ class DanamojoDonationImporter
 
             return 'imported';
         });
+
+        $order = DonationOrder::query()
+            ->where('payment_provider', DonationOrder::PROVIDER_DANAMOJO)
+            ->where('provider_order_id', $providerOrderId)
+            ->first();
+
+        if ($order) {
+            $tracked->forceFill([
+                'donation_order_id' => $order->id,
+                'partner_user_id' => $tracked->partner_user_id ?: $order->partner_user_id,
+                'partner_code' => $tracked->partner_code ?: $order->partner_code,
+                'sync_state' => DanamojoDonation::STATE_IMPORTED,
+                'imported_at' => $tracked->imported_at ?? now(),
+                'next_retry_at' => null,
+                'last_error' => null,
+            ])->save();
+        }
+
+        return $result;
     }
 
     public static function providerOrderId(int $donationInfoId): string
@@ -341,13 +405,14 @@ class DanamojoDonationImporter
     {
         $referrer = $this->nullableString($row['refererUrl'] ?? null);
         $query = $this->queryParamsFromUrl($referrer);
+        $tracked = is_array($row['_tracked'] ?? null) ? $row['_tracked'] : [];
 
-        $utmSource = $this->nullableLimited($query['utm_source'] ?? null, 120);
-        $utmMedium = $this->nullableLimited($query['utm_medium'] ?? null, 120);
-        $utmCampaign = $this->nullableLimited($query['utm_campaign'] ?? null, 120)
+        $utmSource = $this->nullableLimited($query['utm_source'] ?? $tracked['utm_source'] ?? null, 120);
+        $utmMedium = $this->nullableLimited($query['utm_medium'] ?? $tracked['utm_medium'] ?? null, 120);
+        $utmCampaign = $this->nullableLimited($query['utm_campaign'] ?? $tracked['utm_campaign'] ?? null, 120)
             ?? $this->nullableLimited($row['utm_campaign'] ?? null, 120);
-        $utmContent = $this->nullableLimited($query['utm_content'] ?? null, 120);
-        $utmTerm = $this->nullableLimited($query['utm_term'] ?? null, 120);
+        $utmContent = $this->nullableLimited($query['utm_content'] ?? $tracked['utm_content'] ?? null, 120);
+        $utmTerm = $this->nullableLimited($query['utm_term'] ?? $tracked['utm_term'] ?? null, 120);
 
         $payload = array_filter([
             'utm_source' => $utmSource,
@@ -358,7 +423,7 @@ class DanamojoDonationImporter
             'referrer' => $referrer ? mb_substr($referrer, 0, 512) : null,
             'landing_path' => $this->landingPath($referrer),
             'meta_campaign_id' => $this->nullableLimited(
-                $query['utm_id'] ?? $query['campaign_id'] ?? $query['fb_campaign_id'] ?? null,
+                $query['utm_id'] ?? $tracked['utm_id'] ?? $query['campaign_id'] ?? $query['fb_campaign_id'] ?? null,
                 40
             ),
             'meta_adset_id' => $this->nullableLimited(
@@ -366,14 +431,14 @@ class DanamojoDonationImporter
                 40
             ),
             'meta_ad_id' => $this->nullableLimited(
-                $query['aid'] ?? $query['ad_id'] ?? $query['fb_ad_id'] ?? null,
+                $query['aid'] ?? $tracked['aid'] ?? $query['ad_id'] ?? $query['fb_ad_id'] ?? null,
                 40
             ),
         ], fn ($value) => $value !== null && $value !== '');
 
         $partner = AttributionParameters::resolvePartner(
             AttributionParameters::withSidAlias([
-                'sid' => $query['sid'] ?? null,
+                'sid' => $query['sid'] ?? $tracked['sid'] ?? null,
                 'utm_sid' => $query['utm_sid'] ?? null,
                 'pid' => $query['pid'] ?? null,
                 'utm_source' => $utmSource,
@@ -643,6 +708,195 @@ class DanamojoDonationImporter
             'utm_campaign' => $row['utm_campaign'] ?? null,
             'referer_url' => $row['refererUrl'] ?? null,
         ], fn ($value) => $value !== null && $value !== '');
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function upsertApiRow(array $row): DanamojoDonation
+    {
+        $donationInfoId = (int) ($row['donationInfoId'] ?? 0);
+        $record = DanamojoDonation::query()->firstOrNew([
+            'donation_info_id' => $donationInfoId,
+        ]);
+
+        $details = $this->firstDonationDetail($row);
+        $status = trim((string) ($row['paymentStatus'] ?? ''));
+        $snapshot = $this->donorSnapshot($row);
+
+        $incoming = array_filter([
+            'payment_status' => $status !== '' ? $status : null,
+            'donor_name' => $snapshot['donor_name'] !== '' ? $snapshot['donor_name'] : null,
+            'donor_email' => $snapshot['donor_email'] !== '' ? $snapshot['donor_email'] : null,
+            'donor_phone' => $snapshot['donor_phone'] !== '' ? $snapshot['donor_phone'] : null,
+            'nationality' => $this->nullableString($row['nationality'] ?? null),
+            'country' => $snapshot['country'] !== '' ? $snapshot['country'] : null,
+            'currency' => $this->nullableString($row['currency'] ?? null),
+            'amount_local' => is_numeric($row['totalDonationAmtLocal'] ?? null) ? round((float) $row['totalDonationAmtLocal'], 2) : null,
+            'amount_inr' => $this->amountInr($row) > 0 ? $this->amountInr($row) : null,
+            'payment_option' => $this->nullableString($row['paymentOption'] ?? null),
+            'product_name' => $this->nullableString($details['donationProductName'] ?? null),
+            'receipt_number' => $this->nullableString($details['receiptNumber'] ?? null),
+            'receipt_link' => $this->nullableString($row['receiptLink'] ?? null),
+            'referer_url' => $this->nullableString($row['refererUrl'] ?? null),
+            'device' => $this->nullableString($row['device'] ?? null),
+            'recurring' => (bool) ($row['recurring'] ?? false),
+            'fcra' => array_key_exists('fcra', $row) ? (bool) $row['fcra'] : null,
+            'international' => array_key_exists('international', $row) ? (bool) $row['international'] : null,
+            'donated_at' => $this->donationDate($row),
+        ], fn ($value) => $value !== null && $value !== '');
+
+        foreach ($incoming as $key => $value) {
+            $record->setAttribute($key, $value);
+        }
+
+        $query = $this->queryParamsFromUrl($this->nullableString($row['refererUrl'] ?? null));
+        $this->fillBlankTracking($record, [
+            'sid' => $query['sid'] ?? null,
+            'utm_source' => $query['utm_source'] ?? null,
+            'utm_medium' => $query['utm_medium'] ?? null,
+            'utm_campaign' => $query['utm_campaign'] ?? ($row['utm_campaign'] ?? null),
+            'utm_content' => $query['utm_content'] ?? null,
+            'utm_term' => $query['utm_term'] ?? null,
+            'utm_id' => $query['utm_id'] ?? null,
+            'aid' => $query['aid'] ?? null,
+        ]);
+        $this->applyPartner($record);
+
+        if ($record->sync_state !== DanamojoDonation::STATE_IMPORTED) {
+            $record->sync_state = $this->syncStateForStatus($status, $record);
+            $record->next_retry_at = $record->sync_state === DanamojoDonation::STATE_PENDING
+                ? now()->addMinutes(2)
+                : null;
+        }
+
+        $record->last_synced_at = now();
+        $record->last_error = null;
+        $record->raw_payload = $row;
+        $record->save();
+
+        return $record;
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     * @return array<string, mixed>
+     */
+    private function mergeTrackedAttribution(array $row, DanamojoDonation $tracked): array
+    {
+        $referrer = trim((string) ($row['refererUrl'] ?? ''));
+        $landing = trim((string) ($tracked->landing_url ?? ''));
+
+        if ($landing !== '' && ($referrer === '' || ! str_contains($referrer, '?'))) {
+            $row['refererUrl'] = $landing;
+        }
+
+        $row['_tracked'] = array_filter([
+            'sid' => $tracked->sid,
+            'utm_source' => $tracked->utm_source,
+            'utm_medium' => $tracked->utm_medium,
+            'utm_campaign' => $tracked->utm_campaign,
+            'utm_content' => $tracked->utm_content,
+            'utm_term' => $tracked->utm_term,
+            'utm_id' => $tracked->utm_id,
+            'aid' => $tracked->aid,
+        ], fn ($value) => is_string($value) && $value !== '');
+
+        return $row;
+    }
+
+    /**
+     * @param  array<string, mixed>  $input
+     * @return array<string, mixed>
+     */
+    private function trackingFromNotify(array $input): array
+    {
+        $landing = $this->nullableString($input['landing_url'] ?? null);
+        $query = $this->queryParamsFromUrl($landing);
+
+        return [
+            'dm_status' => $this->nullableLimited($input['dmStatus'] ?? null, 40),
+            'landing_url' => $landing,
+            'referer_url' => $this->nullableString($input['referrer'] ?? null),
+            'sid' => $this->nullableLimited($input['sid'] ?? $query['sid'] ?? null, 40),
+            'utm_source' => $this->nullableLimited($input['utm_source'] ?? $query['utm_source'] ?? null, 120),
+            'utm_medium' => $this->nullableLimited($input['utm_medium'] ?? $query['utm_medium'] ?? null, 120),
+            'utm_campaign' => $this->nullableLimited($input['utm_campaign'] ?? $query['utm_campaign'] ?? null, 120),
+            'utm_content' => $this->nullableLimited($input['utm_content'] ?? $query['utm_content'] ?? null, 120),
+            'utm_term' => $this->nullableLimited($input['utm_term'] ?? $query['utm_term'] ?? null, 120),
+            'utm_id' => $this->nullableLimited($input['utm_id'] ?? $query['utm_id'] ?? null, 40),
+            'aid' => $this->nullableLimited($input['aid'] ?? $query['aid'] ?? null, 40),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     */
+    private function fillBlankTracking(DanamojoDonation $record, array $values): void
+    {
+        foreach ($values as $key => $value) {
+            $clean = $this->nullableString(is_scalar($value) ? (string) $value : null);
+            if ($clean !== null && blank($record->getAttribute($key))) {
+                $record->setAttribute($key, $clean);
+            }
+        }
+    }
+
+    private function applyPartner(DanamojoDonation $record): void
+    {
+        $partner = AttributionParameters::resolvePartner(
+            AttributionParameters::withSidAlias([
+                'sid' => $record->sid,
+                'utm_source' => $record->utm_source,
+                'utm_content' => $record->utm_content,
+            ])
+        );
+
+        if (blank($record->partner_code) && filled($partner['partner_code'] ?? null)) {
+            $record->partner_code = $partner['partner_code'];
+        }
+
+        if ($record->partner_user_id === null && filled($partner['partner_user_id'] ?? null)) {
+            $record->partner_user_id = $partner['partner_user_id'];
+        }
+    }
+
+    private function syncStateForStatus(string $status, DanamojoDonation $record): string
+    {
+        if ($record->donation_order_id) {
+            return DanamojoDonation::STATE_IMPORTED;
+        }
+
+        $normalized = mb_strtolower(trim($status));
+
+        if ($normalized === '') {
+            return DanamojoDonation::STATE_NOTIFIED;
+        }
+
+        if (in_array($normalized, ['failed', 'refunded'], true)) {
+            return DanamojoDonation::STATE_FAILED;
+        }
+
+        if ($this->isVerifiedStatus($status)) {
+            return DanamojoDonation::STATE_PENDING;
+        }
+
+        return DanamojoDonation::STATE_PENDING;
+    }
+
+    private function markRetry(int $donationInfoId, string $error): void
+    {
+        $record = DanamojoDonation::query()->where('donation_info_id', $donationInfoId)->first();
+
+        if ($record === null || $record->sync_state === DanamojoDonation::STATE_IMPORTED) {
+            return;
+        }
+
+        $record->forceFill([
+            'retry_count' => $record->retry_count + 1,
+            'last_error' => Str::limit($error, 255, ''),
+            'next_retry_at' => now()->addMinutes(2),
+        ])->save();
     }
 
     private function isVerifiedStatus(string $status): bool

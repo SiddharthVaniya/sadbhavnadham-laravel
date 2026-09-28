@@ -14,6 +14,8 @@ use function Pest\Laravel\mock;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    config(['auth.require_device_fingerprint' => true]);
+
     $result = new GeoIpResult(
         ipAddress: '8.8.8.8',
         countryCode: 'IN',

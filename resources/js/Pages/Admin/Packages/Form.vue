@@ -92,6 +92,10 @@ const submit = () => {
         <PageHeader :title="isEdit ? 'Edit package' : 'Create package'" :subtitle="cause.title" />
         <form class="w-full" @submit.prevent="submit">
             <FormSection title="Package details" dense>
+                <p v-if="isEdit && package?.id" class="text-sm text-muted-foreground">
+                    Package ID <span class="font-mono font-medium text-foreground">{{ package.id }}</span>.
+                    Donate links can preselect it with <span class="font-mono">pkg={{ package.id }}</span>.
+                </p>
                 <div class="grid gap-4 sm:grid-cols-2">
                     <FormInput v-model="form.title" label="Title" :error="form.errors.title" required />
                     <FormInput v-model="form.amount" label="Amount (₹)" type="number" :error="form.errors.amount" required />

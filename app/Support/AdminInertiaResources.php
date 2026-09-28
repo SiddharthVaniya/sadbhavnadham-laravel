@@ -294,7 +294,7 @@ class AdminInertiaResources
         if ($canCopyLinks && is_string($causeSlug) && $causeSlug !== '') {
             $baseUrl = DonationPublicFrontend::donateCauseUrl($causeSlug);
             $separator = str_contains($baseUrl, '?') ? '&' : '?';
-            $publicUrl = $baseUrl.$separator.'package_id='.$package->id;
+            $publicUrl = $baseUrl.$separator.'pkg='.$package->id;
             $shareUrl = StaffReferral::trackedShareUrl($publicUrl, $viewer?->referral_code);
         }
 

@@ -20,6 +20,48 @@
                                                 "<center> <p style='color:#a94442;'>we are sorry that our systems are down. we will be up shortly. apologies for the inconvenience.</p></center>";
                                         }
                                     }, 20000);
+
+                                    (function () {
+                                        var notified = null;
+                                        function notifyIfNeeded() {
+                                            try {
+                                                var params = new URLSearchParams(window.location.search);
+                                                var id = params.get('donationInfoId');
+                                                if (!id || id === notified) {
+                                                    return;
+                                                }
+                                                notified = id;
+                                                var key = 'danamojo-notify:' + id;
+                                                try {
+                                                    if (sessionStorage.getItem(key)) {
+                                                        return;
+                                                    }
+                                                    sessionStorage.setItem(key, '1');
+                                                } catch (e) {}
+                                                var body = {
+                                                    donationInfoId: parseInt(id, 10),
+                                                    landing_url: window.location.href
+                                                };
+                                                ['dmStatus', 'dmTotalAmount', 'sid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'utm_id', 'aid'].forEach(function (name) {
+                                                    var value = params.get(name);
+                                                    if (value) {
+                                                        body[name] = value;
+                                                    }
+                                                });
+                                                if (document.referrer) {
+                                                    body.referrer = document.referrer;
+                                                }
+                                                fetch('/api/donate/danamojo/notify', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                                                    body: JSON.stringify(body),
+                                                    keepalive: true
+                                                }).catch(function () {});
+                                            } catch (e) {}
+                                        }
+                                        notifyIfNeeded();
+                                        setInterval(notifyIfNeeded, 2000);
+                                    })();
                                 </script>
                                 <div id="dmScriptContainer" style="display:none;"><a href="#">Donate Now</a></div>
                                 <div id="ngoContentContainer" iNGOId="1362" oDisplay="product" oDisplayTab="once,monthly"

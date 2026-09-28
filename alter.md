@@ -658,3 +658,80 @@ ALTER TABLE user_login_logs
     DROP COLUMN postal_code, DROP COLUMN latitude, DROP COLUMN longitude,
     DROP COLUMN timezone, DROP COLUMN asn, DROP COLUMN isp;
 ```
+
+## 2026-09-28 - Danamojo tracking table
+
+Stores every Danamojo callback and API row (pending, failed, verified) and links verified rows to `donation_orders`. Migration file (do **not** auto-run): `database/migrations/2026_09_28_154106_create_danamojo_donations_table.php`
+
+### Preview
+
+```sql
+SHOW TABLES LIKE 'danamojo_donations';
+```
+
+### Alter
+
+```sql
+CREATE TABLE danamojo_donations (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    donation_info_id BIGINT UNSIGNED NOT NULL,
+    donation_order_id BIGINT UNSIGNED NULL,
+    payment_status VARCHAR(40) NULL,
+    dm_status VARCHAR(40) NULL,
+    sync_state VARCHAR(32) NOT NULL DEFAULT 'notified',
+    donor_name VARCHAR(255) NULL,
+    donor_email VARCHAR(255) NULL,
+    donor_phone VARCHAR(40) NULL,
+    nationality VARCHAR(80) NULL,
+    country VARCHAR(80) NULL,
+    currency VARCHAR(8) NULL,
+    amount_local DECIMAL(12,2) NULL,
+    amount_inr DECIMAL(12,2) NULL,
+    payment_option VARCHAR(40) NULL,
+    product_name VARCHAR(255) NULL,
+    receipt_number VARCHAR(80) NULL,
+    receipt_link VARCHAR(512) NULL,
+    referer_url TEXT NULL,
+    landing_url TEXT NULL,
+    sid VARCHAR(40) NULL,
+    utm_source VARCHAR(120) NULL,
+    utm_medium VARCHAR(120) NULL,
+    utm_campaign VARCHAR(120) NULL,
+    utm_content VARCHAR(120) NULL,
+    utm_term VARCHAR(120) NULL,
+    utm_id VARCHAR(40) NULL,
+    aid VARCHAR(40) NULL,
+    partner_code VARCHAR(40) NULL,
+    partner_user_id BIGINT UNSIGNED NULL,
+    device VARCHAR(32) NULL,
+    recurring TINYINT(1) NOT NULL DEFAULT 0,
+    fcra TINYINT(1) NULL,
+    international TINYINT(1) NULL,
+    donated_at TIMESTAMP NULL,
+    notified_at TIMESTAMP NULL,
+    last_synced_at TIMESTAMP NULL,
+    imported_at TIMESTAMP NULL,
+    next_retry_at TIMESTAMP NULL,
+    retry_count SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+    last_error VARCHAR(255) NULL,
+    raw_payload JSON NULL,
+    notify_payload JSON NULL,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY danamojo_donations_donation_info_id_unique (donation_info_id),
+    KEY danamojo_donations_donation_order_id_foreign (donation_order_id),
+    KEY danamojo_donations_sync_state_index (sync_state),
+    KEY danamojo_donations_payment_status_index (payment_status),
+    KEY danamojo_donations_next_retry_at_index (next_retry_at),
+    KEY danamojo_donations_partner_user_id_index (partner_user_id),
+    CONSTRAINT danamojo_donations_donation_order_id_foreign
+        FOREIGN KEY (donation_order_id) REFERENCES donation_orders (id) ON DELETE SET NULL
+);
+```
+
+### Rollback
+
+```sql
+DROP TABLE IF EXISTS danamojo_donations;
+```

@@ -68,7 +68,8 @@ class DanamojoClient
                 ->retry(3, 1000)
                 ->get($url, [
                     'fromDate' => $fromDate->toDateString(),
-                    'toDate' => $toDate->toDateString(),
+                    // Danamojo treats toDate as exclusive, so add a day to include the end date.
+                    'toDate' => $toDate->copy()->addDay()->toDateString(),
                     'rows' => $rows,
                     'startRow' => $startRow,
                 ]);

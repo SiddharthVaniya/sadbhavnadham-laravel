@@ -23,6 +23,7 @@ const props = defineProps({
 });
 
 const columns = [
+    { key: 'id', label: 'Pkg ID', sortable: true },
     { key: 'cause_title', label: 'Cause', sortable: true },
     { key: 'title', label: 'Package', sortable: true },
     { key: 'amount', label: 'Amount', sortable: true },
@@ -68,6 +69,9 @@ const destroyPackage = (row) => {
         <template #header>Packages</template>
         <PageHeader title="Packages" :subtitle="`${packages.meta?.total ?? 0} package(s)`" />
         <DataTable :columns="columns" :rows="sortedRows" :sort-key="sortKey" :sort-dir="sortDir" @sort="toggleSort">
+            <template #cell-id="{ row }">
+                <span class="font-mono text-sm font-semibold text-foreground">{{ row.id }}</span>
+            </template>
             <template #cell-amount="{ row }">{{ formatMoney(row.amount) }}</template>
             <template #cell-is_active="{ row }">
                 <button

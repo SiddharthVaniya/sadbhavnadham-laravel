@@ -16,7 +16,11 @@ class EnsureTrustedDeviceFingerprint
     {
         $user = $request->user();
 
-        if ($user === null || MarketerPortal::isMarketerOnly($user)) {
+        if (
+            $user === null
+            || ! config('auth.require_device_fingerprint', false)
+            || MarketerPortal::isMarketerOnly($user)
+        ) {
             return $next($request);
         }
 

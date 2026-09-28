@@ -71,6 +71,26 @@ it('redirects authenticated users to the dashboard when posting login again', fu
         ->assertRedirect(route('admin.dashboard'));
 });
 
+it('signs in staff with email and password when device fingerprint is disabled', function () {
+    config(['auth.require_device_fingerprint' => false]);
+
+    Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+    $user = User::factory()->create([
+        'email' => 'staff-no-fp@example.com',
+        'password' => 'secret-pass',
+    ]);
+    $user->assignRole('admin');
+
+    $this->from(route('login'))
+        ->post(route('admin.login.submit'), [
+            'email' => 'staff-no-fp@example.com',
+            'password' => 'secret-pass',
+        ])
+        ->assertRedirect(route('admin.dashboard'));
+
+    $this->assertAuthenticatedAs($user);
+});
+
 it('redirects expired csrf login posts back to the login form', function () {
     $request = \Illuminate\Http\Request::create('/admin/login', 'POST', [
         'email' => 'admin@example.com',

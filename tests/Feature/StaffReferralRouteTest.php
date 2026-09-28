@@ -180,6 +180,6 @@ it('embeds utm staff tracking in admin share urls', function () {
         ->and($causeRow['share_url'])->not->toContain('pid=')
         ->and($packageRow['share_url'])->toContain('https://sadbhavnadham.org/donate/old-age-home')
         ->toContain('sid=paz')
-        ->toContain('package_id='.$package->id)
+        ->toContain('pkg='.$package->id)
         ->and($packageRow['share_url'])->not->toContain('pid=');
 });

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Cause;
+use App\Models\DanamojoDonation;
 use App\Models\DonationOrder;
 use App\Services\Danamojo\DanamojoDonationImporter;
 use App\Services\DonationAttributionService;
@@ -126,6 +127,12 @@ it('skips non-verified danamojo donations', function () {
     expect($stats['skipped'])->toBe(1)
         ->and($stats['skipped_pending'])->toBe(1)
         ->and(DonationOrder::query()->count())->toBe(0);
+
+    $tracked = DanamojoDonation::query()->where('donation_info_id', 382670)->first();
+    expect($tracked)->not->toBeNull()
+        ->and($tracked->sync_state)->toBe(DanamojoDonation::STATE_PENDING)
+        ->and($tracked->payment_status)->toBe('Pending')
+        ->and($tracked->donor_email)->toBe('sanjay_morzaria@hotmail.co.uk');
 });
 
 it('parses utm params from refererUrl and falls back to api utm_campaign', function () {
@@ -189,6 +196,97 @@ it('imports by donationInfoId for notify endpoint', function () {
         ->assertJsonPath('donationInfoId', 555123);
 
     expect(DonationOrder::query()->where('provider_order_id', 'danamojo-555123')->exists())->toBeTrue();
+
+    $tracked = DanamojoDonation::query()->where('donation_info_id', 555123)->first();
+    expect($tracked)->not->toBeNull()
+        ->and($tracked->sync_state)->toBe(DanamojoDonation::STATE_IMPORTED)
+        ->and($tracked->donation_order_id)->not->toBeNull();
+});
+
+it('stores a tracking row and queues a retry when the api has not listed the donation yet', function () {
+    Illuminate\Support\Facades\Queue::fake();
+
+    config(['danamojo.api_key_secret' => 'test-secret']);
+
+    Http::fake([
+        'api.danamojo.org/*' => Http::response([
+            'status' => 1,
+            'data' => [],
+        ], 200),
+    ]);
+
+    $this->postJson('/api/donate/danamojo/notify', [
+        'donationInfoId' => 397101,
+        'dmStatus' => 'SUCCESS',
+        'sid' => 'ijqvw',
+        'utm_source' => 'meta',
+        'utm_campaign' => 'Old Age Home',
+        'landing_url' => 'https://sadbhavnadham.org/donate/danamojo-widget/old-age-home?sid=ijqvw&utm_source=meta',
+    ])
+        ->assertStatus(202)
+        ->assertJsonPath('result', 'not_found')
+        ->assertJsonPath('queued_retry', true);
+
+    $tracked = DanamojoDonation::query()->where('donation_info_id', 397101)->first();
+    expect($tracked)->not->toBeNull()
+        ->and($tracked->sync_state)->toBe(DanamojoDonation::STATE_NOTIFIED)
+        ->and($tracked->dm_status)->toBe('SUCCESS')
+        ->and($tracked->sid)->toBe('ijqvw')
+        ->and($tracked->utm_source)->toBe('meta');
+
+    Illuminate\Support\Facades\Queue::assertPushed(App\Jobs\ImportDanamojoDonationJob::class);
+});
+
+it('copies saved tracking onto the paid order when danamojo later verifies', function () {
+    config([
+        'danamojo.api_key_secret' => 'test-secret',
+        'danamojo.queue_sheet_on_import' => false,
+        'danamojo.send_receipt_email_on_import' => false,
+        'danamojo.send_whatsapp_on_import' => false,
+    ]);
+
+    $marketer = App\Models\User::factory()->withReferralCode('ijqvw')->create();
+
+    Cause::factory()->create([
+        'title' => 'Old Age Home',
+        'slug' => 'old-age-home',
+    ]);
+
+    $importer = app(DanamojoDonationImporter::class);
+    $importer->recordNotify(397101, [
+        'dmStatus' => 'SUCCESS',
+        'sid' => 'ijqvw',
+        'utm_source' => 'meta',
+        'utm_campaign' => 'Old Age Home Campaign',
+        'landing_url' => 'https://sadbhavnadham.org/donate/danamojo-widget/old-age-home?sid=ijqvw&utm_source=meta&utm_campaign=Old%20Age%20Home%20Campaign',
+    ]);
+
+    Http::fake([
+        'api.danamojo.org/*' => Http::response([
+            'status' => 1,
+            'data' => [sampleDanamojoDonation([
+                'donationInfoId' => 397101,
+                'donation_details' => [[
+                    'donationProductName' => 'Old Age Home',
+                    'donationProductQty' => 1,
+                    'receiptNumber' => 'DM-397101',
+                ]],
+                'refererUrl' => 'https://sadbhavnadham.org/donate/danamojo-widget/old-age-home',
+            ])],
+        ], 200),
+    ]);
+
+    expect($importer->importByDonationInfoId(397101))->toBe('imported');
+
+    $order = DonationOrder::query()->where('provider_order_id', 'danamojo-397101')->first();
+    expect($order)->not->toBeNull()
+        ->and($order->utm_source)->toBe('meta')
+        ->and($order->partner_user_id)->toBe($marketer->id)
+        ->and($order->partner_code)->toBe('ijqvw');
+
+    $tracked = DanamojoDonation::query()->where('donation_info_id', 397101)->first();
+    expect($tracked->sync_state)->toBe(DanamojoDonation::STATE_IMPORTED)
+        ->and($tracked->donation_order_id)->toBe($order->id);
 });
 
 it('runs danamojo sync artisan command', function () {

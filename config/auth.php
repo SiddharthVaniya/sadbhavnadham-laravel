@@ -112,4 +112,10 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    | When false, staff can sign in with email and password only.
+    | Trusted-device fingerprint checks stay in code but are skipped.
+    */
+    'require_device_fingerprint' => (bool) env('ADMIN_REQUIRE_DEVICE_FINGERPRINT', false),
+
 ];
