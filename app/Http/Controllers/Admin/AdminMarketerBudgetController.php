@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\UpdateMarketerDailyBudgetsRequest;
 use App\Http\Requests\Admin\UpdateMarketerMonthlyBudgetsRequest;
+use App\Models\MarketerDailyBudget;
 use App\Models\User;
 use App\Support\MarketerDailyBudgetService;
 use App\Support\MarketerMonthlyBudgetService;
@@ -56,14 +57,13 @@ class AdminMarketerBudgetController extends Controller
 
     public function today(Request $request): Response
     {
-        $editingYesterday = $request->query('day') === 'yesterday';
-        $reference = $editingYesterday ? now()->subDay() : now();
+        $reference = $this->selectedSpendDate($request->query('date'));
         $payload = MarketerDailyBudgetService::todayIndex($reference);
 
         return Inertia::render('Admin/Marketers/Today', [
-            'editingYesterday' => $editingYesterday,
             'spendDate' => $payload['spend_date'],
             'spendDateLabel' => $payload['spend_date_label'],
+            'maxDate' => now()->toDateString(),
             'yearMonth' => $payload['year_month'],
             'yearMonthLabel' => $payload['year_month_label'],
             'marketers' => $payload['marketers'],
@@ -84,25 +84,59 @@ class AdminMarketerBudgetController extends Controller
                 continue;
             }
 
-            $limit = array_key_exists('limit_amount', $row) && $row['limit_amount'] !== null && $row['limit_amount'] !== ''
-                ? (float) $row['limit_amount']
-                : null;
+            $existingDaily = MarketerDailyBudget::query()
+                ->where('user_id', $user->id)
+                ->whereDate('spend_date', $reference->toDateString())
+                ->first();
 
             MarketerDailyBudgetService::upsertForDate(
                 $user,
-                $limit,
+                $existingDaily?->limit_amount !== null ? (float) $existingDaily->limit_amount : null,
                 $row['spend_amount'] ?? 0,
                 $reference,
             );
 
             MarketerMonthlyBudgetService::syncSpendFromDaily($user, $reference);
+
+            if (array_key_exists('month_limit_amount', $row)) {
+                $monthLimit = $row['month_limit_amount'] !== null && $row['month_limit_amount'] !== ''
+                    ? (int) $row['month_limit_amount']
+                    : null;
+                $synced = MarketerMonthlyBudgetService::forUserMonth($user, $reference);
+
+                MarketerMonthlyBudgetService::upsertForCurrentMonth(
+                    $user,
+                    $monthLimit,
+                    $synced['spend_amount'],
+                    $reference,
+                );
+            }
         }
 
-        $editingYesterday = $reference->toDateString() === now()->subDay()->toDateString();
-
         return redirect()
-            ->route('admin.marketers.today', $editingYesterday ? ['day' => 'yesterday'] : [])
-            ->with('status', $editingYesterday ? 'Yesterday’s spending limits saved.' : 'Today’s spending limits saved.');
+            ->route('admin.marketers.today', ['date' => $reference->toDateString()])
+            ->with('status', 'Spending for '.$reference->format('d M Y').' saved.');
+    }
+
+    private function selectedSpendDate(mixed $value): Carbon
+    {
+        if (! is_string($value) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) {
+            return now();
+        }
+
+        $date = Carbon::createFromFormat('Y-m-d', $value);
+
+        if (! $date instanceof Carbon || $date->format('Y-m-d') !== $value) {
+            return now();
+        }
+
+        $date = $date->startOfDay();
+
+        if ($date->isFuture()) {
+            return now();
+        }
+
+        return $date;
     }
 
     public function history(Request $request): Response

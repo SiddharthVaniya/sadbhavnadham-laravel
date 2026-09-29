@@ -23,9 +23,9 @@ class MarketerDailyBudgetService
      *         name: string,
      *         email: string,
      *         code: string,
-     *         month_target_amount: ?int,
+     *         month_limit_amount: ?int,
      *         month_spend_amount: float,
-     *         limit_amount: ?float,
+     *         remaining_limit_amount: ?float,
      *         spend_amount: float
      *     }>
      * }
@@ -54,9 +54,11 @@ class MarketerDailyBudgetService
                     'name' => $marketer['name'],
                     'email' => $marketer['email'],
                     'code' => $marketer['code'],
-                    'month_target_amount' => $marketer['target_amount'],
+                    'month_limit_amount' => $marketer['target_amount'],
                     'month_spend_amount' => (float) $marketer['spend_amount'],
-                    'limit_amount' => $daily?->limit_amount !== null ? (float) $daily->limit_amount : null,
+                    'remaining_limit_amount' => $marketer['target_amount'] === null
+                        ? null
+                        : (float) $marketer['target_amount'] - (float) $marketer['spend_amount'],
                     'spend_amount' => (float) ($daily?->spend_amount ?? 0),
                 ];
             })->values()->all(),
@@ -73,16 +75,28 @@ class MarketerDailyBudgetService
             ? 0.0
             : (float) $spendAmount;
 
-        return MarketerDailyBudget::query()->updateOrCreate(
-            [
-                'user_id' => $user->id,
-                'spend_date' => MarketerDailyBudget::todayDate($reference),
-            ],
-            [
-                'limit_amount' => $limitAmount,
-                'spend_amount' => $spend,
-            ],
-        );
+        $attributes = [
+            'limit_amount' => $limitAmount,
+            'spend_amount' => $spend,
+        ];
+
+        $existing = MarketerDailyBudget::query()
+            ->where('user_id', $user->id)
+            ->whereDate('spend_date', MarketerDailyBudget::todayDate($reference))
+            ->first();
+
+        if ($existing) {
+            $existing->fill($attributes);
+            $existing->save();
+
+            return $existing;
+        }
+
+        return MarketerDailyBudget::query()->create([
+            'user_id' => $user->id,
+            'spend_date' => MarketerDailyBudget::todayDate($reference),
+            ...$attributes,
+        ]);
     }
 
     /**

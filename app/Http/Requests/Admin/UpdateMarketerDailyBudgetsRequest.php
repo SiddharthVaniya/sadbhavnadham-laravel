@@ -4,7 +4,6 @@ namespace App\Http\Requests\Admin;
 
 use App\Support\AdminPermissions;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateMarketerDailyBudgetsRequest extends FormRequest
 {
@@ -28,10 +27,10 @@ class UpdateMarketerDailyBudgetsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'spend_date' => ['nullable', 'date', Rule::in([now()->toDateString(), now()->subDay()->toDateString()])],
+            'spend_date' => ['nullable', 'date', 'before_or_equal:today'],
             'marketers' => ['required', 'array', 'min:1'],
             'marketers.*.user_id' => ['required', 'integer', 'exists:users,id'],
-            'marketers.*.limit_amount' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
+            'marketers.*.month_limit_amount' => ['nullable', 'integer', 'min:0', 'max:10000000'],
             'marketers.*.spend_amount' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
         ];
     }

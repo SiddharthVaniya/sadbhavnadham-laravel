@@ -1,7 +1,8 @@
 <script setup>
 import { computed, reactive, watch } from 'vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, router, useForm } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
+import FormDatePicker from '@/Components/Admin/FormDatePicker.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
 import MarketerBudgetTabs from '@/Components/Admin/MarketerBudgetTabs.vue';
 import { Button } from '@/Components/ui/button';
@@ -17,9 +18,9 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/ui/card';
 
 const props = defineProps({
-    editingYesterday: { type: Boolean, default: false },
     spendDate: { type: String, required: true },
     spendDateLabel: { type: String, required: true },
+    maxDate: { type: String, required: true },
     yearMonthLabel: { type: String, required: true },
     marketers: { type: Array, default: () => [] },
 });
@@ -29,9 +30,9 @@ const blank = (marketer) => ({
     name: marketer.name,
     email: marketer.email,
     code: marketer.code,
-    month_target_amount: marketer.month_target_amount,
+    month_limit_amount: marketer.month_limit_amount ?? '',
     month_spend_amount: marketer.month_spend_amount,
-    limit_amount: marketer.limit_amount ?? '',
+    saved_spend_amount: marketer.spend_amount ?? 0,
     spend_amount: marketer.spend_amount ?? '',
 });
 
@@ -50,8 +51,26 @@ const form = useForm({
     marketers: [],
 });
 
-const totalLimit = computed(() =>
-    rows.reduce((sum, row) => sum + (Number(row.limit_amount) || 0), 0),
+const isToday = computed(() => props.spendDate === props.maxDate);
+
+const monthSpend = (row) => {
+    const savedMonth = Number(row.month_spend_amount) || 0;
+    const savedDay = Number(row.saved_spend_amount) || 0;
+    const currentDay = row.spend_amount === '' || row.spend_amount === null ? 0 : Number(row.spend_amount);
+
+    return savedMonth - savedDay + currentDay;
+};
+
+const remainingLimit = (row) => {
+    if (row.month_limit_amount === '' || row.month_limit_amount === null) {
+        return null;
+    }
+
+    return Number(row.month_limit_amount) - monthSpend(row);
+};
+
+const totalRemaining = computed(() =>
+    rows.reduce((sum, row) => sum + (remainingLimit(row) || 0), 0),
 );
 
 const formatMoney = (amount) =>
@@ -61,15 +80,25 @@ const save = () => {
     form.spend_date = props.spendDate;
     form.marketers = rows.map((row) => ({
         user_id: row.user_id,
-        limit_amount: row.limit_amount === '' || row.limit_amount === null
+        month_limit_amount: row.month_limit_amount === '' || row.month_limit_amount === null
             ? null
-            : Number(row.limit_amount),
+            : Number(row.month_limit_amount),
         spend_amount: row.spend_amount === '' || row.spend_amount === null
             ? 0
             : Number(row.spend_amount),
     }));
 
     form.put('/admin/marketers/today', { preserveScroll: true });
+};
+
+const openDate = (value) => {
+    if (! value || value === props.spendDate) {
+        return;
+    }
+
+    router.get('/admin/marketers/today', { date: value }, {
+        preserveScroll: true,
+    });
 };
 </script>
 
@@ -79,42 +108,38 @@ const save = () => {
         <template #header>Marketers</template>
 
         <PageHeader
-            :title="editingYesterday ? 'Yesterday spending limit' : 'Today spending limit'"
-            :subtitle="editingYesterday
-                ? `Correct yesterday’s limit and spend · ${spendDateLabel}`
-                : `Main admin sets today’s ad spend cap · ${spendDateLabel} · month target is ${yearMonthLabel}`"
+            title="Today spending"
+            :subtitle="`Set the monthly spending limit and today’s spend · ${spendDateLabel} · ${yearMonthLabel}`"
         >
             <template #actions>
-                <Button v-if="editingYesterday" as-child variant="outline">
-                    <Link href="/admin/marketers/today">Back to today</Link>
-                </Button>
-                <Button v-else as-child variant="outline">
-                    <Link href="/admin/marketers/today?day=yesterday">Edit yesterday</Link>
-                </Button>
                 <Button type="button" :disabled="form.processing || ! rows.length" @click="save">
-                    {{ form.processing ? 'Saving…' : (editingYesterday ? 'Save yesterday' : 'Save today’s limits') }}
+                    {{ form.processing ? 'Saving…' : (isToday ? 'Save today' : `Save ${spendDateLabel}`) }}
                 </Button>
             </template>
         </PageHeader>
 
         <MarketerBudgetTabs current="today" />
 
-        <div class="mb-4 flex flex-wrap gap-2 text-sm">
-            <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
-                {{ formatMoney(totalLimit) }} total daily limit
-            </span>
-            <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 font-mono text-muted-foreground">
-                {{ spendDate }}
+        <div class="mb-4 flex flex-wrap items-end gap-3">
+            <div class="w-full max-w-xs">
+                <FormDatePicker
+                    :model-value="spendDate"
+                    label="Date"
+                    placeholder="Select a date"
+                    :max="maxDate"
+                    @update:model-value="openDate"
+                />
+            </div>
+            <span class="mb-2 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-sm tabular-nums">
+                {{ formatMoney(totalRemaining) }} remaining limit
             </span>
         </div>
 
         <Card class="shadow-none">
             <CardHeader class="pb-2">
-                <CardTitle class="text-base">{{ editingYesterday ? 'Yesterday' : 'Today' }}</CardTitle>
+                <CardTitle class="text-base">{{ spendDateLabel }}</CardTitle>
                 <CardDescription>
-                    {{ editingYesterday
-                        ? 'These values are saved on yesterday’s date and counted in that month’s spend.'
-                        : 'This month’s target is shown for reference. Use Edit yesterday if a day’s limit or spend was missed.' }}
+                    Pick a date to edit that day’s spend. The monthly spending limit is the cap for {{ yearMonthLabel }}. Remaining limit is that cap minus spend so far this month.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -125,10 +150,10 @@ const save = () => {
                         <TableRow>
                             <TableHead>Marketer</TableHead>
                             <TableHead>Code</TableHead>
-                            <TableHead>This month target</TableHead>
-                            <TableHead>This month spend</TableHead>
-                            <TableHead class="w-[170px]">{{ editingYesterday ? 'Yesterday' : 'Today' }} limit (₹)</TableHead>
-                            <TableHead class="w-[170px]">{{ editingYesterday ? 'Yesterday' : 'Today' }} spend (₹)</TableHead>
+                            <TableHead class="w-[190px]">Monthly spending limit (₹)</TableHead>
+                            <TableHead>Month spend</TableHead>
+                            <TableHead>Remaining limit</TableHead>
+                            <TableHead class="w-[170px]">Spend (₹)</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -140,18 +165,23 @@ const save = () => {
                             <TableCell>
                                 <span class="font-mono text-sm text-muted-foreground">{{ row.code }}</span>
                             </TableCell>
-                            <TableCell class="tabular-nums">{{ formatMoney(row.month_target_amount) }}</TableCell>
-                            <TableCell class="tabular-nums">{{ formatMoney(row.month_spend_amount) }}</TableCell>
                             <TableCell>
                                 <Input
-                                    v-model="row.limit_amount"
+                                    v-model="row.month_limit_amount"
                                     type="number"
                                     min="0"
                                     step="1"
-                                    placeholder="e.g. 2000"
+                                    placeholder="e.g. 50000"
                                     class="tabular-nums"
-                                    :aria-invalid="Boolean(form.errors[`marketers.${index}.limit_amount`])"
+                                    :aria-invalid="Boolean(form.errors[`marketers.${index}.month_limit_amount`])"
                                 />
+                            </TableCell>
+                            <TableCell class="tabular-nums">{{ formatMoney(monthSpend(row)) }}</TableCell>
+                            <TableCell
+                                class="tabular-nums font-medium"
+                                :class="remainingLimit(row) !== null && remainingLimit(row) < 0 ? 'text-destructive' : ''"
+                            >
+                                {{ remainingLimit(row) === null ? '—' : formatMoney(remainingLimit(row)) }}
                             </TableCell>
                             <TableCell>
                                 <Input

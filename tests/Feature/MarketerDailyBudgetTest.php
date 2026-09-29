@@ -44,21 +44,21 @@ it('lets the main admin set today’s spending limit and keeps the month target 
         ->assertInertia(fn (Assert $page) => $page
             ->component('Admin/Marketers/Today')
             ->where('marketers.0.user_id', $marketer->id)
-            ->where('marketers.0.month_target_amount', 50000)
+            ->where('marketers.0.month_limit_amount', 50000)
             ->where('marketers.0.month_spend_amount', 0)
-            ->where('marketers.0.limit_amount', null));
+            ->where('marketers.0.remaining_limit_amount', 50000));
 
     actingAs($admin)
         ->put(route('admin.marketers.today.update'), [
             'marketers' => [
                 [
                     'user_id' => $marketer->id,
-                    'limit_amount' => 2000,
+                    'month_limit_amount' => 60000,
                     'spend_amount' => 750,
                 ],
             ],
         ])
-        ->assertRedirect(route('admin.marketers.today'));
+        ->assertRedirect(route('admin.marketers.today', ['date' => now()->toDateString()]));
 
     $daily = MarketerDailyBudget::query()
         ->where('user_id', $marketer->id)
@@ -66,7 +66,7 @@ it('lets the main admin set today’s spending limit and keeps the month target 
         ->first();
 
     expect($daily)->not->toBeNull()
-        ->and((float) $daily->limit_amount)->toBe(2000.0)
+        ->and($daily->limit_amount)->toBeNull()
         ->and((float) $daily->spend_amount)->toBe(750.0);
 
     $month = MarketerMonthlyBudget::query()
@@ -74,45 +74,83 @@ it('lets the main admin set today’s spending limit and keeps the month target 
         ->where('year_month', now()->format('Y-m'))
         ->first();
 
-    expect((float) $month->spend_amount)->toBe(750.0);
+    expect((float) $month->spend_amount)->toBe(750.0)
+        ->and($month->target_amount)->toBe(60000);
 });
 
-it('saves yesterday when the edit yesterday button date is posted', function () {
+it('loads and saves the daily limit for a calendar date', function () {
     $admin = dailyBudgetAdmin();
     $marketer = User::factory()->create([
         'name' => 'Ashvini',
         'referral_code' => 'xvjsrg',
     ]);
-    $yesterday = now()->subDay()->toDateString();
+    $selected = now()->subDays(4)->toDateString();
+
+    MarketerDailyBudget::query()->create([
+        'user_id' => $marketer->id,
+        'spend_date' => $selected,
+        'limit_amount' => 400,
+        'spend_amount' => 120,
+    ]);
 
     actingAs($admin)
-        ->get(route('admin.marketers.today', ['day' => 'yesterday']))
+        ->get(route('admin.marketers.today', ['date' => $selected]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->where('editingYesterday', true)
-            ->where('spendDate', $yesterday));
+            ->where('spendDate', $selected)
+            ->where('marketers.0.spend_amount', 120)
+            ->where('marketers.0.month_spend_amount', 120)
+            ->where('marketers.0.remaining_limit_amount', null));
+
+    actingAs($admin)
+        ->get(route('admin.marketers.today', ['date' => now()->addDay()->toDateString()]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->where('spendDate', now()->toDateString()));
 
     actingAs($admin)
         ->put(route('admin.marketers.today.update'), [
-            'spend_date' => $yesterday,
+            'spend_date' => $selected,
             'marketers' => [
                 [
                     'user_id' => $marketer->id,
-                    'limit_amount' => 900,
+                    'month_limit_amount' => 1000,
                     'spend_amount' => 300,
                 ],
             ],
         ])
-        ->assertRedirect(route('admin.marketers.today', ['day' => 'yesterday']));
+        ->assertRedirect(route('admin.marketers.today', ['date' => $selected]));
+
+    actingAs($admin)
+        ->put(route('admin.marketers.today.update'), [
+            'spend_date' => now()->addDay()->toDateString(),
+            'marketers' => [
+                [
+                    'user_id' => $marketer->id,
+                    'month_limit_amount' => 1,
+                    'spend_amount' => 1,
+                ],
+            ],
+        ])
+        ->assertSessionHasErrors('spend_date');
 
     $daily = MarketerDailyBudget::query()
         ->where('user_id', $marketer->id)
-        ->whereDate('spend_date', $yesterday)
+        ->whereDate('spend_date', $selected)
         ->first();
 
     expect($daily)->not->toBeNull()
-        ->and((float) $daily->limit_amount)->toBe(900.0)
+        ->and((float) $daily->limit_amount)->toBe(400.0)
         ->and((float) $daily->spend_amount)->toBe(300.0);
+
+    $month = MarketerMonthlyBudget::query()
+        ->where('user_id', $marketer->id)
+        ->where('year_month', now()->subDays(4)->format('Y-m'))
+        ->first();
+
+    expect($month)->not->toBeNull()
+        ->and($month->target_amount)->toBe(1000)
+        ->and((float) $month->spend_amount)->toBe(300.0);
 });
 
 it('lists spending history with the month target and archive filters', function () {
