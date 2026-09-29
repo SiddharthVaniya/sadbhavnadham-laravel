@@ -79,6 +79,9 @@ class DonationOrder extends Model
         // tracking / recovery fields
         'paid_at',
         'failed_at',
+        'refunded_at',
+        'razorpay_refund_id',
+        'refund_amount',
         'receipt_sent_at',
         'sheet_logged_at',
         'failed_sheet_logged_at',
@@ -117,6 +120,8 @@ class DonationOrder extends Model
 
         'paid_at' => 'datetime',
         'failed_at' => 'datetime',
+        'refunded_at' => 'datetime',
+        'refund_amount' => 'decimal:2',
         'receipt_sent_at' => 'datetime',
         'receipt_failed_at' => 'datetime',
         'sheet_logged_at' => 'datetime',
@@ -251,6 +256,16 @@ class DonationOrder extends Model
         LogFailedDonationFollowUpSheetJob::dispatch($this);
     }
 
+    public function markAsRefunded(?string $razorpayRefundId = null, ?float $refundAmount = null): void
+    {
+        $this->update([
+            'status' => self::STATUS_REFUNDED,
+            'refunded_at' => now(),
+            'razorpay_refund_id' => $razorpayRefundId,
+            'refund_amount' => $refundAmount ?? $this->total_amount,
+        ]);
+    }
+
     /* ==========================
      |  State Helpers
      ========================== */
@@ -293,6 +308,11 @@ class DonationOrder extends Model
     public function isFailed(): bool
     {
         return $this->status === self::STATUS_FAILED;
+    }
+
+    public function isRefunded(): bool
+    {
+        return $this->status === self::STATUS_REFUNDED;
     }
 
     public function isPending(): bool

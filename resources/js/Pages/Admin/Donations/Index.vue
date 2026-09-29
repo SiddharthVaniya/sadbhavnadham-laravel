@@ -93,6 +93,7 @@ const statusTabs = computed(() => [
     { key: 'paid', label: 'Paid', count: props.statusCounts.paid ?? 0 },
     { key: 'pending', label: 'Pending', count: props.statusCounts.pending ?? 0 },
     { key: 'failed', label: 'Failed', count: props.statusCounts.failed ?? 0 },
+    { key: 'refunded', label: 'Refunded', count: props.statusCounts.refunded ?? 0 },
 ]);
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;

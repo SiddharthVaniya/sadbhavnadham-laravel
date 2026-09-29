@@ -145,6 +145,11 @@ class AdminNavigation
                 'label' => 'Marketers',
                 'route' => 'admin.marketers.index',
                 'permissions_any' => [AdminPermissions::USER_EDIT, AdminPermissions::MANAGE_USERS],
+                'children' => [
+                    ['label' => 'This month', 'route' => 'admin.marketers.index'],
+                    ['label' => 'Today limit', 'route' => 'admin.marketers.today'],
+                    ['label' => 'Spending history', 'route' => 'admin.marketers.history'],
+                ],
             ],
             [
                 'label' => 'Departments',

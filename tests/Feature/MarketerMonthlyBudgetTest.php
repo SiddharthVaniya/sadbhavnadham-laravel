@@ -181,6 +181,19 @@ it('lets admins bulk-edit this month target and spend on the marketers page', fu
         'referral_code' => 'ac',
     ]);
 
+    \App\Models\MarketerDailyBudget::query()->create([
+        'user_id' => $marketer->id,
+        'spend_date' => now()->startOfMonth()->toDateString(),
+        'limit_amount' => 1000,
+        'spend_amount' => 400,
+    ]);
+    \App\Models\MarketerDailyBudget::query()->create([
+        'user_id' => $marketer->id,
+        'spend_date' => now()->toDateString(),
+        'limit_amount' => 1000,
+        'spend_amount' => 250,
+    ]);
+
     actingAs($admin)
         ->get(route('admin.marketers.index'))
         ->assertOk()
@@ -188,7 +201,8 @@ it('lets admins bulk-edit this month target and spend on the marketers page', fu
             ->component('Admin/Marketers/Index')
             ->has('marketers', 1)
             ->where('marketers.0.user_id', $marketer->id)
-            ->where('marketers.0.code', 'ac'));
+            ->where('marketers.0.code', 'ac')
+            ->where('marketers.0.spend_amount', 650));
 
     actingAs($admin)
         ->put(route('admin.marketers.update'), [
@@ -209,5 +223,5 @@ it('lets admins bulk-edit this month target and spend on the marketers page', fu
 
     expect($budget)->not->toBeNull()
         ->and($budget->target_amount)->toBe(75000)
-        ->and((float) $budget->spend_amount)->toBe(9200.0);
+        ->and((float) $budget->spend_amount)->toBe(650.0);
 });

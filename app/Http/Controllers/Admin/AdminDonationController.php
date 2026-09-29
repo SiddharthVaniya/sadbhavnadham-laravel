@@ -15,6 +15,7 @@ use App\Services\AnalyticsService;
 use App\Services\DonationAttributionService;
 use App\Services\DonationPaymentService;
 use App\Services\PostalCodeLookupService;
+use App\Services\RazorpayRefundService;
 use App\Support\AdminInertiaData;
 use App\Support\AdminInertiaResources;
 use App\Support\DonationVisibility;
@@ -22,6 +23,7 @@ use App\Support\PanRequirementService;
 use App\Support\PeriodRange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -160,6 +162,7 @@ class AdminDonationController extends Controller
                 'paid' => (int) ($statusCounts[DonationOrder::STATUS_PAID] ?? 0),
                 'pending' => (int) ($statusCounts[DonationOrder::STATUS_PENDING] ?? 0),
                 'failed' => (int) ($statusCounts[DonationOrder::STATUS_FAILED] ?? 0),
+                'refunded' => (int) ($statusCounts[DonationOrder::STATUS_REFUNDED] ?? 0),
             ],
             'paymentMethodBreakdown' => $paymentMethodBreakdown->map(fn (object $method) => [
                 'name' => $method->name,
@@ -595,6 +598,19 @@ class AdminDonationController extends Controller
         toastr()->success($message);
 
         return $redirect->with('status', $message);
+    }
+
+    public function refund(DonationOrder $donationOrder, RazorpayRefundService $refunds): RedirectResponse
+    {
+        $this->authorize('update', $donationOrder);
+
+        $refunds->refund($donationOrder);
+
+        toastr()->success('Donation refunded.');
+
+        return redirect()
+            ->route('admin.donations.show', $donationOrder)
+            ->with('status', 'Donation refunded.');
     }
 
     private function updateOfflineDonation(UpdateDonationOrderRequest $request, DonationOrder $donationOrder): void

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\DonationPaymentService;
 use App\Services\DonationSubscriptionWebhookService;
+use App\Services\RazorpayRefundService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -14,6 +15,7 @@ class WebhookController extends Controller
     public function __construct(
         private DonationPaymentService $donationPaymentService,
         private DonationSubscriptionWebhookService $subscriptionWebhookService,
+        private RazorpayRefundService $razorpayRefundService,
     ) {}
 
     /**
@@ -31,6 +33,12 @@ class WebhookController extends Controller
                 Log::warning('Razorpay webhook without event name', $payload ?? []);
 
                 return response()->json(['status' => 'ignored'], 200);
+            }
+
+            if ($event === 'refund.processed') {
+                $this->handleRefundProcessed(is_array($payload) ? $payload : []);
+
+                return response()->json(['status' => 'ok'], 200);
             }
 
             if (str_starts_with($event, 'subscription.')) {
@@ -115,6 +123,41 @@ class WebhookController extends Controller
                 'status' => 'error',
                 'message' => 'Webhook processing failed',
             ], 500);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function handleRefundProcessed(array $payload): void
+    {
+        $refund = $payload['payload']['refund']['entity'] ?? null;
+        $payment = $payload['payload']['payment']['entity'] ?? null;
+
+        $paymentId = is_array($refund) ? ($refund['payment_id'] ?? null) : null;
+
+        if (! is_string($paymentId) || $paymentId === '') {
+            $paymentId = is_array($payment) ? ($payment['id'] ?? null) : null;
+        }
+
+        if (! is_string($paymentId) || $paymentId === '') {
+            Log::warning('Razorpay refund.processed without payment id');
+
+            return;
+        }
+
+        $refundId = is_array($refund) && is_string($refund['id'] ?? null) ? $refund['id'] : null;
+        $amountPaise = is_array($refund) && is_numeric($refund['amount'] ?? null)
+            ? (int) $refund['amount']
+            : null;
+
+        $updated = $this->razorpayRefundService->markRefundedFromWebhook($paymentId, $refundId, $amountPaise);
+
+        if (! $updated) {
+            Log::info('Razorpay refund.processed did not update an order', [
+                'payment_id' => $paymentId,
+                'refund_id' => $refundId,
+            ]);
         }
     }
 

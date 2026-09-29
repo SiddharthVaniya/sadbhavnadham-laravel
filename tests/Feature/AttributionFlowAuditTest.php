@@ -116,7 +116,7 @@ it('sets the attribution cookie when the visitor lands on bank details', functio
         ->assertCookie('donation_analytics_utm');
 });
 
-it('keeps first-touch meta when a later employee link is opened', function () {
+it('replaces a stored meta click when a later employee link is opened', function () {
     $partner = User::factory()->create(['referral_code' => 'ashvini']);
     $order = auditOrder('audit-meta-then-staff');
 
@@ -135,13 +135,13 @@ it('keeps first-touch meta when a later employee link is opened', function () {
 
     $order->refresh();
 
-    expect($order->utm_source)->toBe('meta')
-        ->and($order->utm_campaign)->toBe('tree_plantation_august')
-        ->and($order->meta_campaign_id)->toBe('120211')
-        ->and($order->meta_ad_id)->toBe('120213')
+    expect($order->utm_source)->toBe('staff')
+        ->and($order->utm_medium)->toBe('referral')
+        ->and($order->utm_content)->toBe('ashvini')
+        ->and($order->utm_campaign)->toBeNull()
         ->and($order->partner_user_id)->toBe($partner->id)
         ->and($order->partner_code)->toBe('ashvini')
-        ->and($order->attr_source)->toBe('meta');
+        ->and($order->meta_campaign_id)->toBeNull();
 });
 
 it('lets a later Meta ad click replace a prior WhatsApp/staff cookie touch', function () {
@@ -175,8 +175,8 @@ it('lets a later Meta ad click replace a prior WhatsApp/staff cookie touch', fun
         ->and($staff->id)->not->toBe($order->partner_user_id);
 });
 
-it('keeps first-touch Meta when a later WhatsApp link without Meta placement arrives', function () {
-    $partner = User::factory()->create(['referral_code' => 'ashvini']);
+it('replaces a stored meta click when a later whatsapp link arrives', function () {
+    User::factory()->create(['referral_code' => 'ashvini']);
     $order = auditOrder('audit-meta-then-whatsapp');
 
     checkoutWithCookie($order, [
@@ -195,12 +195,13 @@ it('keeps first-touch Meta when a later WhatsApp link without Meta placement arr
 
     $order->refresh();
 
-    expect($order->utm_campaign)->toBe('first-meta')
-        ->and($order->partner_user_id)->toBe($partner->id)
-        ->and($order->partner_code)->toBe('ashvini');
+    expect($order->utm_campaign)->toBe('tree')
+        ->and($order->utm_medium)->toBe('whatsapp')
+        ->and($order->partner_code)->toBe('someone-else')
+        ->and($order->partner_user_id)->toBeNull();
 });
 
-it('fills an empty partner slot when a later employee link arrives after meta', function () {
+it('replaces a stored meta click when a later employee link fills the partner', function () {
     $partner = User::factory()->create(['referral_code' => 'kiran']);
     $order = auditOrder('audit-meta-fill-sid');
 
@@ -215,8 +216,34 @@ it('fills an empty partner slot when a later employee link arrives after meta', 
 
     $order->refresh();
 
-    expect($order->utm_source)->toBe('meta')
-        ->and($order->partner_user_id)->toBe($partner->id);
+    expect($order->utm_source)->toBe('staff')
+        ->and($order->utm_medium)->toBeNull()
+        ->and($order->partner_user_id)->toBe($partner->id)
+        ->and($order->partner_code)->toBe('kiran');
+});
+
+it('drops a stored urvi sid when a later divyjeet campaign url has no sid', function () {
+    $urvi = User::factory()->create(['referral_code' => 'cpufaju', 'name' => 'Urvi Soni']);
+    $order = auditOrder('audit-urvi-then-divyjeet');
+
+    checkoutWithCookie($order, [
+        'utm_source' => 'meta',
+        'utm_medium' => 'Instagram_Stories',
+        'utm_campaign' => 'Divyjeet | 27/09 | Old Age Punjab',
+        'utm_content' => 'Divyjeet | 27/09 | Old Age Punjab - Hindi reel 1',
+    ], [
+        'utm_source' => 'meta',
+        'utm_medium' => 'paid_social',
+        'utm_campaign' => 'Urvi | 7/9/26 | ABO Sales',
+        'utm_content' => 'Urvi | Sales | OAH S21',
+        'sid' => 'cpufaju',
+    ]);
+
+    $order->refresh();
+
+    expect($order->utm_campaign)->toBe('Divyjeet | 27/09 | Old Age Punjab')
+        ->and($order->partner_user_id)->not->toBe($urvi->id)
+        ->and($order->partner_code)->not->toBe('cpufaju');
 });
 
 it('still has attribution after payment is confirmed only by webhook', function () {

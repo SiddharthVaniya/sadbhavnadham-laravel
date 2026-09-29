@@ -23,6 +23,7 @@ const canGenerateReceipts = computed(() =>
     || canManageReceipts.value
 );
 const resending = ref(false);
+const refunding = ref(false);
 const generating = ref(false);
 const queuingAction = ref(null);
 const certificateUrl = ref(props.donation.certificate_url || null);
@@ -408,6 +409,25 @@ const paymentLinkEmailButtonLabel = computed(() => {
         : 'Link email';
 });
 
+const refundDonation = () => {
+    if (!props.donation.refund_url || refunding.value) {
+        return;
+    }
+
+    if (!window.confirm('Refund this donation in full through Razorpay? This cannot be undone.')) {
+        return;
+    }
+
+    refunding.value = true;
+
+    router.post(props.donation.refund_url, {}, {
+        preserveScroll: true,
+        onFinish: () => {
+            refunding.value = false;
+        },
+    });
+};
+
 const paymentLinkSmsButtonLabel = computed(() => {
     if (queuingAction.value === 'payment_link_sms') {
         return '…';
@@ -425,6 +445,15 @@ const paymentLinkSmsButtonLabel = computed(() => {
         <template #header>Donation details</template>
         <PageHeader :title="`Donation ${donation.payment_id}`" :subtitle="donation.created_date">
             <template #actions>
+                <button
+                    v-if="donation.can_refund"
+                    type="button"
+                    class="rounded-lg border border-rose-300 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-800 disabled:opacity-60"
+                    :disabled="refunding"
+                    @click="refundDonation"
+                >
+                    {{ refunding ? 'Refunding…' : 'Refund' }}
+                </button>
                 <Link
                     v-if="donation.edit_url"
                     :href="donation.edit_url"
@@ -480,6 +509,11 @@ const paymentLinkSmsButtonLabel = computed(() => {
                         <div>
                             <dt class="text-xs uppercase tracking-wide text-muted-foreground">Amount</dt>
                             <dd class="mt-0.5 font-semibold text-foreground">{{ formatMoney(donation.total_amount) }}</dd>
+                            <dd v-if="donation.is_refunded" class="mt-2 space-y-1 text-sm text-muted-foreground">
+                                <div>Refunded {{ formatMoney(donation.refund_amount ?? donation.total_amount) }}</div>
+                                <div v-if="donation.razorpay_refund_id">{{ donation.razorpay_refund_id }}</div>
+                                <div v-if="donation.refunded_at">{{ donation.refunded_at }}</div>
+                            </dd>
                         </div>
                         <div>
                             <dt class="text-xs uppercase tracking-wide text-muted-foreground">Provider</dt>

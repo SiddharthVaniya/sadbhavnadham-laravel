@@ -133,12 +133,56 @@
         return staffCodeFromAttribution(payload);
     };
 
+    const REPLACE_KEYS = [
+        'sid',
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_content',
+        'utm_id',
+        'utm_term',
+    ];
+
+    const incomingReplacesStored = function (stored, incoming) {
+        if (!stored || !incoming) {
+            return false;
+        }
+
+        return REPLACE_KEYS.some(function (key) {
+            const next = incoming[key] ? String(incoming[key]).trim() : '';
+            const current = stored[key] ? String(stored[key]).trim() : '';
+
+            return next !== '' && current !== '' && next !== current;
+        });
+    };
+
+    const captureFresh = function (fromUrl) {
+        if (fromUrl.sid && isNumericId(fromUrl.sid) && !fromUrl.utm_term) {
+            fromUrl.utm_term = fromUrl.sid;
+        }
+
+        const partner = partnerCodeOf(fromUrl);
+
+        if (partner) {
+            fromUrl.sid = partner;
+        }
+
+        delete fromUrl.pid;
+        fromUrl.landing_path = (window.location.pathname + window.location.search).slice(0, 255);
+        writeStored(fromUrl);
+
+        return fromUrl;
+    };
+
     const captureFromLocation = function () {
         const stored = readStored();
         const fromUrl = readFromLocation();
 
-        // Marketing values are first-touch for the tab. Empty keys may still be
-        // filled from a later URL. Partner credit is a separate sticky slot.
+        if (stored && fromUrl && incomingReplacesStored(stored, fromUrl)) {
+            return captureFresh(fromUrl);
+        }
+
+        // Same click can fill empty keys. A different sid or UTM replaces it above.
         if (stored) {
             if (fromUrl) {
                 Object.keys(fromUrl).forEach(function (key) {
@@ -177,25 +221,7 @@
             return null;
         }
 
-        if (fromUrl.sid && isNumericId(fromUrl.sid) && !fromUrl.utm_term) {
-            fromUrl.utm_term = fromUrl.sid;
-        }
-
-        const partner = partnerCodeOf(fromUrl);
-
-        if (partner) {
-            fromUrl.sid = partner;
-        }
-
-        delete fromUrl.pid;
-
-        if (!fromUrl.landing_path) {
-            fromUrl.landing_path = (window.location.pathname + window.location.search).slice(0, 255);
-        }
-
-        writeStored(fromUrl);
-
-        return fromUrl;
+        return captureFresh(fromUrl);
     };
 
     const readFromLocation = function () {

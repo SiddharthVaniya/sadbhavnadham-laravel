@@ -227,6 +227,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::put('/donations/{donationOrder}', [AdminDonationController::class, 'update'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_EDIT))
         ->name('donations.update');
+    Route::post('/donations/{donationOrder}/refund', [AdminDonationController::class, 'refund'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_EDIT))
+        ->name('donations.refund');
 
     Route::get('/reports', [AdminReportsController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::REPORT_VIEW))
@@ -471,6 +474,15 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::put('marketers', [AdminMarketerBudgetController::class, 'update'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
         ->name('marketers.update');
+    Route::get('marketers/today', [AdminMarketerBudgetController::class, 'today'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('marketers.today');
+    Route::put('marketers/today', [AdminMarketerBudgetController::class, 'updateToday'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('marketers.today.update');
+    Route::get('marketers/history', [AdminMarketerBudgetController::class, 'history'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('marketers.history');
 
     Route::get('settings', [AdminSettingController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::SETTINGS_VIEW))

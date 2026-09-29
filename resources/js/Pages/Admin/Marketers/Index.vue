@@ -14,6 +14,7 @@ import {
     TableRow,
 } from '@/Components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/ui/card';
+import MarketerBudgetTabs from '@/Components/Admin/MarketerBudgetTabs.vue';
 
 const props = defineProps({
     yearMonth: { type: String, required: true },
@@ -71,9 +72,6 @@ const save = () => {
         target_amount: row.target_amount === '' || row.target_amount === null
             ? null
             : Number(row.target_amount),
-        spend_amount: row.spend_amount === '' || row.spend_amount === null
-            ? 0
-            : Number(row.spend_amount),
     }));
 
     form.put('/admin/marketers', { preserveScroll: true });
@@ -86,8 +84,8 @@ const save = () => {
         <template #header>Marketers</template>
 
         <PageHeader
-            title="Marketers"
-            :subtitle="`Edit this month target and ad spend · ${yearMonthLabel}`"
+            title="This month target and spending"
+            :subtitle="`Set this month’s target. Spend is the total of daily spend · ${yearMonthLabel}`"
         >
             <template #actions>
                 <Button type="button" :disabled="form.processing || ! rows.length" @click="save">
@@ -95,6 +93,8 @@ const save = () => {
                 </Button>
             </template>
         </PageHeader>
+
+        <MarketerBudgetTabs current="month" />
 
         <div class="mb-4 flex flex-wrap gap-2 text-sm">
             <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
@@ -104,7 +104,7 @@ const save = () => {
                 {{ formatMoney(totalTarget) }} total target
             </span>
             <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
-                {{ formatMoney(totalSpend) }} total spend
+                {{ formatMoney(totalSpend) }} total daily spend
             </span>
             <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 font-mono text-muted-foreground">
                 {{ yearMonth }}
@@ -115,7 +115,7 @@ const save = () => {
             <CardHeader class="pb-2">
                 <CardTitle class="text-base">This month budgets</CardTitle>
                 <CardDescription>
-                    Anyone with a referral code appears here. Values apply to the current calendar month only.
+                    Anyone with a referral code appears here. This month spend is the sum of daily spend and cannot be edited here.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -156,22 +156,8 @@ const save = () => {
                                     {{ form.errors[`marketers.${index}.target_amount`] }}
                                 </p>
                             </TableCell>
-                            <TableCell>
-                                <Input
-                                    v-model="row.spend_amount"
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    placeholder="e.g. 12000"
-                                    class="tabular-nums"
-                                    :aria-invalid="Boolean(form.errors[`marketers.${index}.spend_amount`])"
-                                />
-                                <p
-                                    v-if="form.errors[`marketers.${index}.spend_amount`]"
-                                    class="mt-1 text-xs text-destructive"
-                                >
-                                    {{ form.errors[`marketers.${index}.spend_amount`] }}
-                                </p>
+                            <TableCell class="tabular-nums font-medium">
+                                {{ formatMoney(row.spend_amount) }}
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="! rows.length">

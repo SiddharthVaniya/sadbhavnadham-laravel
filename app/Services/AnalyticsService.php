@@ -298,20 +298,9 @@ class AnalyticsService
     }
 
     /**
-     * Attribution rules (deterministic):
-     *
-     * 1. Marketing UTMs (`utm_*`, platform, placement, Meta ad IDs) are first-touch
-     *    for 30 days. The campaign that originally acquired the visitor is never
-     *    replaced by a later URL.
-     * 2. Partner credit (`sid` / leftover `pid` / staff `utm_content`) is a
-     *    separate first-touch slot. A later employee link can FILL sid if it is
-     *    still empty, but never replace an already captured partner. A later
-     *    Meta link never clears sid.
-     * 3. Empty keys may be filled from a later request (e.g. Meta first without an
-     *    ad id, then a click that includes `aid`).
-     *
-     * This lets an order store both `utm_source=meta` and `partner_user_id=…`
-     * when a visitor hits an ad and later opens an employee's tracking link.
+     * A later URL with a different sid or UTM replaces the stored click.
+     * A page with no new tracking params keeps the latest cookie.
+     * Empty keys on the same click may still be filled.
      *
      * @param  array<string, string>  $stored
      * @param  array<string, string>  $incoming
@@ -319,6 +308,10 @@ class AnalyticsService
      */
     private function firstTouchMerge(array $stored, array $incoming): array
     {
+        if ($stored !== [] && $this->incomingReplacesStored($stored, $incoming)) {
+            return $this->normalizeIncomingAttribution($incoming);
+        }
+
         $payload = $stored;
 
         foreach ($incoming as $key => $value) {
@@ -350,6 +343,49 @@ class AnalyticsService
             $payload['sid'] = $code;
         } elseif (! filled($payload['sid'] ?? null) && filled($incoming['sid'] ?? null)) {
             $payload['sid'] = $incoming['sid'];
+        }
+
+        unset($payload['pid']);
+
+        return $payload;
+    }
+
+    /**
+     * @param  array<string, string>  $stored
+     * @param  array<string, string>  $incoming
+     */
+    private function incomingReplacesStored(array $stored, array $incoming): bool
+    {
+        foreach (['sid', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_id', 'utm_term'] as $key) {
+            $next = trim((string) ($incoming[$key] ?? ''));
+            $current = trim((string) ($stored[$key] ?? ''));
+
+            if ($next !== '' && $current !== '' && $next !== $current) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, string>  $incoming
+     * @return array<string, string>
+     */
+    private function normalizeIncomingAttribution(array $incoming): array
+    {
+        $payload = $incoming;
+        $incomingAdset = AttributionParameters::normalizeAdId($incoming['utm_term'] ?? null)
+            ?? AttributionParameters::normalizeAdId($incoming['sid'] ?? null);
+
+        if (! filled($payload['utm_term'] ?? null) && $incomingAdset !== null) {
+            $payload['utm_term'] = $incomingAdset;
+        }
+
+        $code = AttributionParameters::partnerCodeFromPayload($incoming);
+
+        if ($code !== null) {
+            $payload['sid'] = $code;
         }
 
         unset($payload['pid']);

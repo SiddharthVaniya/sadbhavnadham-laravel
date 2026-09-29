@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\MarketerDailyBudget;
 use App\Models\MarketerMonthlyBudget;
 use App\Models\User;
 use Illuminate\Support\Carbon;
@@ -46,6 +47,20 @@ class MarketerMonthlyBudgetService
                 'target_amount' => $targetAmount,
                 'spend_amount' => $spend,
             ],
+        );
+    }
+
+    public static function syncSpendFromDaily(User $user, ?Carbon $reference = null): void
+    {
+        $reference ??= now();
+        $totals = self::dailySpendTotals([$user->id], $reference);
+        $existing = self::forUserMonth($user, $reference);
+
+        self::upsertForCurrentMonth(
+            $user,
+            $existing['target_amount'],
+            $totals[$user->id] ?? 0,
+            $reference,
         );
     }
 
@@ -111,12 +126,14 @@ class MarketerMonthlyBudgetService
             ->orderBy('name')
             ->get(['id', 'name', 'email', 'referral_code']);
 
-        $budgetMap = self::mapForUsers($users->pluck('id')->all(), $reference);
+        $userIds = $users->pluck('id')->all();
+        $budgetMap = self::mapForUsers($userIds, $reference);
+        $dailySpend = self::dailySpendTotals($userIds, $reference);
 
         return [
             'year_month' => $yearMonth,
             'year_month_label' => $reference->format('F Y'),
-            'marketers' => $users->map(function (User $user) use ($budgetMap): array {
+            'marketers' => $users->map(function (User $user) use ($budgetMap, $dailySpend): array {
                 $budget = $budgetMap[$user->id] ?? ['target_amount' => null, 'spend_amount' => 0.0];
 
                 return [
@@ -125,9 +142,36 @@ class MarketerMonthlyBudgetService
                     'email' => $user->email,
                     'code' => (string) $user->referral_code,
                     'target_amount' => $budget['target_amount'],
-                    'spend_amount' => (float) $budget['spend_amount'],
+                    'spend_amount' => (float) ($dailySpend[$user->id] ?? 0),
                 ];
             })->values()->all(),
         ];
+    }
+
+    /**
+     * This month spend is the sum of daily spend rows, not a hand-entered total.
+     *
+     * @param  list<int>  $userIds
+     * @return array<int, float>
+     */
+    public static function dailySpendTotals(array $userIds, ?Carbon $reference = null): array
+    {
+        if ($userIds === []) {
+            return [];
+        }
+
+        $reference ??= now();
+        $start = $reference->copy()->startOfMonth()->toDateString();
+        $end = $reference->copy()->endOfMonth()->toDateString();
+
+        return MarketerDailyBudget::query()
+            ->whereIn('user_id', $userIds)
+            ->whereDate('spend_date', '>=', $start)
+            ->whereDate('spend_date', '<=', $end)
+            ->groupBy('user_id')
+            ->selectRaw('user_id, SUM(spend_amount) as total')
+            ->pluck('total', 'user_id')
+            ->mapWithKeys(fn ($total, $userId) => [(int) $userId => (float) $total])
+            ->all();
     }
 }

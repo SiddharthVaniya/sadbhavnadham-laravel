@@ -735,3 +735,101 @@ CREATE TABLE danamojo_donations (
 ```sql
 DROP TABLE IF EXISTS danamojo_donations;
 ```
+
+## 2026-09-29 - Razorpay refund columns
+
+Full refunds from donation details. Migration file (do **not** auto-run): `database/migrations/2026_09_29_153640_add_refund_columns_to_donation_orders_table.php`
+
+### Preview
+
+```sql
+SHOW COLUMNS FROM donation_orders LIKE 'refund%';
+SHOW COLUMNS FROM donation_orders LIKE 'razorpay_refund_id';
+```
+
+### Alter
+
+```sql
+ALTER TABLE donation_orders
+    ADD COLUMN refunded_at TIMESTAMP NULL AFTER failed_at,
+    ADD COLUMN razorpay_refund_id VARCHAR(64) NULL AFTER refunded_at,
+    ADD COLUMN refund_amount DECIMAL(12,2) NULL AFTER razorpay_refund_id;
+```
+
+### Rollback
+
+```sql
+ALTER TABLE donation_orders
+    DROP COLUMN refunded_at,
+    DROP COLUMN razorpay_refund_id,
+    DROP COLUMN refund_amount;
+```
+
+## 2026-09-29 - Move three Divyjeet clicks off Urvi
+
+These visits stored Divyajeet's ad with Urvi's old `sid`. Requested correction. `unique_visitors` stays as-is.
+
+### Preview
+
+```sql
+SELECT id, sid, utm_campaign, converted
+FROM link_tracking_visits
+WHERE id IN (192497, 192512, 192515);
+
+SELECT sid, total_clicks, unique_visitors
+FROM link_tracking_summary
+WHERE sid IN ('cpufaju', 'jpoxrr');
+```
+
+### Update
+
+```sql
+UPDATE link_tracking_visits
+SET sid = 'jpoxrr'
+WHERE id IN (192497, 192512, 192515)
+  AND sid = 'cpufaju';
+
+UPDATE link_tracking_summary
+SET total_clicks = total_clicks - 3
+WHERE sid = 'cpufaju'
+  AND total_clicks >= 3;
+
+UPDATE link_tracking_summary
+SET total_clicks = total_clicks + 3
+WHERE sid = 'jpoxrr';
+```
+
+## 2026-09-29 - Marketer daily spending limits
+
+Today’s limit and spend for each marketer. Past days stay in this table as spending history. Migration file (do **not** auto-run): `database/migrations/2026_09_29_162008_create_marketer_daily_budgets_table.php`
+
+### Preview
+
+```sql
+SHOW TABLES LIKE 'marketer_daily_budgets';
+```
+
+### Create
+
+```sql
+CREATE TABLE marketer_daily_budgets (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+    user_id BIGINT UNSIGNED NOT NULL,
+    spend_date DATE NOT NULL,
+    limit_amount DECIMAL(14,2) NULL,
+    spend_amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+    created_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY marketer_daily_budgets_user_date_unique (user_id, spend_date),
+    KEY marketer_daily_budgets_spend_date_index (spend_date),
+    CONSTRAINT marketer_daily_budgets_user_id_foreign
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+);
+```
+
+### Rollback
+
+```sql
+DROP TABLE IF EXISTS marketer_daily_budgets;
+```

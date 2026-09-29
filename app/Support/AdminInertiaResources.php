@@ -694,6 +694,13 @@ class AdminInertiaResources
             'state' => $order->state,
             'country' => $order->country,
             'paid_at' => $order->paid_at?->format('d M Y, h:i A'),
+            'refunded_at' => $order->refunded_at?->format('d M Y, h:i A'),
+            'razorpay_refund_id' => $order->razorpay_refund_id,
+            'refund_amount' => $order->refund_amount !== null ? (float) $order->refund_amount : null,
+            'can_refund' => app(\App\Services\RazorpayRefundService::class)->canRefund($order),
+            'refund_url' => app(\App\Services\RazorpayRefundService::class)->canRefund($order)
+                ? route('admin.donations.refund', $order)
+                : null,
             'receipt_number' => $order->hasReceipt() ? $order->receiptNumberFormatted() : null,
             'can_resend_receipt_email' => $order->isPaid() && filled($order->donor_email),
             'can_resend_sheet' => $order->isPaid(),
@@ -725,6 +732,7 @@ class AdminInertiaResources
             'is_failed' => $order->isFailed(),
             'is_pending' => $order->isPending(),
             'is_paid' => $order->isPaid(),
+            'is_refunded' => $order->isRefunded(),
             'is_recurring' => (bool) ($row['is_recurring'] ?? false),
             'is_qr' => (bool) ($row['is_qr'] ?? false),
             'qr_code_id' => $row['qr_code_id'] ?? null,
