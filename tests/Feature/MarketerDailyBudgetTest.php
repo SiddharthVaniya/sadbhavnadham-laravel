@@ -35,6 +35,7 @@ it('lets the main admin set today’s spending limit and keeps the month target 
         'user_id' => $marketer->id,
         'year_month' => now()->format('Y-m'),
         'target_amount' => 50000,
+        'limit_amount' => 40000,
         'spend_amount' => 12000,
     ]);
 
@@ -44,16 +45,14 @@ it('lets the main admin set today’s spending limit and keeps the month target 
         ->assertInertia(fn (Assert $page) => $page
             ->component('Admin/Marketers/Today')
             ->where('marketers.0.user_id', $marketer->id)
-            ->where('marketers.0.month_limit_amount', 50000)
             ->where('marketers.0.month_spend_amount', 0)
-            ->where('marketers.0.remaining_limit_amount', 50000));
+            ->where('marketers.0.remaining_limit_amount', 40000));
 
     actingAs($admin)
         ->put(route('admin.marketers.today.update'), [
             'marketers' => [
                 [
                     'user_id' => $marketer->id,
-                    'month_limit_amount' => 60000,
                     'spend_amount' => 750,
                 ],
             ],
@@ -75,7 +74,8 @@ it('lets the main admin set today’s spending limit and keeps the month target 
         ->first();
 
     expect((float) $month->spend_amount)->toBe(750.0)
-        ->and($month->target_amount)->toBe(60000);
+        ->and($month->target_amount)->toBe(50000)
+        ->and($month->limit_amount)->toBe(40000);
 });
 
 it('loads and saves the daily limit for a calendar date', function () {
@@ -114,7 +114,6 @@ it('loads and saves the daily limit for a calendar date', function () {
             'marketers' => [
                 [
                     'user_id' => $marketer->id,
-                    'month_limit_amount' => 1000,
                     'spend_amount' => 300,
                 ],
             ],
@@ -127,7 +126,6 @@ it('loads and saves the daily limit for a calendar date', function () {
             'marketers' => [
                 [
                     'user_id' => $marketer->id,
-                    'month_limit_amount' => 1,
                     'spend_amount' => 1,
                 ],
             ],
@@ -149,7 +147,8 @@ it('loads and saves the daily limit for a calendar date', function () {
         ->first();
 
     expect($month)->not->toBeNull()
-        ->and($month->target_amount)->toBe(1000)
+        ->and($month->target_amount)->toBeNull()
+        ->and($month->limit_amount)->toBeNull()
         ->and((float) $month->spend_amount)->toBe(300.0);
 });
 
@@ -169,6 +168,7 @@ it('lists spending history with the month target and archive filters', function 
         'user_id' => $marketer->id,
         'year_month' => now()->format('Y-m'),
         'target_amount' => 40000,
+        'limit_amount' => 30000,
         'spend_amount' => 9000,
     ]);
 
@@ -205,8 +205,10 @@ it('lists spending history with the month target and archive filters', function 
             ->where('rows.data.0.code', 'jpoxrr')
             ->where('rows.data.0.archive', 'archived')
             ->where('rows.data.0.month_target_amount', 40000)
+            ->where('rows.data.0.month_limit_amount', 30000)
             ->where('rows.data.0.month_spend_amount', 2200)
-            ->where('rows.data.0.limit_amount', 1800));
+            ->where('rows.data.0.remaining_limit_amount', 27800)
+            ->where('rows.data.0.spend_amount', 1800));
 
     actingAs($admin)
         ->get(route('admin.marketers.history', [

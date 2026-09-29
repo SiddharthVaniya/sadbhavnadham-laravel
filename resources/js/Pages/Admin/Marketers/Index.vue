@@ -29,6 +29,7 @@ const rows = reactive(
         email: marketer.email,
         code: marketer.code,
         target_amount: marketer.target_amount ?? '',
+        limit_amount: marketer.limit_amount ?? '',
         spend_amount: marketer.spend_amount ?? '',
     })),
 );
@@ -45,6 +46,7 @@ watch(
                 email: marketer.email,
                 code: marketer.code,
                 target_amount: marketer.target_amount ?? '',
+                limit_amount: marketer.limit_amount ?? '',
                 spend_amount: marketer.spend_amount ?? '',
             })),
         );
@@ -59,6 +61,9 @@ const form = useForm({
 const totalTarget = computed(() =>
     rows.reduce((sum, row) => sum + (Number(row.target_amount) || 0), 0),
 );
+const totalLimit = computed(() =>
+    rows.reduce((sum, row) => sum + (Number(row.limit_amount) || 0), 0),
+);
 const totalSpend = computed(() =>
     rows.reduce((sum, row) => sum + (Number(row.spend_amount) || 0), 0),
 );
@@ -72,6 +77,9 @@ const save = () => {
         target_amount: row.target_amount === '' || row.target_amount === null
             ? null
             : Number(row.target_amount),
+        limit_amount: row.limit_amount === '' || row.limit_amount === null
+            ? null
+            : Number(row.limit_amount),
     }));
 
     form.put('/admin/marketers', { preserveScroll: true });
@@ -85,7 +93,7 @@ const save = () => {
 
         <PageHeader
             title="This month target and spending"
-            :subtitle="`Set this month’s target. Spend is the total of daily spend · ${yearMonthLabel}`"
+            :subtitle="`Set this month’s target and spending limit. Spend is the total of daily spend · ${yearMonthLabel}`"
         >
             <template #actions>
                 <Button type="button" :disabled="form.processing || ! rows.length" @click="save">
@@ -104,6 +112,9 @@ const save = () => {
                 {{ formatMoney(totalTarget) }} total target
             </span>
             <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
+                {{ formatMoney(totalLimit) }} total spending limit
+            </span>
+            <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
                 {{ formatMoney(totalSpend) }} total daily spend
             </span>
             <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 font-mono text-muted-foreground">
@@ -115,7 +126,7 @@ const save = () => {
             <CardHeader class="pb-2">
                 <CardTitle class="text-base">This month budgets</CardTitle>
                 <CardDescription>
-                    Anyone with a referral code appears here. This month spend is the sum of daily spend and cannot be edited here.
+                    Anyone with a referral code appears here. This month spend is the sum of daily spend and cannot be edited here. Remaining limit on Today is the monthly spending limit minus that spend.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -127,6 +138,7 @@ const save = () => {
                             <TableHead>Marketer</TableHead>
                             <TableHead>Code</TableHead>
                             <TableHead class="w-[180px]">This month target (₹)</TableHead>
+                            <TableHead class="w-[200px]">Monthly spending limit (₹)</TableHead>
                             <TableHead class="w-[180px]">This month spend (₹)</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -156,12 +168,29 @@ const save = () => {
                                     {{ form.errors[`marketers.${index}.target_amount`] }}
                                 </p>
                             </TableCell>
+                            <TableCell>
+                                <Input
+                                    v-model="row.limit_amount"
+                                    type="number"
+                                    min="0"
+                                    step="1"
+                                    placeholder="e.g. 40000"
+                                    class="tabular-nums"
+                                    :aria-invalid="Boolean(form.errors[`marketers.${index}.limit_amount`])"
+                                />
+                                <p
+                                    v-if="form.errors[`marketers.${index}.limit_amount`]"
+                                    class="mt-1 text-xs text-destructive"
+                                >
+                                    {{ form.errors[`marketers.${index}.limit_amount`] }}
+                                </p>
+                            </TableCell>
                             <TableCell class="tabular-nums font-medium">
                                 {{ formatMoney(row.spend_amount) }}
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="! rows.length">
-                            <TableCell colspan="4" class="py-10 text-center text-muted-foreground">
+                            <TableCell colspan="5" class="py-10 text-center text-muted-foreground">
                                 No users have a referral code yet. Add a code on Users first.
                             </TableCell>
                         </TableRow>

@@ -43,10 +43,17 @@ class AdminMarketerBudgetController extends Controller
                 ? (int) $row['target_amount']
                 : null;
 
+            $limit = array_key_exists('limit_amount', $row) && $row['limit_amount'] !== null && $row['limit_amount'] !== ''
+                ? (int) $row['limit_amount']
+                : null;
+
             MarketerMonthlyBudgetService::upsertForCurrentMonth(
                 $user,
                 $target,
                 MarketerMonthlyBudgetService::dailySpendTotals([$user->id])[$user->id] ?? 0,
+                null,
+                true,
+                $limit,
             );
         }
 
@@ -97,20 +104,6 @@ class AdminMarketerBudgetController extends Controller
             );
 
             MarketerMonthlyBudgetService::syncSpendFromDaily($user, $reference);
-
-            if (array_key_exists('month_limit_amount', $row)) {
-                $monthLimit = $row['month_limit_amount'] !== null && $row['month_limit_amount'] !== ''
-                    ? (int) $row['month_limit_amount']
-                    : null;
-                $synced = MarketerMonthlyBudgetService::forUserMonth($user, $reference);
-
-                MarketerMonthlyBudgetService::upsertForCurrentMonth(
-                    $user,
-                    $monthLimit,
-                    $synced['spend_amount'],
-                    $reference,
-                );
-            }
         }
 
         return redirect()

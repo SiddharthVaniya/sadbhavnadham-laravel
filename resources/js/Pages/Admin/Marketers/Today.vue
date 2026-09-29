@@ -30,8 +30,8 @@ const blank = (marketer) => ({
     name: marketer.name,
     email: marketer.email,
     code: marketer.code,
-    month_limit_amount: marketer.month_limit_amount ?? '',
     month_spend_amount: marketer.month_spend_amount,
+    remaining_limit_amount: marketer.remaining_limit_amount,
     saved_spend_amount: marketer.spend_amount ?? 0,
     spend_amount: marketer.spend_amount ?? '',
 });
@@ -62,11 +62,14 @@ const monthSpend = (row) => {
 };
 
 const remainingLimit = (row) => {
-    if (row.month_limit_amount === '' || row.month_limit_amount === null) {
+    if (row.remaining_limit_amount === null || row.remaining_limit_amount === undefined) {
         return null;
     }
 
-    return Number(row.month_limit_amount) - monthSpend(row);
+    const savedDay = Number(row.saved_spend_amount) || 0;
+    const currentDay = row.spend_amount === '' || row.spend_amount === null ? 0 : Number(row.spend_amount);
+
+    return Number(row.remaining_limit_amount) - (currentDay - savedDay);
 };
 
 const totalRemaining = computed(() =>
@@ -80,9 +83,6 @@ const save = () => {
     form.spend_date = props.spendDate;
     form.marketers = rows.map((row) => ({
         user_id: row.user_id,
-        month_limit_amount: row.month_limit_amount === '' || row.month_limit_amount === null
-            ? null
-            : Number(row.month_limit_amount),
         spend_amount: row.spend_amount === '' || row.spend_amount === null
             ? 0
             : Number(row.spend_amount),
@@ -109,7 +109,7 @@ const openDate = (value) => {
 
         <PageHeader
             title="Today spending"
-            :subtitle="`Set the monthly spending limit and today’s spend · ${spendDateLabel} · ${yearMonthLabel}`"
+            :subtitle="`Record spend for ${spendDateLabel}. Remaining limit uses the ${yearMonthLabel} monthly spending limit.`"
         >
             <template #actions>
                 <Button type="button" :disabled="form.processing || ! rows.length" @click="save">
@@ -139,7 +139,7 @@ const openDate = (value) => {
             <CardHeader class="pb-2">
                 <CardTitle class="text-base">{{ spendDateLabel }}</CardTitle>
                 <CardDescription>
-                    Pick a date to edit that day’s spend. The monthly spending limit is the cap for {{ yearMonthLabel }}. Remaining limit is that cap minus spend so far this month.
+                    Pick a date to edit that day’s spend. Month spend is the total of daily spend. Remaining limit is the monthly spending limit minus that total. Set the limit on This month.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -150,7 +150,6 @@ const openDate = (value) => {
                         <TableRow>
                             <TableHead>Marketer</TableHead>
                             <TableHead>Code</TableHead>
-                            <TableHead class="w-[190px]">Monthly spending limit (₹)</TableHead>
                             <TableHead>Month spend</TableHead>
                             <TableHead>Remaining limit</TableHead>
                             <TableHead class="w-[170px]">Spend (₹)</TableHead>
@@ -164,17 +163,6 @@ const openDate = (value) => {
                             </TableCell>
                             <TableCell>
                                 <span class="font-mono text-sm text-muted-foreground">{{ row.code }}</span>
-                            </TableCell>
-                            <TableCell>
-                                <Input
-                                    v-model="row.month_limit_amount"
-                                    type="number"
-                                    min="0"
-                                    step="1"
-                                    placeholder="e.g. 50000"
-                                    class="tabular-nums"
-                                    :aria-invalid="Boolean(form.errors[`marketers.${index}.month_limit_amount`])"
-                                />
                             </TableCell>
                             <TableCell class="tabular-nums">{{ formatMoney(monthSpend(row)) }}</TableCell>
                             <TableCell
@@ -196,7 +184,7 @@ const openDate = (value) => {
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="! rows.length">
-                            <TableCell colspan="6" class="py-10 text-center text-muted-foreground">
+                            <TableCell colspan="5" class="py-10 text-center text-muted-foreground">
                                 No users have a referral code yet. Add a code on Users first.
                             </TableCell>
                         </TableRow>

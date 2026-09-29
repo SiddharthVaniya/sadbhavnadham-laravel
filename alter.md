@@ -833,3 +833,26 @@ CREATE TABLE marketer_daily_budgets (
 ```sql
 DROP TABLE IF EXISTS marketer_daily_budgets;
 ```
+
+## 2026-09-29 - Monthly spending limit
+
+Separate this month’s target from the monthly spending limit. Existing `target_amount` values stay as targets. The new limit starts empty until it is set on the marketers month page. Migration file (do **not** auto-run): `database/migrations/2026_09_29_172444_add_limit_amount_to_marketer_monthly_budgets_table.php`
+
+### Preview
+
+```sql
+SHOW COLUMNS FROM marketer_monthly_budgets LIKE 'limit_amount';
+```
+
+### Add
+
+```sql
+ALTER TABLE marketer_monthly_budgets
+    ADD COLUMN limit_amount INT UNSIGNED NULL AFTER target_amount;
+```
+
+### Rollback
+
+```sql
+ALTER TABLE marketer_monthly_budgets DROP COLUMN limit_amount;
+```

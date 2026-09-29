@@ -41,6 +41,14 @@ it('upserts this month target and spend when updating a user', function () {
     ]);
     $target->assignRole('admin');
 
+    MarketerMonthlyBudget::query()->create([
+        'user_id' => $target->id,
+        'year_month' => now()->format('Y-m'),
+        'target_amount' => 1000,
+        'limit_amount' => 9000,
+        'spend_amount' => 100,
+    ]);
+
     actingAs($admin)
         ->put(route('admin.users.update', $target), [
             'name' => $target->name,
@@ -62,6 +70,7 @@ it('upserts this month target and spend when updating a user', function () {
 
     expect($budget)->not->toBeNull()
         ->and($budget->target_amount)->toBe(50000)
+        ->and($budget->limit_amount)->toBe(9000)
         ->and((float) $budget->spend_amount)->toBe(12500.5);
 });
 
@@ -202,7 +211,8 @@ it('lets admins bulk-edit this month target and spend on the marketers page', fu
             ->has('marketers', 1)
             ->where('marketers.0.user_id', $marketer->id)
             ->where('marketers.0.code', 'ac')
-            ->where('marketers.0.spend_amount', 650));
+            ->where('marketers.0.spend_amount', 650)
+            ->where('marketers.0.limit_amount', null));
 
     actingAs($admin)
         ->put(route('admin.marketers.update'), [
@@ -210,6 +220,7 @@ it('lets admins bulk-edit this month target and spend on the marketers page', fu
                 [
                     'user_id' => $marketer->id,
                     'target_amount' => 75000,
+                    'limit_amount' => 20000,
                     'spend_amount' => 9200,
                 ],
             ],
@@ -223,5 +234,6 @@ it('lets admins bulk-edit this month target and spend on the marketers page', fu
 
     expect($budget)->not->toBeNull()
         ->and($budget->target_amount)->toBe(75000)
+        ->and($budget->limit_amount)->toBe(20000)
         ->and((float) $budget->spend_amount)->toBe(650.0);
 });

@@ -23,7 +23,6 @@ class MarketerDailyBudgetService
      *         name: string,
      *         email: string,
      *         code: string,
-     *         month_limit_amount: ?int,
      *         month_spend_amount: float,
      *         remaining_limit_amount: ?float,
      *         spend_amount: float
@@ -54,11 +53,10 @@ class MarketerDailyBudgetService
                     'name' => $marketer['name'],
                     'email' => $marketer['email'],
                     'code' => $marketer['code'],
-                    'month_limit_amount' => $marketer['target_amount'],
                     'month_spend_amount' => (float) $marketer['spend_amount'],
-                    'remaining_limit_amount' => $marketer['target_amount'] === null
+                    'remaining_limit_amount' => $marketer['limit_amount'] === null
                         ? null
-                        : (float) $marketer['target_amount'] - (float) $marketer['spend_amount'],
+                        : (float) $marketer['limit_amount'] - (float) $marketer['spend_amount'],
                     'spend_amount' => (float) ($daily?->spend_amount ?? 0),
                 ];
             })->values()->all(),
@@ -225,8 +223,11 @@ class MarketerDailyBudgetService
                         'spend_date_label' => $row->spend_date?->format('d M Y') ?? '',
                         'year_month' => $yearMonth,
                         'month_target_amount' => $budget?->target_amount,
+                        'month_limit_amount' => $budget?->limit_amount,
                         'month_spend_amount' => (float) ($dailyMonthSpend[$row->user_id.'|'.$yearMonth] ?? 0),
-                        'limit_amount' => $row->limit_amount !== null ? (float) $row->limit_amount : null,
+                        'remaining_limit_amount' => $budget?->limit_amount === null
+                            ? null
+                            : (float) $budget->limit_amount - (float) ($dailyMonthSpend[$row->user_id.'|'.$yearMonth] ?? 0),
                         'spend_amount' => (float) $row->spend_amount,
                         'archive' => $date !== '' && $date < $today ? 'archived' : 'today',
                     ];

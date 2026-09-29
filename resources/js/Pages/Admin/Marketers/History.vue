@@ -66,7 +66,7 @@ const reset = () => {
 
         <PageHeader
             title="Spending history"
-            subtitle="Every saved day, with that month’s target and spend. Days before today are archived."
+            subtitle="Every saved day, with that month’s target, spending limit, spend, and remaining limit."
         />
 
         <MarketerBudgetTabs current="history" />
@@ -127,8 +127,9 @@ const reset = () => {
                             <TableHead>Date</TableHead>
                             <TableHead>Marketer</TableHead>
                             <TableHead>Month target</TableHead>
+                            <TableHead>Monthly spending limit</TableHead>
                             <TableHead>Month spend</TableHead>
-                            <TableHead>Daily limit</TableHead>
+                            <TableHead>Remaining limit</TableHead>
                             <TableHead>Daily spend</TableHead>
                             <TableHead>Status</TableHead>
                         </TableRow>
@@ -141,8 +142,14 @@ const reset = () => {
                                 <p class="font-mono text-xs text-muted-foreground">{{ row.code }}</p>
                             </TableCell>
                             <TableCell class="tabular-nums">{{ formatMoney(row.month_target_amount) }}</TableCell>
+                            <TableCell class="tabular-nums">{{ formatMoney(row.month_limit_amount) }}</TableCell>
                             <TableCell class="tabular-nums">{{ formatMoney(row.month_spend_amount) }}</TableCell>
-                            <TableCell class="tabular-nums">{{ formatMoney(row.limit_amount) }}</TableCell>
+                            <TableCell
+                                class="tabular-nums font-medium"
+                                :class="row.remaining_limit_amount !== null && row.remaining_limit_amount < 0 ? 'text-destructive' : ''"
+                            >
+                                {{ formatMoney(row.remaining_limit_amount) }}
+                            </TableCell>
                             <TableCell class="tabular-nums">{{ formatMoney(row.spend_amount) }}</TableCell>
                             <TableCell>
                                 <span
@@ -156,7 +163,7 @@ const reset = () => {
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="! rows.data.length">
-                            <TableCell colspan="7" class="py-10 text-center text-muted-foreground">
+                            <TableCell colspan="8" class="py-10 text-center text-muted-foreground">
                                 No spending days match these filters.
                             </TableCell>
                         </TableRow>

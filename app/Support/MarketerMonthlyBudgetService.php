@@ -10,7 +10,7 @@ use Illuminate\Support\Carbon;
 class MarketerMonthlyBudgetService
 {
     /**
-     * @return array{year_month: string, target_amount: ?int, spend_amount: float}
+     * @return array{year_month: string, target_amount: ?int, limit_amount: ?int, spend_amount: float}
      */
     public static function forUserMonth(User $user, ?Carbon $reference = null): array
     {
@@ -23,6 +23,7 @@ class MarketerMonthlyBudgetService
         return [
             'year_month' => $yearMonth,
             'target_amount' => $budget?->target_amount,
+            'limit_amount' => $budget?->limit_amount,
             'spend_amount' => (float) ($budget?->spend_amount ?? 0),
         ];
     }
@@ -32,21 +33,29 @@ class MarketerMonthlyBudgetService
         ?int $targetAmount,
         float|int|string|null $spendAmount,
         ?Carbon $reference = null,
+        bool $updateLimit = false,
+        ?int $limitAmount = null,
     ): MarketerMonthlyBudget {
         $yearMonth = MarketerMonthlyBudget::currentYearMonth($reference);
         $spend = $spendAmount === null || $spendAmount === ''
             ? 0.0
             : (float) $spendAmount;
 
+        $attributes = [
+            'target_amount' => $targetAmount,
+            'spend_amount' => $spend,
+        ];
+
+        if ($updateLimit) {
+            $attributes['limit_amount'] = $limitAmount;
+        }
+
         return MarketerMonthlyBudget::query()->updateOrCreate(
             [
                 'user_id' => $user->id,
                 'year_month' => $yearMonth,
             ],
-            [
-                'target_amount' => $targetAmount,
-                'spend_amount' => $spend,
-            ],
+            $attributes,
         );
     }
 
@@ -66,7 +75,7 @@ class MarketerMonthlyBudgetService
 
     /**
      * @param  list<int>  $userIds
-     * @return array<int, array{target_amount: ?int, spend_amount: float}>
+     * @return array<int, array{target_amount: ?int, limit_amount: ?int, spend_amount: float}>
      */
     public static function mapForUsers(array $userIds, ?Carbon $reference = null): array
     {
@@ -78,13 +87,14 @@ class MarketerMonthlyBudgetService
         $rows = MarketerMonthlyBudget::query()
             ->where('year_month', $yearMonth)
             ->whereIn('user_id', $userIds)
-            ->get(['user_id', 'target_amount', 'spend_amount']);
+            ->get(['user_id', 'target_amount', 'limit_amount', 'spend_amount']);
 
         $map = [];
 
         foreach ($userIds as $userId) {
             $map[(int) $userId] = [
                 'target_amount' => null,
+                'limit_amount' => null,
                 'spend_amount' => 0.0,
             ];
         }
@@ -92,6 +102,7 @@ class MarketerMonthlyBudgetService
         foreach ($rows as $row) {
             $map[(int) $row->user_id] = [
                 'target_amount' => $row->target_amount,
+                'limit_amount' => $row->limit_amount,
                 'spend_amount' => (float) $row->spend_amount,
             ];
         }
@@ -111,6 +122,7 @@ class MarketerMonthlyBudgetService
      *         email: string,
      *         code: string,
      *         target_amount: ?int,
+     *         limit_amount: ?int,
      *         spend_amount: float
      *     }>
      * }
@@ -134,7 +146,11 @@ class MarketerMonthlyBudgetService
             'year_month' => $yearMonth,
             'year_month_label' => $reference->format('F Y'),
             'marketers' => $users->map(function (User $user) use ($budgetMap, $dailySpend): array {
-                $budget = $budgetMap[$user->id] ?? ['target_amount' => null, 'spend_amount' => 0.0];
+                $budget = $budgetMap[$user->id] ?? [
+                    'target_amount' => null,
+                    'limit_amount' => null,
+                    'spend_amount' => 0.0,
+                ];
 
                 return [
                     'user_id' => $user->id,
@@ -142,6 +158,7 @@ class MarketerMonthlyBudgetService
                     'email' => $user->email,
                     'code' => (string) $user->referral_code,
                     'target_amount' => $budget['target_amount'],
+                    'limit_amount' => $budget['limit_amount'],
                     'spend_amount' => (float) ($dailySpend[$user->id] ?? 0),
                 ];
             })->values()->all(),

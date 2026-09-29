@@ -11,6 +11,7 @@ class MarketerMonthlyBudget extends Model
         'user_id',
         'year_month',
         'target_amount',
+        'limit_amount',
         'spend_amount',
     ];
 
@@ -18,6 +19,7 @@ class MarketerMonthlyBudget extends Model
     {
         return [
             'target_amount' => 'integer',
+            'limit_amount' => 'integer',
             'spend_amount' => 'float',
         ];
     }

@@ -30,7 +30,6 @@ class UpdateMarketerDailyBudgetsRequest extends FormRequest
             'spend_date' => ['nullable', 'date', 'before_or_equal:today'],
             'marketers' => ['required', 'array', 'min:1'],
             'marketers.*.user_id' => ['required', 'integer', 'exists:users,id'],
-            'marketers.*.month_limit_amount' => ['nullable', 'integer', 'min:0', 'max:10000000'],
             'marketers.*.spend_amount' => ['nullable', 'numeric', 'min:0', 'max:10000000'],
         ];
     }
