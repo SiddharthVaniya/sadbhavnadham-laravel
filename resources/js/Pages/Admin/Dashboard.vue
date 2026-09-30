@@ -51,7 +51,7 @@ const props = defineProps({
     dailyPartnerReferrals: { type: Object, default: null },
     monthlyPartnerReferrals: { type: Object, default: null },
     monthFilter: { type: Object, default: () => ({ options: [], selectedKey: null, selectedLabel: '' }) },
-    todaysBirthdays: { type: Array, default: () => [] },
+    todaysBirthdays: { type: Object, required: true },
     upcomingBirthdays: { type: Object, required: true },
 });
 
@@ -68,6 +68,7 @@ const monthOptions = computed(() => props.monthFilter.options ?? []);
 const selectedMonth = ref(props.monthFilter.selectedKey ?? '');
 
 const recentDonationsList = computed(() => props.recentDonations.data ?? []);
+const todaysBirthdaysList = computed(() => props.todaysBirthdays.data ?? []);
 const upcomingBirthdaysList = computed(() => props.upcomingBirthdays.data ?? []);
 
 const causeTotalAmount = computed(() => props.topCauses.reduce((sum, cause) => sum + Number(cause.amount || 0), 0));
@@ -95,7 +96,9 @@ const greeting = computed(() => {
 });
 
 const awaitingNudge = computed(() => Number(props.stats.awaitingNudgeCount || 0));
-const todayBirthdayCount = computed(() => props.todaysBirthdays.length);
+const birthdayTab = ref('today');
+const todayBirthdayCount = computed(() => props.todaysBirthdays.meta?.total ?? todaysBirthdaysList.value.length);
+const upcomingBirthdayCount = computed(() => props.upcomingBirthdays.meta?.total ?? upcomingBirthdaysList.value.length);
 
 const changeMonth = (value) => {
     selectedMonth.value = value;
@@ -510,7 +513,7 @@ const changeMonth = (value) => {
                 </CardContent>
             </Card>
 
-            <Card class="shadow-none xl:col-span-2">
+            <Card id="donor-care" class="shadow-none xl:col-span-2">
                 <CardHeader>
                     <CardTitle class="flex items-center gap-2">
                         <HeartHandshake class="size-4" />
@@ -519,18 +522,21 @@ const changeMonth = (value) => {
                     <CardDescription>People to remember this week</CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <Tabs default-value="today">
+                    <Tabs v-model="birthdayTab">
                         <TabsList class="mb-4 grid w-full grid-cols-2">
                             <TabsTrigger value="today">
                                 Today
                                 <Badge v-if="todayBirthdayCount" variant="secondary" class="ml-1">{{ todayBirthdayCount }}</Badge>
                             </TabsTrigger>
-                            <TabsTrigger value="upcoming">Next 7 days</TabsTrigger>
+                            <TabsTrigger value="upcoming">
+                                Next 7 days
+                                <Badge v-if="upcomingBirthdayCount" variant="secondary" class="ml-1">{{ upcomingBirthdayCount }}</Badge>
+                            </TabsTrigger>
                         </TabsList>
 
                         <TabsContent value="today" class="space-y-2">
                             <div
-                                v-for="(donor, index) in todaysBirthdays"
+                                v-for="(donor, index) in todaysBirthdaysList"
                                 :key="index"
                                 class="rounded-lg border border-border px-3 py-2.5 text-sm"
                             >
@@ -543,9 +549,17 @@ const changeMonth = (value) => {
                                     {{ donor.orders }} donations · {{ formatMoney(donor.lifetime_amount) }} lifetime
                                 </p>
                             </div>
-                            <p v-if="! todaysBirthdays.length" class="py-8 text-center text-sm text-muted-foreground">
+                            <p v-if="! todaysBirthdaysList.length" class="py-8 text-center text-sm text-muted-foreground">
                                 No birthdays today.
                             </p>
+                            <DashboardWidgetPagination
+                                compact
+                                preserve-state
+                                preserve-scroll
+                                :links="todaysBirthdays.links ?? []"
+                                :meta="todaysBirthdays.meta"
+                                :only="['todaysBirthdays']"
+                            />
                         </TabsContent>
 
                         <TabsContent value="upcoming" class="space-y-2">
@@ -566,9 +580,12 @@ const changeMonth = (value) => {
                                 No upcoming birthdays.
                             </p>
                             <DashboardWidgetPagination
-                                class="mt-3"
+                                compact
+                                preserve-state
+                                preserve-scroll
                                 :links="upcomingBirthdays.links ?? []"
                                 :meta="upcomingBirthdays.meta"
+                                :only="['upcomingBirthdays']"
                             />
                         </TabsContent>
                     </Tabs>

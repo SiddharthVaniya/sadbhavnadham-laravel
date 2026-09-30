@@ -80,14 +80,13 @@ it('loads dashboard inertia page with paid donation analytics', function () {
             ->where('recentDonations.data.0.donor_name', 'Test Donor')
             ->where('recentDonations.meta.total', 2)
             ->has('topDonors', 1)
-            ->has('todaysGifts', 1)
-            ->where('todaysGifts.0.donor_name', 'Test Donor')
             ->where('topDonors.0.donor_name', 'Test Donor')
             ->where('topDonors.0.amount', 500)
             ->has('topCauses', 1)
             ->where('topCauses.0.title', $cause->title)
-            ->has('todaysBirthdays', 1)
-            ->where('todaysBirthdays.0.donor_name', 'Test Donor'));
+            ->has('todaysBirthdays.data', 1)
+            ->where('todaysBirthdays.data.0.donor_name', 'Test Donor')
+            ->where('todaysBirthdays.meta.total', 1));
 });
 
 it('excludes far-future birthday donors from the dashboard birthday payload', function () {
@@ -139,11 +138,80 @@ it('excludes far-future birthday donors from the dashboard birthday payload', fu
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
             ->component('Admin/Dashboard')
-            ->has('todaysBirthdays', 1)
-            ->where('todaysBirthdays.0.donor_name', 'Today Birthday')
+            ->has('todaysBirthdays.data', 1)
+            ->where('todaysBirthdays.data.0.donor_name', 'Today Birthday')
+            ->where('todaysBirthdays.meta.total', 1)
             ->where('upcomingBirthdays.data', fn ($rows) => collect($rows)->every(
                 fn ($row) => $row['donor_name'] !== 'Far Birthday'
             )));
+});
+
+it('paginates todays donor birthdays so the donor care card stays short', function () {
+    $cause = Cause::factory()->create();
+
+    foreach (range(1, 7) as $index) {
+        $donor = Donor::factory()->create([
+            'name' => sprintf('Birthday Donor %02d', $index),
+            'email' => "birthday-{$index}@example.com",
+            'phone' => '900000000'.$index,
+            'date_of_birth' => today()->subYears(20 + $index),
+        ]);
+
+        $order = DonationOrder::create([
+            'payment_provider' => 'razorpay',
+            'provider_order_id' => 'today-bday-'.$donor->id,
+            'donor_id' => $donor->id,
+            'donor_name' => $donor->name,
+            'donor_email' => $donor->email,
+            'donor_phone' => $donor->phone,
+            'currency' => 'INR',
+            'total_amount' => 100,
+            'status' => DonationOrder::STATUS_PAID,
+            'paid_at' => now(),
+        ]);
+
+        DonationItem::create([
+            'donation_order_id' => $order->id,
+            'cause_id' => $cause->id,
+            'cause' => $cause->title,
+            'title' => $cause->title,
+            'quantity' => 1,
+            'unit_amount' => 100,
+            'amount' => 100,
+        ]);
+    }
+
+    $user = User::factory()->create();
+    Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
+    $user->assignRole('super_admin');
+
+    actingAs($user)
+        ->get(route('admin.dashboard'))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Dashboard')
+            ->has('todaysBirthdays.data', 5)
+            ->where('todaysBirthdays.meta.total', 7)
+            ->where('todaysBirthdays.meta.current_page', 1)
+            ->where('todaysBirthdays.meta.last_page', 2)
+            ->where('todaysBirthdays.meta.from', 1)
+            ->where('todaysBirthdays.meta.to', 5)
+            ->where('todaysBirthdays.data.0.donor_name', 'Birthday Donor 01')
+            ->where('todaysBirthdays.links', fn ($links) => collect($links)->contains(
+                fn ($link) => is_string($link['url'] ?? null) && str_contains($link['url'], 'today_birthday_page=2')
+            )));
+
+    actingAs($user)
+        ->get(route('admin.dashboard', ['today_birthday_page' => 2]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Dashboard')
+            ->has('todaysBirthdays.data', 2)
+            ->where('todaysBirthdays.meta.total', 7)
+            ->where('todaysBirthdays.meta.current_page', 2)
+            ->where('todaysBirthdays.meta.from', 6)
+            ->where('todaysBirthdays.meta.to', 7)
+            ->where('todaysBirthdays.data.0.donor_name', 'Birthday Donor 06'));
 });
 
 it('counts today dashboard totals by paid date not checkout created date', function () {

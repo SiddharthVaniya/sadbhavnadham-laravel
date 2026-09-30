@@ -46,6 +46,7 @@ class AdminDashboardController extends Controller
         $birthdays = AdminDashboardData::birthdays();
         $recentPage = max(1, (int) $request->input('recent_page', 1));
         $birthdayPage = max(1, (int) $request->input('birthday_page', 1));
+        $todayBirthdayPage = max(1, (int) $request->input('today_birthday_page', 1));
 
         return Inertia::render('Admin/Dashboard', [
             'stats' => AdminDashboardData::stats(),
@@ -65,7 +66,13 @@ class AdminDashboardController extends Controller
                 'selectedKey' => $monthRange['key'],
                 'selectedLabel' => $monthRange['label'],
             ],
-            'todaysBirthdays' => $birthdays['today'],
+            'todaysBirthdays' => AdminDashboardData::paginateCollection(
+                collect($birthdays['today']),
+                AdminDashboardData::UPCOMING_BIRTHDAYS_PER_PAGE,
+                'today_birthday_page',
+                $todayBirthdayPage,
+                $request->except('today_birthday_page')
+            ),
             'upcomingBirthdays' => AdminDashboardData::paginateCollection(
                 collect($birthdays['upcoming']),
                 AdminDashboardData::UPCOMING_BIRTHDAYS_PER_PAGE,
