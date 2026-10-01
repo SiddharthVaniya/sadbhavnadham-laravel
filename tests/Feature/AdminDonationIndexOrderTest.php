@@ -720,3 +720,84 @@ it('exports csv using status and amount filters', function () {
         ->and($csv)->not->toContain('Paid In Range')
         ->and($csv)->not->toContain('Failed Out Of Range');
 });
+
+it('keeps a long donor name, package title, city, and failure label as separate list fields', function () {
+    \Illuminate\Support\Facades\Bus::fake();
+
+    $user = createDonationsAdminUser();
+
+    $cause = \App\Models\Cause::factory()->create(['title' => 'Old Age Home']);
+    $package = \App\Models\CausePackage::factory()->create([
+        'cause_id' => $cause->id,
+        'title' => 'Meals for 20 Elders',
+    ]);
+
+    $longName = 'Nimavat Nirbhai Ramnikbhai Nimavat Ramnikbhai Parivar Trust Donor';
+
+    $paid = DonationOrder::create([
+        'payment_provider' => 'razorpay',
+        'provider_order_id' => 'order_long_name_cause_title',
+        'provider_payment_id' => 'pay_long_name_cause_title',
+        'donor_name' => $longName,
+        'donor_email' => 'very-long-donor-name-for-the-donations-table@example.com',
+        'donor_phone' => '9822222201',
+        'city' => 'Rajkot',
+        'currency' => 'INR',
+        'total_amount' => 2100,
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+    ]);
+
+    \App\Models\DonationItem::create([
+        'donation_order_id' => $paid->id,
+        'cause_id' => $cause->id,
+        'cause_package_id' => $package->id,
+        'cause' => $cause->slug,
+        'title' => $package->title,
+        'quantity' => 1,
+        'unit_amount' => 2100,
+        'amount' => 2100,
+    ]);
+
+    $failed = DonationOrder::create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'order_failed_city_overlap',
+        'donor_name' => 'Pankaj V Patel',
+        'donor_email' => 'pankaj@example.com',
+        'donor_phone' => '9822222202',
+        'city' => 'Ahmedabad',
+        'currency' => 'INR',
+        'total_amount' => 1000,
+        'status' => DonationOrder::STATUS_PENDING,
+    ]);
+
+    app(\App\Services\DonationPaymentService::class)->handleFailed([
+        'id' => 'pay_failed_city_overlap',
+        'order_id' => 'order_failed_city_overlap',
+        'error_code' => 'BAD_REQUEST_ERROR',
+        'error_description' => 'Payment was cancelled by the customer',
+        'error_source' => 'customer',
+        'error_step' => 'payment_authentication',
+        'error_reason' => 'payment_cancelled',
+    ]);
+
+    actingAs($user)
+        ->get(route('admin.donations.index', ['duration' => 'all']))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Donations/Index')
+            ->where('donations.data', function ($rows) use ($paid, $failed, $longName) {
+                $paidRow = collect($rows)->firstWhere('uuid', $paid->order_uuid);
+                $failedRow = collect($rows)->firstWhere('uuid', $failed->order_uuid);
+
+                return is_array($paidRow)
+                    && $paidRow['donor_name'] === $longName
+                    && $paidRow['cause'] === 'Old Age Home'
+                    && $paidRow['cause_title'] === 'Meals for 20 Elders'
+                    && $paidRow['city'] === 'Rajkot'
+                    && is_array($failedRow)
+                    && $failedRow['city'] === 'Ahmedabad'
+                    && $failedRow['failure_label'] === 'Customer · Cancelled by customer'
+                    && $failedRow['status'] === DonationOrder::STATUS_FAILED;
+            }));
+});

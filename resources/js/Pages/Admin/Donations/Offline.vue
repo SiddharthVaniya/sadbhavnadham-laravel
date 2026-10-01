@@ -57,7 +57,6 @@ const columns = [
     { key: 'receipt_number', label: 'Receipt #', sortable: true },
     { key: 'donor_name', label: 'Donor', sortable: true },
     { key: 'cause', label: 'Cause', sortable: true },
-    { key: 'cause_title', label: 'Cause title', sortable: true },
     { key: 'total_amount', label: 'Amount', sortable: true, align: 'right' },
     { key: 'receipt_email_label', label: 'Receipt email', sortable: true },
     { key: 'created_at_ts', label: 'Date', sortable: true },
@@ -136,12 +135,17 @@ const exportUrl = computed(() => {
             <div class="p-4">
                 <DataTable :columns="columns" :rows="sortedRows" :sort-key="sortKey" :sort-dir="sortDir" @sort="toggleSort">
                     <template #cell-donor_name="{ row }">
-                        <div class="font-medium">{{ row.donor_name }}</div>
-                        <div class="text-xs text-muted-foreground">{{ row.donor_email }}</div>
+                        <div class="w-40 truncate font-medium" :title="row.donor_name">{{ row.donor_name }}</div>
+                        <div v-if="row.donor_email" class="w-40 truncate text-xs text-muted-foreground" :title="row.donor_email">{{ row.donor_email }}</div>
                     </template>
-                    <template #cell-cause_title="{ row }">
-                        <div class="max-w-[280px] font-medium leading-snug text-foreground" :title="row.cause_title">
-                            {{ row.cause_title || '—' }}
+                    <template #cell-cause="{ row }">
+                        <div class="w-36 truncate font-medium text-foreground" :title="row.cause">{{ row.cause }}</div>
+                        <div
+                            v-if="row.cause_title && row.cause_title !== '—' && row.cause_title !== row.cause"
+                            class="w-36 truncate text-xs text-muted-foreground"
+                            :title="row.cause_title"
+                        >
+                            {{ row.cause_title }}
                         </div>
                     </template>
                     <template #cell-total_amount="{ row }">{{ formatMoney(row.total_amount) }}</template>

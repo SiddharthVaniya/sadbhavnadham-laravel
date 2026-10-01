@@ -219,7 +219,6 @@ const donationColumns = [
     { key: 'donor_name', label: 'Donor', sortable: true },
     { key: 'source', label: 'Source', sortable: true },
     { key: 'cause', label: 'Cause', sortable: true },
-    { key: 'cause_title', label: 'Cause title', sortable: true },
     { key: 'total_amount', label: 'Amount', sortable: true, align: 'right' },
     { key: 'status', label: 'Status', sortable: true },
     { key: 'city', label: 'City', sortable: true },
@@ -419,18 +418,23 @@ const exportUrl = computed(() => {
                         </div>
                     </template>
                     <template #cell-donor_name="{ row }">
-                        <div class="font-medium">{{ row.donor_name }}</div>
-                        <div class="text-xs text-muted-foreground">{{ row.donor_email }}</div>
+                        <div class="w-40 truncate font-medium" :title="row.donor_name">{{ row.donor_name }}</div>
+                        <div v-if="row.donor_email" class="w-40 truncate text-xs text-muted-foreground" :title="row.donor_email">{{ row.donor_email }}</div>
                     </template>
                     <template #cell-source="{ row }">
-                        <div class="font-medium text-foreground">{{ row.source }}</div>
-                        <div v-if="row.utm_campaign" class="max-w-[160px] truncate text-xs text-muted-foreground" :title="row.utm_campaign">
+                        <div class="w-40 truncate font-medium text-foreground" :title="row.source">{{ row.source }}</div>
+                        <div v-if="row.utm_campaign" class="w-40 truncate text-xs text-muted-foreground" :title="row.utm_campaign">
                             {{ row.utm_campaign }}
                         </div>
                     </template>
-                    <template #cell-cause_title="{ row }">
-                        <div class="max-w-[280px] font-medium leading-snug text-foreground" :title="row.cause_title">
-                            {{ row.cause_title || '—' }}
+                    <template #cell-cause="{ row }">
+                        <div class="w-36 truncate font-medium text-foreground" :title="row.cause">{{ row.cause }}</div>
+                        <div
+                            v-if="row.cause_title && row.cause_title !== '—' && row.cause_title !== row.cause"
+                            class="w-36 truncate text-xs text-muted-foreground"
+                            :title="row.cause_title"
+                        >
+                            {{ row.cause_title }}
                         </div>
                     </template>
                     <template #cell-total_amount="{ row }">{{ formatMoney(row.total_amount) }}</template>
@@ -439,7 +443,7 @@ const exportUrl = computed(() => {
                             <StatusBadge :status="row.status" />
                             <p
                                 v-if="row.failure_label"
-                                class="max-w-[9.5rem] text-[11px] leading-tight text-rose-700"
+                                class="w-36 truncate text-[11px] leading-tight text-rose-700"
                                 :title="row.failure_detail || row.failure_label"
                             >
                                 {{ row.failure_label }}
