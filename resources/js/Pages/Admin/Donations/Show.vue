@@ -908,64 +908,6 @@ const paymentLinkSmsButtonLabel = computed(() => {
                 </section>
 
                 <section
-                    v-if="isPaid && (canPreviewReceipts || canGenerateReceipts)"
-                    class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none sm:p-5"
-                >
-                    <div class="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                            <h3 class="text-sm font-semibold text-foreground">Donation certificate</h3>
-                            <p class="mt-0.5 text-xs text-muted-foreground">
-                                {{ certificateUrl ? 'Click the image for fullscreen.' : 'Generate to create the Sanman Patra image.' }}
-                            </p>
-                        </div>
-                        <button
-                            v-if="canGenerateReceipts"
-                            type="button"
-                            class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background disabled:opacity-60"
-                            :disabled="regeneratingCertificate"
-                            @click="regenerateCertificate"
-                        >
-                            {{ regeneratingCertificate ? 'Generating…' : (certificateUrl ? 'Regenerate' : 'Generate') }}
-                        </button>
-                    </div>
-
-                    <p
-                        v-if="certificateError"
-                        class="mt-2 text-xs text-rose-600"
-                    >
-                        {{ certificateError }}
-                    </p>
-
-                    <div
-                        v-if="certificateUrl"
-                        class="mt-4"
-                    >
-                        <button
-                            type="button"
-                            class="group relative block w-full overflow-hidden rounded-lg border border-border bg-muted/30 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
-                            @click="openCertificateFullscreen"
-                        >
-                            <img
-                                :src="certificateUrl"
-                                alt="Donation certificate"
-                                class="mx-auto max-h-72 w-auto max-w-full object-contain transition duration-200 group-hover:scale-[1.01]"
-                            >
-                            <span
-                                class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 py-2 text-center text-[11px] font-medium text-white opacity-0 transition group-hover:opacity-100"
-                            >
-                                View fullscreen
-                            </span>
-                        </button>
-                    </div>
-                    <div
-                        v-else
-                        class="mt-4 flex min-h-36 items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-4 text-center text-xs text-muted-foreground"
-                    >
-                        No certificate file yet for this donation.
-                    </div>
-                </section>
-
-                <section
                     v-if="deliveryRows.length || isPaid || donation.receipt_number || showPaymentLink"
                     class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none"
                 >
@@ -1133,6 +1075,64 @@ const paymentLinkSmsButtonLabel = computed(() => {
                     :source="donation.source"
                     empty-message="No UTM or referrer captured for this donation."
                 />
+
+                <section
+                    v-if="isPaid && (canPreviewReceipts || canGenerateReceipts)"
+                    class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none"
+                >
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <h3 class="text-sm font-semibold text-foreground">Donation certificate</h3>
+                            <p class="mt-0.5 text-xs text-muted-foreground">
+                                {{ certificateUrl ? 'Click the image for fullscreen.' : 'Generate to create the Sanman Patra image.' }}
+                            </p>
+                        </div>
+                        <button
+                            v-if="canGenerateReceipts"
+                            type="button"
+                            class="shrink-0 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background disabled:opacity-60"
+                            :disabled="regeneratingCertificate"
+                            @click="regenerateCertificate"
+                        >
+                            {{ regeneratingCertificate ? 'Generating…' : (certificateUrl ? 'Regenerate' : 'Generate') }}
+                        </button>
+                    </div>
+
+                    <p
+                        v-if="certificateError"
+                        class="mt-2 text-xs text-rose-600"
+                    >
+                        {{ certificateError }}
+                    </p>
+
+                    <div
+                        v-if="certificateUrl"
+                        class="mt-4"
+                    >
+                        <button
+                            type="button"
+                            class="group relative block w-full overflow-hidden rounded-lg border border-border bg-muted/30 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
+                            @click="openCertificateFullscreen"
+                        >
+                            <img
+                                :src="certificateUrl"
+                                alt="Donation certificate"
+                                class="mx-auto max-h-80 w-full object-contain object-top transition duration-200 group-hover:scale-[1.01]"
+                            >
+                            <span
+                                class="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/55 to-transparent px-3 py-2 text-center text-[11px] font-medium text-white opacity-0 transition group-hover:opacity-100"
+                            >
+                                View fullscreen
+                            </span>
+                        </button>
+                    </div>
+                    <div
+                        v-else
+                        class="mt-4 flex min-h-36 items-center justify-center rounded-lg border border-dashed border-border bg-muted/20 px-4 text-center text-xs text-muted-foreground"
+                    >
+                        No certificate file yet for this donation.
+                    </div>
+                </section>
             </div>
         </div>
 
