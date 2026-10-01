@@ -1,6 +1,7 @@
 <script setup>
 import { computed, reactive, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
+import { Eye, Pencil } from '@lucide/vue';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
 import StatusBadge from '@/Components/Admin/StatusBadge.vue';
@@ -8,6 +9,7 @@ import Pagination from '@/Components/Admin/Pagination.vue';
 import DataTable from '@/Components/Admin/DataTable.vue';
 import PaymentMethodPieChart from '@/Components/Admin/PaymentMethodPieChart.vue';
 import FormDatePicker from '@/Components/Admin/FormDatePicker.vue';
+import { Button } from '@/Components/ui/button';
 import { mergeDurationOptions } from '@/utils/periodOptions';
 import { isSingleDayBeforeToday, nextDayYmd, resolveSingleDayYmd } from '@/utils/nextDayFilter';
 
@@ -435,6 +437,13 @@ const exportUrl = computed(() => {
                     <template #cell-status="{ row }">
                         <div class="flex flex-col items-start gap-1">
                             <StatusBadge :status="row.status" />
+                            <p
+                                v-if="row.failure_label"
+                                class="max-w-[9.5rem] text-[11px] leading-tight text-rose-700"
+                                :title="row.failure_detail || row.failure_label"
+                            >
+                                {{ row.failure_label }}
+                            </p>
                             <Link
                                 v-if="row.later_paid && row.later_paid_url"
                                 :href="row.later_paid_url"
@@ -452,15 +461,23 @@ const exportUrl = computed(() => {
                         <div class="text-xs text-muted-foreground">{{ row.created_time }}</div>
                     </template>
                     <template #cell-actions="{ row }">
-                        <div class="flex flex-wrap items-center gap-3">
-                            <Link :href="detailHref(row)" class="text-sm font-medium hover:underline">Details</Link>
-                            <Link
+                        <div class="inline-flex items-center justify-end gap-1">
+                            <Button as-child variant="ghost" size="icon-sm" class="text-muted-foreground">
+                                <Link :href="detailHref(row)" title="Details" aria-label="Details">
+                                    <Eye class="size-4" />
+                                </Link>
+                            </Button>
+                            <Button
                                 v-if="canManageDonations && row.edit_url"
-                                :href="row.edit_url"
-                                class="text-sm font-medium hover:underline"
+                                as-child
+                                variant="ghost"
+                                size="icon-sm"
+                                class="text-muted-foreground"
                             >
-                                Edit
-                            </Link>
+                                <Link :href="row.edit_url" title="Edit" aria-label="Edit">
+                                    <Pencil class="size-4" />
+                                </Link>
+                            </Button>
                         </div>
                     </template>
                     <template #footer>

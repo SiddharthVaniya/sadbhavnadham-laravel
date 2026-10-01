@@ -146,6 +146,8 @@ class AdminDonationController extends Controller
             ->pluck('utm_content')
             ->values();
 
+        $this->donationPaymentService->rememberMissingFailures($donations->items());
+
         return Inertia::render('Admin/Donations/Index', [
             'donations' => AdminInertiaData::paginatedDonations(
                 $donations,

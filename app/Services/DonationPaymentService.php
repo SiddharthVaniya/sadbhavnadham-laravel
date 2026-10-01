@@ -10,11 +10,14 @@ use App\Jobs\SendDonationReceiptJob;
 use App\Jobs\SendReceiptWhatsAppJob;
 use App\Jobs\SendThankYouWhatsAppJob;
 use App\Models\DonationOrder;
+use App\Models\PaymentEvent;
 use App\Models\Setting;
+use App\Support\RazorpayPaymentFailure;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Razorpay\Api\Api;
 
 class DonationPaymentService
 {
@@ -299,6 +302,12 @@ class DonationPaymentService
                 ]);
 
             if ($updated === 0) {
+                $order->refresh();
+
+                if ($order->isFailed()) {
+                    $this->recordPaymentFailure($order, $payment);
+                }
+
                 return null;
             }
 
@@ -306,6 +315,7 @@ class DonationPaymentService
                 'status' => DonationOrder::STATUS_FAILED,
                 'failed_at' => $failedAt,
             ]);
+            $this->recordPaymentFailure($order, $payment);
 
             return $order;
         });
@@ -323,6 +333,148 @@ class DonationPaymentService
         dispatch(new CreatePaymentLinkJob($order->id, $immediate));
         dispatch(new LogDonationToSheetJob($order, 'failed'));
         dispatch(new LogFailedDonationFollowUpSheetJob($order));
+    }
+
+    /**
+     * @param  array<string, mixed>  $payment
+     */
+    private function recordPaymentFailure(DonationOrder $order, array $payment): void
+    {
+        $fields = RazorpayPaymentFailure::fromPayment($payment);
+
+        if ($fields['error_code'] === null && $fields['error_description'] === null && $fields['error_reason'] === null) {
+            return;
+        }
+
+        $paymentId = is_string($payment['id'] ?? null) ? $payment['id'] : null;
+
+        $alreadyStored = PaymentEvent::query()
+            ->where('donation_order_id', $order->id)
+            ->where('event', 'payment.failed')
+            ->when($paymentId !== null, fn ($query) => $query->where('provider_payment_id', $paymentId))
+            ->exists();
+
+        if ($alreadyStored) {
+            return;
+        }
+
+        PaymentEvent::query()->create([
+            'donation_order_id' => $order->id,
+            'payment_provider' => $order->payment_provider ?: DonationOrder::PROVIDER_RAZORPAY,
+            'event' => 'payment.failed',
+            'provider_payment_id' => $paymentId,
+            'amount' => $order->total_amount,
+            'payload' => $fields,
+            'created_at' => now(),
+        ]);
+
+        if ($paymentId !== null && ! filled($order->provider_payment_id)) {
+            $order->update(['provider_payment_id' => $paymentId]);
+        }
+    }
+
+    /**
+     * Older failed donations were saved before Razorpay's error was kept.
+     * Look up a few of those orders so the list can show the short reason.
+     *
+     * @param  iterable<DonationOrder>  $orders
+     */
+    public function rememberMissingFailures(iterable $orders): void
+    {
+        if (app()->runningUnitTests()) {
+            return;
+        }
+
+        $key = config('payments.razorpay.key');
+        $secret = config('payments.razorpay.secret');
+
+        if (! is_string($key) || $key === '' || ! is_string($secret) || $secret === '') {
+            return;
+        }
+
+        $candidates = collect($orders)
+            ->filter(function (DonationOrder $order): bool {
+                return $order->isFailed()
+                    && $order->payment_provider === DonationOrder::PROVIDER_RAZORPAY
+                    && str_starts_with((string) $order->provider_order_id, 'order_');
+            })
+            ->take(8)
+            ->values();
+
+        if ($candidates->isEmpty()) {
+            return;
+        }
+
+        $knownIds = PaymentEvent::query()
+            ->whereIn('donation_order_id', $candidates->pluck('id'))
+            ->where('event', 'payment.failed')
+            ->pluck('donation_order_id')
+            ->all();
+
+        $api = new Api($key, $secret);
+
+        foreach ($candidates as $order) {
+            if (in_array($order->id, $knownIds, true)) {
+                continue;
+            }
+
+            try {
+                $payment = $this->failedPaymentFromOrder($api, (string) $order->provider_order_id);
+
+                if ($payment !== null) {
+                    $this->recordPaymentFailure($order, $payment);
+                }
+            } catch (\Throwable $exception) {
+                Log::warning('Could not load Razorpay failure reason', [
+                    'donation_order_id' => $order->id,
+                    'provider_order_id' => $order->provider_order_id,
+                    'error' => $exception->getMessage(),
+                ]);
+            }
+        }
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function failedPaymentFromOrder(Api $api, string $providerOrderId): ?array
+    {
+        $response = $api->order->fetch($providerOrderId)->payments();
+        $items = [];
+
+        if (is_object($response) && isset($response->items)) {
+            $items = $response->items;
+        } elseif (is_array($response)) {
+            $items = $response['items'] ?? $response;
+        }
+
+        if (! is_array($items)) {
+            return null;
+        }
+
+        $failed = null;
+
+        foreach ($items as $item) {
+            if (is_object($item) && method_exists($item, 'toArray')) {
+                $item = $item->toArray();
+            }
+
+            if (! is_array($item)) {
+                continue;
+            }
+
+            if (($item['status'] ?? null) !== 'failed') {
+                continue;
+            }
+
+            $failed = $item;
+
+            if (filled($item['error_reason'] ?? null) || filled($item['error_description'] ?? null)) {
+                break;
+            }
+        }
+
+        return $failed;
     }
 
     /* =====================================================
