@@ -19,11 +19,11 @@ const barHeight = (value) => `${Math.max(4, Math.round((value / maxValue.value) 
 
 <template>
     <div>
-        <div class="flex h-44 items-end gap-2 border-b border-border pb-2">
+        <div class="flex h-44 min-w-0 items-end gap-2 overflow-x-auto border-b border-border pb-2">
             <div
                 v-for="point in points"
                 :key="point.key"
-                class="flex min-w-0 flex-1 flex-col items-center gap-1"
+                class="flex w-8 shrink-0 flex-col items-center gap-1 sm:w-auto sm:min-w-0 sm:flex-1"
             >
                 <div class="flex h-36 w-full items-end justify-center gap-0.5">
                     <div

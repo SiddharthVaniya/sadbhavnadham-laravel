@@ -90,7 +90,7 @@ watch(currentRoute, () => {
 </script>
 
 <template>
-    <div class="flex min-h-screen bg-muted/40">
+    <div class="flex min-h-screen max-w-full overflow-x-clip bg-muted/40">
         <div
             v-if="sidebarOpen"
             class="fixed inset-0 z-40 bg-foreground/40 lg:hidden"
@@ -248,7 +248,7 @@ watch(currentRoute, () => {
 
             <Separator class="lg:hidden" />
 
-            <main class="flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+            <main class="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
                 <FlashAlert />
                 <ValidationAlert />
                 <slot />

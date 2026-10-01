@@ -26,7 +26,7 @@ defineProps({
                 {{ subtitle }}
             </p>
         </div>
-        <div v-if="$slots.actions" class="flex shrink-0 flex-wrap items-center gap-2">
+        <div v-if="$slots.actions" class="admin-page-actions flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:max-w-full">
             <slot name="actions" />
         </div>
     </div>

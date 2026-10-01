@@ -150,7 +150,7 @@ const syncDelivery = () => {
             <div v-if="run.last_error" class="mt-2 text-rose-700">{{ run.last_error }}</div>
         </div>
 
-        <div v-if="failedRecipients.length" class="mt-6 overflow-hidden rounded-xl border border-border bg-card shadow-none">
+        <div v-if="failedRecipients.length" class="admin-responsive-table mt-6 min-w-0 overflow-x-auto rounded-xl border border-border bg-card shadow-none">
             <div class="border-b border-border px-4 py-3 font-medium">API-rejected recipients (latest 50)</div>
             <table class="min-w-full text-left text-sm">
                 <thead class="bg-muted/40 text-xs uppercase text-muted-foreground">
@@ -162,9 +162,9 @@ const syncDelivery = () => {
                 </thead>
                 <tbody class="divide-y divide-border">
                     <tr v-for="row in failedRecipients" :key="row.id">
-                        <td class="px-4 py-2">{{ row.donor_name || '—' }}</td>
-                        <td class="px-4 py-2">{{ row.phone }}</td>
-                        <td class="px-4 py-2 text-rose-700">{{ row.error }}</td>
+                        <td class="px-4 py-2" data-label="Donor">{{ row.donor_name || '—' }}</td>
+                        <td class="px-4 py-2" data-label="Phone">{{ row.phone }}</td>
+                        <td class="px-4 py-2 text-rose-700" data-label="Error">{{ row.error }}</td>
                     </tr>
                 </tbody>
             </table>

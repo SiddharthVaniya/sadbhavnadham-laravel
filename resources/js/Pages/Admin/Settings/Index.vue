@@ -86,7 +86,7 @@ const placeholderFor = (setting) => {
             </template>
         </PageHeader>
 
-        <div class="overflow-hidden rounded-xl border border-border bg-card shadow-none">
+        <div class="admin-responsive-table min-w-0 overflow-x-auto rounded-xl border border-border bg-card shadow-none">
             <table class="min-w-full text-left text-sm">
                 <thead class="border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
                     <tr>
@@ -97,10 +97,10 @@ const placeholderFor = (setting) => {
                 </thead>
                 <tbody class="divide-y divide-border">
                     <tr v-for="setting in notificationRows" :key="setting.id">
-                        <td class="px-4 py-3 font-medium">{{ setting.label }}</td>
-                        <td class="px-4 py-3 text-muted-foreground">{{ setting.description }}</td>
-                        <td class="px-4 py-3">
-                            <div v-if="setting.is_toggle" class="flex justify-center">
+                        <td class="px-4 py-3 font-medium" data-label="Notification">{{ setting.label }}</td>
+                        <td class="px-4 py-3 text-muted-foreground" data-label="Description">{{ setting.description }}</td>
+                        <td class="px-4 py-3" data-label="Status / Value">
+                            <div v-if="setting.is_toggle" class="flex justify-end sm:justify-center">
                                 <button
                                     type="button"
                                     class="relative inline-flex h-6 w-11 rounded-full transition"
@@ -142,7 +142,7 @@ const placeholderFor = (setting) => {
                 Controls how long and how many times the system retries missed emails or WhatsApp messages after payment.
                 Change these only if delivery is failing often.
             </p>
-            <div class="mt-4 overflow-hidden rounded-xl border border-border bg-card shadow-none">
+            <div class="admin-responsive-table mt-4 min-w-0 overflow-x-auto rounded-xl border border-border bg-card shadow-none">
                 <table class="min-w-full text-left text-sm">
                     <thead class="border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
                         <tr>
@@ -153,9 +153,9 @@ const placeholderFor = (setting) => {
                     </thead>
                     <tbody class="divide-y divide-border">
                         <tr v-for="setting in retryRows" :key="setting.id">
-                            <td class="px-4 py-3 font-medium">{{ setting.label }}</td>
-                            <td class="px-4 py-3 text-muted-foreground">{{ setting.description }}</td>
-                            <td class="px-4 py-3">
+                            <td class="px-4 py-3 font-medium" data-label="Setting">{{ setting.label }}</td>
+                            <td class="px-4 py-3 text-muted-foreground" data-label="Description">{{ setting.description }}</td>
+                            <td class="px-4 py-3" data-label="Value">
                                 <div class="flex flex-col gap-2">
                                     <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-center">
                                         <input

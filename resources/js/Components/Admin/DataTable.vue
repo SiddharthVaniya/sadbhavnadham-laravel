@@ -45,8 +45,8 @@ const onSort = (column) => {
 </script>
 
 <template>
-    <Card class="shadow-none">
-        <CardContent class="p-0">
+    <Card class="min-w-0 max-w-full shadow-none">
+        <CardContent class="min-w-0 max-w-full p-0">
             <Table>
                 <TableHeader>
                     <TableRow>

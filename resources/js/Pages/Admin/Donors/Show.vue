@@ -195,7 +195,7 @@ const taskStatusClass = (task) => {
                     </div>
 
                     <div class="mt-6 rounded-lg border border-border p-3 text-left text-sm">
-                        <div class="flex items-center justify-between gap-3">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <p class="font-medium text-foreground">WhatsApp campaigns</p>
                                 <p class="text-xs text-muted-foreground">
@@ -409,19 +409,19 @@ const taskStatusClass = (task) => {
                 <div class="rounded-xl border border-border bg-card p-5 shadow-none">
                     <h3 class="mb-4 text-sm font-semibold text-foreground">Cause breakdown (paid)</h3>
                     <ul class="space-y-2 text-sm">
-                        <li v-for="(row, index) in causeBreakdown" :key="index" class="flex justify-between gap-4">
-                            <span>{{ row.cause }}</span>
-                            <span class="text-muted-foreground">{{ row.count }} items · {{ formatMoney(row.amount) }}</span>
+                        <li v-for="(row, index) in causeBreakdown" :key="index" class="flex items-start justify-between gap-4">
+                            <span class="min-w-0 break-words">{{ row.cause }}</span>
+                            <span class="shrink-0 text-right text-muted-foreground">{{ row.count }} items · {{ formatMoney(row.amount) }}</span>
                         </li>
                         <li v-if="! causeBreakdown.length" class="text-muted-foreground">No paid cause breakdown.</li>
                     </ul>
                 </div>
 
-                <div class="overflow-hidden rounded-xl border border-border bg-card shadow-none">
+                <div class="min-w-0 rounded-xl border border-border bg-card shadow-none">
                     <div class="border-b border-border px-5 py-4">
                         <h3 class="text-sm font-semibold text-foreground">All donation attempts</h3>
                     </div>
-                    <div class="overflow-x-auto">
+                    <div class="admin-responsive-table min-w-0 overflow-x-auto p-3 sm:p-0">
                         <table class="min-w-full text-left text-sm">
                             <thead class="border-b border-border text-xs uppercase text-muted-foreground">
                                 <tr>
@@ -435,11 +435,11 @@ const taskStatusClass = (task) => {
                             </thead>
                             <tbody class="divide-y divide-border">
                                 <tr v-for="order in donationsList" :key="order.id">
-                                    <td class="px-4 py-3 font-mono text-xs">{{ order.uuid }}</td>
-                                    <td class="px-4 py-3">{{ order.cause }}</td>
-                                    <td class="px-4 py-3 text-right font-medium">{{ formatMoney(order.total_amount) }}</td>
-                                    <td class="px-4 py-3"><StatusBadge :status="order.status" /></td>
-                                    <td class="px-4 py-3 text-muted-foreground">{{ order.created_at }}</td>
+                                    <td class="px-4 py-3 font-mono text-xs" data-label="Order">{{ order.uuid }}</td>
+                                    <td class="px-4 py-3" data-label="Cause">{{ order.cause }}</td>
+                                    <td class="px-4 py-3 text-right font-medium" data-label="Amount">{{ formatMoney(order.total_amount) }}</td>
+                                    <td class="px-4 py-3" data-label="Status"><StatusBadge :status="order.status" /></td>
+                                    <td class="px-4 py-3 text-muted-foreground" data-label="Date">{{ order.created_at }}</td>
                                     <td class="px-4 py-3 text-right">
                                         <Link :href="`/admin/donations/${order.uuid}`" class="text-sm font-medium hover:underline">View</Link>
                                     </td>

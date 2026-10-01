@@ -452,10 +452,10 @@ const submit = () => form.post('/admin/donations');
                 />
                 <div>
                     <label class="mb-1 block text-xs font-medium text-muted-foreground">Donor phone</label>
-                    <div class="flex gap-2">
+                    <div class="flex flex-col gap-2 sm:flex-row">
                         <select
                             v-model="form.donor_country_code"
-                            class="w-[11rem] shrink-0 rounded-lg border border-border px-2 py-2 text-sm"
+                            class="w-full rounded-lg border border-border px-2 py-2 text-sm sm:w-[11rem] sm:shrink-0"
                             @change="onDialCountryChange"
                         >
                             <option

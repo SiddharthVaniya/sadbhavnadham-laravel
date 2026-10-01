@@ -20,7 +20,7 @@ defineProps({
             </template>
         </PageHeader>
 
-        <div class="overflow-hidden rounded-xl border border-border bg-card shadow-none">
+        <div class="admin-responsive-table min-w-0 overflow-x-auto rounded-xl border border-border bg-card p-3 shadow-none sm:p-0">
             <table class="min-w-full text-left text-sm">
                 <thead class="border-b border-border bg-muted/40 text-xs uppercase text-muted-foreground">
                     <tr>
@@ -35,18 +35,18 @@ defineProps({
                 </thead>
                 <tbody class="divide-y divide-border">
                     <tr v-for="run in runs.data" :key="run.uuid">
-                        <td class="px-4 py-3">
+                        <td class="px-4 py-3" data-label="Campaign">
                             <Link :href="run.show_url" class="font-medium text-foreground hover:underline">{{ run.name }}</Link>
                             <div class="text-xs text-muted-foreground">{{ run.live_campaign_name }}</div>
                         </td>
-                        <td class="px-4 py-3 text-muted-foreground">{{ run.account_name || '—' }}</td>
-                        <td class="px-4 py-3">
+                        <td class="px-4 py-3 text-muted-foreground" data-label="Account">{{ run.account_name || '—' }}</td>
+                        <td class="px-4 py-3" data-label="Status">
                             <StatusBadge :status="run.status" />
                         </td>
-                        <td class="px-4 py-3 text-right">{{ run.audience_count }}</td>
-                        <td class="px-4 py-3 text-right">{{ run.sent_count }}</td>
-                        <td class="px-4 py-3 text-right">{{ run.failed_count }}</td>
-                        <td class="px-4 py-3 text-muted-foreground">
+                        <td class="px-4 py-3 text-right" data-label="Audience">{{ run.audience_count }}</td>
+                        <td class="px-4 py-3 text-right" data-label="Sent">{{ run.sent_count }}</td>
+                        <td class="px-4 py-3 text-right" data-label="Failed">{{ run.failed_count }}</td>
+                        <td class="px-4 py-3 text-muted-foreground" data-label="Created">
                             <div>{{ run.created_at }}</div>
                             <div class="text-xs">{{ run.created_by || '' }}</div>
                         </td>

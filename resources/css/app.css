@@ -163,3 +163,16 @@
     @apply bg-background text-foreground;
     }
 }
+
+@media (max-width: 639px) {
+    .admin-page-actions > * {
+        max-width: 100%;
+    }
+
+    .admin-page-actions > .admin-input,
+    .admin-page-actions > a,
+    .admin-page-actions > button {
+        width: 100% !important;
+        min-width: 0 !important;
+    }
+}

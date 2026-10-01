@@ -116,14 +116,14 @@ const syncAll = () => {
                 </button>
             </div>
 
-            <form class="flex flex-wrap gap-2 border-b border-border px-4 py-3" @submit.prevent="submit()">
+            <form class="flex flex-col gap-2 border-b border-border px-4 py-3 sm:flex-row sm:flex-wrap" @submit.prevent="submit()">
                 <input
                     v-model="form.search"
                     type="search"
-                    class="admin-input min-w-[16rem] flex-1 !py-2"
+                    class="admin-input min-w-0 w-full flex-1 !py-2 sm:min-w-[16rem]"
                     placeholder="Search name or Razorpay id"
                 >
-                <button type="submit" class="admin-btn-primary !py-2">Search</button>
+                <button type="submit" class="admin-btn-primary w-full !py-2 sm:w-auto">Search</button>
             </form>
 
             <div class="p-4">

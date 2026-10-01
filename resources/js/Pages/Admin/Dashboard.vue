@@ -163,8 +163,8 @@ const changeMonth = (value) => {
             class="mb-6 grid gap-3 md:grid-cols-2"
         >
             <Card v-if="awaitingNudge > 0" class="shadow-none">
-                <CardContent class="flex items-center justify-between gap-4 py-4">
-                    <div>
+                <CardContent class="flex flex-wrap items-center justify-between gap-4 py-4">
+                    <div class="min-w-0">
                         <p class="text-sm font-medium">Incomplete checkouts waiting</p>
                         <p class="text-xs text-muted-foreground">
                             {{ awaitingNudge }} donor{{ awaitingNudge === 1 ? '' : 's' }} can be nudged with a payment link
@@ -179,8 +179,8 @@ const changeMonth = (value) => {
                 </CardContent>
             </Card>
             <Card v-if="todayBirthdayCount > 0" class="shadow-none">
-                <CardContent class="flex items-center justify-between gap-4 py-4">
-                    <div class="flex items-start gap-3">
+                <CardContent class="flex flex-wrap items-center justify-between gap-4 py-4">
+                    <div class="flex min-w-0 items-start gap-3">
                         <div class="mt-0.5 rounded-lg bg-muted p-2">
                             <Cake class="size-4" />
                         </div>
@@ -440,7 +440,7 @@ const changeMonth = (value) => {
 
         <div class="mb-6 grid gap-4 xl:grid-cols-5">
             <Card id="recent-donations" class="shadow-none xl:col-span-3">
-                <CardHeader class="flex-row items-center justify-between gap-3 space-y-0">
+                <CardHeader class="flex-row flex-wrap items-center justify-between gap-3 space-y-0">
                     <div>
                         <CardTitle>Recent donations</CardTitle>
                         <CardDescription>Latest donations received in the portal</CardDescription>
