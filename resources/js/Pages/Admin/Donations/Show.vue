@@ -503,6 +503,19 @@ const paymentLinkSmsButtonLabel = computed(() => {
                             </Link>
                             <StatusBadge :status="donation.status" />
                         </div>
+                        <p
+                            v-if="donation.failure_label"
+                            class="mt-2 w-full text-sm font-medium text-rose-700"
+                            :title="donation.failure_detail || donation.failure_label"
+                        >
+                            {{ donation.failure_label }}
+                        </p>
+                        <p
+                            v-if="donation.failure_detail && donation.failure_detail !== donation.failure_label"
+                            class="w-full max-w-xl text-sm text-muted-foreground"
+                        >
+                            {{ donation.failure_detail }}
+                        </p>
                     </div>
 
                     <dl class="mt-4 grid gap-x-6 gap-y-3 border-t border-border pt-4 text-sm sm:grid-cols-2 lg:grid-cols-3">

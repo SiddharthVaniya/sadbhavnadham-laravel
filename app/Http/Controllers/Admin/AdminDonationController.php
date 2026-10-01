@@ -861,6 +861,7 @@ class AdminDonationController extends Controller
         $this->authorize('view', $donationOrder);
 
         $donationOrder->load(['items.causeModel', 'subscription']);
+        $this->donationPaymentService->rememberMissingFailures([$donationOrder]);
 
         return Inertia::render('Admin/Donations/Show', [
             'donation' => AdminInertiaResources::donationDetail($donationOrder),

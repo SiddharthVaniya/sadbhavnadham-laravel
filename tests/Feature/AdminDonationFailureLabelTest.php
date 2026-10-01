@@ -62,4 +62,12 @@ it('stores the razorpay failure and shows a short label on the donations list', 
                     && ($row['failure_label'] ?? null) === 'Customer · Invalid card'
                     && str_contains((string) ($row['failure_detail'] ?? ''), 'invalid card');
             }));
+
+    actingAs($user)
+        ->get(route('admin.donations.show', $order))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Admin/Donations/Show')
+            ->where('donation.failure_label', 'Customer · Invalid card')
+            ->where('donation.failure_detail', 'Payment failed because of invalid card details'));
 });
