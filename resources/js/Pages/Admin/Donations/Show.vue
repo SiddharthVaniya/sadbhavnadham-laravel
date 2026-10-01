@@ -30,6 +30,85 @@ const certificateUrl = ref(props.donation.certificate_url || null);
 const regeneratingCertificate = ref(false);
 const certificateError = ref('');
 const certificateFullscreen = ref(false);
+const donorPickerOpen = ref(false);
+const donorQuery = ref('');
+const donorSources = ref([]);
+const donorSourceMode = ref('recent_failed');
+const donorSourcesLoading = ref(false);
+const donorCopying = ref(false);
+const selectedDonorSource = ref(null);
+let donorSearchTimer = null;
+
+const openDonorPicker = () => {
+    donorPickerOpen.value = true;
+    donorQuery.value = '';
+    selectedDonorSource.value = null;
+    loadDonorSources('');
+};
+
+const closeDonorPicker = () => {
+    donorPickerOpen.value = false;
+    selectedDonorSource.value = null;
+};
+
+const loadDonorSources = async (query) => {
+    if (! props.donation.donor_sources_url) {
+        return;
+    }
+
+    donorSourcesLoading.value = true;
+
+    try {
+        const url = new URL(props.donation.donor_sources_url, window.location.origin);
+        if (query.trim().length >= 2) {
+            url.searchParams.set('q', query.trim());
+        }
+
+        const response = await fetch(url.toString(), {
+            headers: {
+                Accept: 'application/json',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+        });
+
+        if (! response.ok) {
+            donorSources.value = [];
+
+            return;
+        }
+
+        const payload = await response.json();
+        donorSourceMode.value = payload.mode || 'recent_failed';
+        donorSources.value = payload.donations || [];
+    } finally {
+        donorSourcesLoading.value = false;
+    }
+};
+
+const onDonorQueryInput = () => {
+    selectedDonorSource.value = null;
+    clearTimeout(donorSearchTimer);
+    donorSearchTimer = setTimeout(() => {
+        loadDonorSources(donorQuery.value);
+    }, 300);
+};
+
+const copyDonorDetails = () => {
+    if (! selectedDonorSource.value || ! props.donation.copy_donor_url || donorCopying.value) {
+        return;
+    }
+
+    donorCopying.value = true;
+    router.post(props.donation.copy_donor_url, {
+        source_uuid: selectedDonorSource.value.uuid,
+    }, {
+        preserveScroll: true,
+        onFinish: () => {
+            donorCopying.value = false;
+            donorPickerOpen.value = false;
+        },
+    });
+};
 
 watch(
     () => props.donation.certificate_url,
@@ -337,6 +416,7 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
+    clearTimeout(donorSearchTimer);
     window.removeEventListener('keydown', onCertificateKeydown);
 });
 
@@ -465,6 +545,91 @@ const paymentLinkSmsButtonLabel = computed(() => {
             </template>
         </PageHeader>
 
+        <div
+            v-if="donorPickerOpen"
+            class="fixed inset-0 z-50 flex items-end justify-center bg-foreground/40 p-3 sm:items-center"
+            @click.self="closeDonorPicker"
+        >
+            <div
+                class="flex max-h-[min(40rem,92vh)] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-none"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="copy-donor-title"
+            >
+                <div class="border-b border-border px-4 py-3">
+                    <h3 id="copy-donor-title" class="text-base font-semibold text-foreground">Copy donor details</h3>
+                    <p class="mt-1 text-sm text-muted-foreground">
+                        Recent failed donations are listed first. Search any past donation by name, email, phone, city, or payment id. This QR payment keeps its amount and cause.
+                    </p>
+                </div>
+                <div class="border-b border-border px-4 py-3">
+                    <label class="admin-label !mb-1 !text-xs" for="donor-source-search">Search</label>
+                    <input
+                        id="donor-source-search"
+                        v-model="donorQuery"
+                        type="search"
+                        class="admin-input"
+                        placeholder="Name, email, phone, city, or payment id"
+                        @input="onDonorQueryInput"
+                    >
+                </div>
+                <div class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+                    <p class="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {{ donorSourceMode === 'search' ? 'Matching donations' : 'Recent failed donations' }}
+                    </p>
+                    <p v-if="donorSourcesLoading" class="py-8 text-center text-sm text-muted-foreground">Searching…</p>
+                    <p v-else-if="! donorSources.length" class="py-8 text-center text-sm text-muted-foreground">
+                        {{ donorSourceMode === 'search' ? 'No donations match that search.' : 'No recent failed donations.' }}
+                    </p>
+                    <div v-else class="space-y-2">
+                        <button
+                            v-for="source in donorSources"
+                            :key="source.uuid"
+                            type="button"
+                            class="w-full rounded-lg border px-3 py-2 text-left"
+                            :class="selectedDonorSource?.uuid === source.uuid
+                                ? 'border-foreground bg-muted'
+                                : 'border-border hover:bg-muted/60'"
+                            @click="selectedDonorSource = source"
+                        >
+                            <div class="flex items-start justify-between gap-3">
+                                <div class="min-w-0">
+                                    <div class="truncate font-medium text-foreground">{{ source.donor_name }}</div>
+                                    <div class="truncate text-xs text-muted-foreground">
+                                        {{ source.donor_email || 'No email' }} · {{ source.donor_phone || 'No phone' }}
+                                    </div>
+                                </div>
+                                <StatusBadge :status="source.status" />
+                            </div>
+                            <div class="mt-1 truncate text-xs text-muted-foreground">
+                                {{ formatMoney(source.total_amount) }}
+                                <span v-if="source.cause"> · {{ source.cause }}</span>
+                                <span v-if="source.city"> · {{ source.city }}</span>
+                                <span v-if="source.created_at"> · {{ source.created_at }}</span>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+                <div class="flex flex-wrap items-center justify-end gap-2 border-t border-border px-4 py-3">
+                    <button
+                        type="button"
+                        class="rounded-lg border border-border px-3 py-2 text-sm"
+                        @click="closeDonorPicker"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        type="button"
+                        class="admin-btn-primary disabled:opacity-60"
+                        :disabled="! selectedDonorSource || donorCopying"
+                        @click="copyDonorDetails"
+                    >
+                        {{ donorCopying ? 'Copying…' : 'Copy details' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div class="grid min-w-0 items-start gap-6 xl:grid-cols-12">
             <div class="min-w-0 space-y-4 xl:col-span-8">
                 <section class="min-w-0 rounded-xl border border-border bg-card p-4 shadow-none sm:p-5">
@@ -476,6 +641,14 @@ const paymentLinkSmsButtonLabel = computed(() => {
                                 <span class="hidden text-muted-foreground sm:inline"> · </span>
                                 <span class="block sm:inline">{{ donation.donor_phone || 'No phone' }}</span>
                             </p>
+                            <button
+                                v-if="donation.donor_sources_url"
+                                type="button"
+                                class="mt-3 rounded-lg border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted"
+                                @click="openDonorPicker"
+                            >
+                                Copy donor details
+                            </button>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <span

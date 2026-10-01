@@ -227,6 +227,12 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::put('/donations/{donationOrder}', [AdminDonationController::class, 'update'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_EDIT))
         ->name('donations.update');
+    Route::get('/donations/{donationOrder}/donor-sources', [AdminDonationController::class, 'donorSources'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_EDIT))
+        ->name('donations.donor-sources');
+    Route::post('/donations/{donationOrder}/copy-donor', [AdminDonationController::class, 'copyDonor'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_EDIT))
+        ->name('donations.copy-donor');
     Route::post('/donations/{donationOrder}/refund', [AdminDonationController::class, 'refund'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_EDIT))
         ->name('donations.refund');

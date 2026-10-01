@@ -687,6 +687,12 @@ class AdminInertiaResources
             'edit_url' => $order->isPaid()
                 ? route('admin.donations.edit', $order)
                 : null,
+            'donor_sources_url' => $order->isPaid() && $order->payment_provider === DonationOrder::PROVIDER_RAZORPAY_QR
+                ? route('admin.donations.donor-sources', $order)
+                : null,
+            'copy_donor_url' => $order->isPaid() && $order->payment_provider === DonationOrder::PROVIDER_RAZORPAY_QR
+                ? route('admin.donations.copy-donor', $order)
+                : null,
             'pan_number' => $order->pan_number,
             'address' => $order->address,
             'pincode' => $order->pincode,

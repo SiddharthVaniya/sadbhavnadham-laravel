@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\CopyDonationDonorRequest;
 use App\Http\Requests\Admin\StoreDonationOrderRequest;
 use App\Http\Requests\Admin\UpdateDonationOrderRequest;
 use App\Jobs\UpdateDonationOnSheetJob;
@@ -600,6 +601,128 @@ class AdminDonationController extends Controller
         toastr()->success($message);
 
         return $redirect->with('status', $message);
+    }
+
+    public function donorSources(Request $request, DonationOrder $donationOrder): JsonResponse
+    {
+        $this->authorize('update', $donationOrder);
+        abort_unless(
+            $donationOrder->isPaid() && $donationOrder->payment_provider === DonationOrder::PROVIDER_RAZORPAY_QR,
+            404,
+        );
+
+        $search = trim((string) $request->input('q', ''));
+        $searching = mb_strlen($search) >= 2;
+
+        $query = DonationOrder::query()
+            ->with(['items.causeModel'])
+            ->where('id', '!=', $donationOrder->id);
+
+        DonationVisibility::apply($query, $request->user());
+
+        if ($searching) {
+            $query->where(function (Builder $subQuery) use ($search): void {
+                $subQuery
+                    ->where('donor_name', 'like', "%{$search}%")
+                    ->orWhere('donor_email', 'like', "%{$search}%")
+                    ->orWhere('donor_phone', 'like', "%{$search}%")
+                    ->orWhere('provider_payment_id', 'like', "%{$search}%")
+                    ->orWhere('provider_order_id', 'like', "%{$search}%")
+                    ->orWhere('city', 'like', "%{$search}%")
+                    ->orWhere('address', 'like', "%{$search}%");
+            });
+        } else {
+            $query->where('status', DonationOrder::STATUS_FAILED);
+        }
+
+        $rows = $query
+            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', [DonationOrder::STATUS_FAILED])
+            ->orderByDesc('created_at')
+            ->limit($searching ? 20 : 12)
+            ->get()
+            ->map(fn (DonationOrder $order): array => $this->donorSourceRow($order))
+            ->values();
+
+        return response()->json([
+            'mode' => $searching ? 'search' : 'recent_failed',
+            'donations' => $rows,
+        ]);
+    }
+
+    public function copyDonor(CopyDonationDonorRequest $request, DonationOrder $donationOrder): RedirectResponse
+    {
+        $source = DonationOrder::query()
+            ->where('order_uuid', $request->string('source_uuid')->toString())
+            ->firstOrFail();
+
+        $this->authorize('view', $source);
+
+        $donorSnapshot = [
+            'donor_name' => trim((string) $source->donor_name),
+            'donor_email' => mb_strtolower(trim((string) $source->donor_email)),
+            'donor_phone' => trim((string) $source->donor_phone),
+            'date_of_birth' => $source->date_of_birth,
+            'pan_number' => $source->pan_number,
+            'address' => $source->address,
+            'pincode' => $source->pincode,
+            'city' => $source->city,
+            'state' => $source->state,
+            'country' => strtoupper((string) ($source->country ?: 'INDIA')),
+            'donor_country_code' => strtoupper((string) ($source->donor_country_code ?: 'IN')),
+            'consent_indian_citizen' => (bool) $source->consent_indian_citizen,
+        ];
+
+        $donor = $this->resolveDonorFromSnapshot($donorSnapshot);
+
+        $donationOrder->update([
+            'donor_id' => $donor?->id ?? $source->donor_id ?? $donationOrder->donor_id,
+            'donor_name' => $donorSnapshot['donor_name'] !== ''
+                ? $donorSnapshot['donor_name']
+                : $donationOrder->donor_name,
+            'donor_email' => $donorSnapshot['donor_email'],
+            'donor_phone' => $donorSnapshot['donor_phone'],
+            'pan_number' => $donorSnapshot['pan_number'],
+            'date_of_birth' => $donorSnapshot['date_of_birth'],
+            'address' => $donorSnapshot['address'],
+            'pincode' => $donorSnapshot['pincode'],
+            'city' => $donorSnapshot['city'],
+            'state' => $donorSnapshot['state'],
+            'country' => $donorSnapshot['country'],
+            'donor_country_code' => $donorSnapshot['donor_country_code'],
+            'consent_indian_citizen' => $donorSnapshot['consent_indian_citizen'],
+        ]);
+
+        dispatch(new UpdateDonationOnSheetJob($donationOrder->fresh(['items.causeModel'])));
+
+        $message = 'Donor details copied from '.$donorSnapshot['donor_name'].'. Amount and cause were left unchanged.';
+        toastr()->success($message);
+
+        return redirect()
+            ->route('admin.donations.show', $donationOrder)
+            ->with('status', $message);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function donorSourceRow(DonationOrder $order): array
+    {
+        $item = $order->items->first();
+        $displayAt = $order->paid_at ?? $order->failed_at ?? $order->created_at;
+
+        return [
+            'uuid' => $order->order_uuid,
+            'donor_name' => $order->donor_name,
+            'donor_email' => $order->donor_email,
+            'donor_phone' => $order->donor_phone,
+            'city' => $order->city,
+            'address' => $order->address,
+            'status' => $order->status,
+            'total_amount' => (float) $order->total_amount,
+            'payment_id' => $order->provider_payment_id ?: $order->provider_order_id,
+            'cause' => $item?->causeModel?->title,
+            'created_at' => $displayAt?->timezone(config('app.timezone'))->format('d M Y, h:i A'),
+        ];
     }
 
     public function refund(DonationOrder $donationOrder, RazorpayRefundService $refunds): RedirectResponse
