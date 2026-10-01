@@ -34,6 +34,7 @@ class DonationReceiptStyles
                 : 'max-width:760px;margin:0 auto;padding:20px 16px 24px;',
             'container' => 'padding:28px 32px;background:#ffffff;font-family:'.$font.';',
             'logo' => 'max-height:64px;max-width:180px;',
+            'logo_caption' => 'color:'.self::MUTED.';font-size:10px;font-weight:400;line-height:1.3;padding:0 0 4px;font-family:'.$font.';',
             'title_box' => 'background:'.self::TINT_BG.';color:'.self::NAVY.';font-size:18px;font-weight:700;letter-spacing:0.12em;text-align:center;padding:14px 18px;font-family:'.$font.';',
             'meta_label' => 'color:'.self::MUTED.';font-weight:400;width:150px;padding:3px 0;font-size:13px;font-family:'.$font.';',
             'meta_value' => 'font-weight:600;color:'.self::TEXT.';padding:3px 0;font-size:13px;font-family:'.$font.';',

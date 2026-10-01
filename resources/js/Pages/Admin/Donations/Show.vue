@@ -804,6 +804,8 @@ const paymentLinkSmsButtonLabel = computed(() => {
                         >
                             <a :href="donation.receipt_preview_url" target="_blank" class="font-medium hover:underline">Preview</a>
                             <span class="text-muted-foreground">·</span>
+                            <a :href="donation.receipt_download_url" class="font-medium hover:underline" download>Download</a>
+                            <span class="text-muted-foreground">·</span>
                             <a :href="donation.receipt_print_url" target="_blank" class="font-medium hover:underline">Open</a>
                             <span class="text-muted-foreground">·</span>
                             <button

@@ -2,15 +2,20 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Helpers\NumberHelper;
 use App\Http\Controllers\Controller;
 use App\Jobs\SendDonationReceiptJob;
 use App\Models\DonationOrder;
 use App\Services\DonationPaymentService;
+use App\Services\DonationReceiptPdfService;
+use Illuminate\Http\RedirectResponse;
+use Symfony\Component\HttpFoundation\Response;
 
 class DonationReceiptController extends Controller
 {
     public function __construct(
         private DonationPaymentService $donationPaymentService,
+        private DonationReceiptPdfService $donationReceiptPdfService,
     ) {}
 
     public function preview(DonationOrder $order)
@@ -38,6 +43,33 @@ class DonationReceiptController extends Controller
         return redirect()
             ->route('admin.donations.show', $order)
             ->with('status', $message);
+    }
+
+    public function download(DonationOrder $order): Response|RedirectResponse
+    {
+        $this->authorize('view', $order);
+        abort_if(! $order->isPaid(), 403);
+
+        $order->loadMissing(['items.causeModel', 'items.package', 'donor']);
+
+        try {
+            $pdf = $this->donationReceiptPdfService->make(
+                (string) config('receipt.view', 'receipts.donation-minimal'),
+                [
+                    'order' => $order,
+                    'amountInWords' => NumberHelper::amountInWords((float) $order->total_amount),
+                ],
+            );
+
+            return $pdf->download($this->donationReceiptPdfService->whatsappFilename($order));
+        } catch (\Throwable $e) {
+            report($e);
+
+            return redirect()
+                ->route('admin.donations.show', $order)
+                ->with('status', 'Receipt PDF could not be created. Use Preview instead.')
+                ->with('flash_tone', 'warning');
+        }
     }
 
     public function print(DonationOrder $order)

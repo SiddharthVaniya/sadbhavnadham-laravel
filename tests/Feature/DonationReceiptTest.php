@@ -391,6 +391,49 @@ it('attaches a receipt pdf when the setting is enabled', function () {
     });
 });
 
+it('downloads a paid donation receipt as a pdf attachment', function () {
+    Permission::firstOrCreate(['name' => 'manage receipts']);
+    Permission::firstOrCreate(['name' => 'view all donations']);
+    $role = Role::firstOrCreate(['name' => 'admin']);
+    $role->givePermissionTo(['manage receipts', 'view all donations']);
+
+    $user = User::factory()->create();
+    $user->assignRole('admin');
+
+    $order = DonationOrder::create([
+        'payment_provider' => 'razorpay',
+        'donor_name' => 'Download Donor',
+        'donor_email' => 'download@example.com',
+        'donor_phone' => '9999999999',
+        'total_amount' => 2100.00,
+        'status' => DonationOrder::STATUS_PAID,
+        'receipt_number' => 77,
+        'paid_at' => now(),
+    ]);
+
+    $fakePdf = \Mockery::mock(\Barryvdh\DomPDF\PDF::class);
+    $fakePdf->shouldReceive('download')
+        ->once()
+        ->with('donation-receipt-77.pdf')
+        ->andReturn(response('%PDF-1.4 fake', 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="donation-receipt-77.pdf"',
+        ]));
+
+    $this->mock(DonationReceiptPdfService::class, function ($mock) use ($fakePdf) {
+        $mock->shouldReceive('make')->once()->andReturn($fakePdf);
+        $mock->shouldReceive('whatsappFilename')->once()->andReturn('donation-receipt-77.pdf');
+    });
+
+    Auth::login($user);
+
+    $response = $this->get(route('admin.donations.receipt.download', $order));
+
+    $response->assertOk();
+    $response->assertHeader('content-type', 'application/pdf');
+    expect($response->headers->get('content-disposition'))->toContain('attachment');
+});
+
 it('redirects admin print to preview when pdf is disabled', function () {
     Permission::firstOrCreate(['name' => 'manage receipts']);
     Permission::firstOrCreate(['name' => 'view all donations']);

@@ -63,6 +63,7 @@ it('renders the minimal english receipt with cause and package', function () {
 
     $response->assertOk();
     $response->assertSee('DONATION RECEIPT', false);
+    $response->assertSee('Managed by Manav Seva Charitable Trust', false);
     $response->assertSee('DONOR', false);
     $response->assertSee('Authorized Signatory', false);
     $response->assertSee('AADTM7770L', false);

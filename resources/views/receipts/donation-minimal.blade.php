@@ -132,6 +132,7 @@
         <table width="100%" style="border-collapse: collapse; margin-bottom: 18px;">
             <tr>
                 <td style="vertical-align: middle; width: 58%;">
+                    <div style="{{ $s['logo_caption'] }}">Managed by Manav Seva Cheritable Trust</div>
                     @if ($logoSrc)
                         <img src="{{ $logoSrc }}" alt="{{ $brand }}" class="logo" style="{{ $s['logo'] }}">
                     @endif

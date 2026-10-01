@@ -351,6 +351,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::get('/donations/{order}/receipt/print', [DonationReceiptController::class, 'print'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::RECEIPT_PRINT))
         ->name('donations.receipt.print');
+    Route::get('/donations/{order}/receipt/download', [DonationReceiptController::class, 'download'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::RECEIPT_PRINT))
+        ->name('donations.receipt.download');
     Route::post('/donations/{order}/receipt/resend', [DonationReceiptController::class, 'resend'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::RECEIPT_RESEND))
         ->name('donations.receipt.resend');

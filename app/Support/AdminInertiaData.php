@@ -384,6 +384,7 @@ class AdminInertiaData
             'receipt_email_label' => $receiptLabel,
             'receipt_preview_url' => route('admin.donations.receipt.preview', $order),
             'receipt_print_url' => route('admin.donations.receipt.print', $order),
+            'receipt_download_url' => route('admin.donations.receipt.download', $order),
             'receipt_resend_url' => route('admin.donations.receipt.resend', $order),
             'receipt_generate_url' => route('admin.donations.receipt.generate', $order),
             'edit_url' => route('admin.donations.edit', $order),
