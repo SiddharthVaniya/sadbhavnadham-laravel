@@ -7,6 +7,7 @@ use App\Models\DonationOrder;
 use App\Models\LinkTrackingSummary;
 use App\Models\LinkTrackingVisit;
 use App\Models\User;
+use App\Services\DonationAttributionService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -41,6 +42,7 @@ class MarketerPerformanceData
         'ip_location' => 'ip_city',
         'amount' => 'total_amount',
         'time' => 'paid_at',
+        'status' => 'status',
         'device' => 'device_type',
     ];
 
@@ -96,8 +98,9 @@ class MarketerPerformanceData
 
         $range = self::resolveMarketerRange($request, $duration);
         $filters = self::donationFilters($request);
-        $orders = self::attributedPaidOrders($user, $range);
-        self::applyDonationDeviceFilter($orders, $filters);
+        $allOrders = self::attributedOrders($user, $range);
+        self::applyDonationDeviceFilter($allOrders, $filters);
+        $orders = (clone $allOrders)->where('status', DonationOrder::STATUS_PAID);
 
         $donations = (clone $orders)->count();
         $revenue = round((float) (clone $orders)->sum('total_amount'), 2);
@@ -117,7 +120,9 @@ class MarketerPerformanceData
                 'donations' => $donations,
                 'revenue' => $revenue,
                 'average_donation' => $donations > 0 ? round($revenue / $donations, 2) : 0,
+                'donors' => self::countDistinctDonors($orders),
             ],
+            'statusCounts' => self::statusCounts($allOrders),
             'monthlyBudget' => MarketerMonthlyBudgetService::forUserMonth($user),
             'target' => self::donationTargetProgress($user),
             'dailyTrend' => self::donationDailyCollectionTrend($user, $range, $duration, $filters),
@@ -141,16 +146,16 @@ class MarketerPerformanceData
         $range = self::resolveMarketerRange($request, $duration);
         $filters = self::donationListFilters($request);
         [$sort, $dir, $sortColumn] = self::resolveDonationSort($request);
-        $orders = self::attributedPaidOrders($user, $range);
+        $orders = self::attributedOrders($user, $range);
         self::applyDonationListFilters($orders, $filters);
 
-        $donations = (clone $orders)->count();
-        $revenue = round((float) (clone $orders)->sum('total_amount'), 2);
+        $paidScope = self::attributedOrders($user, $range);
+        self::applyDonationListFilters($paidScope, $filters, false);
+        $paid = (clone $paidScope)->where('status', DonationOrder::STATUS_PAID);
+        $donations = (clone $paid)->count();
+        $revenue = round((float) (clone $paid)->sum('total_amount'), 2);
 
-        $paginator = (clone $orders)
-            ->with('items.causeModel')
-            ->orderBy($sortColumn, $dir)
-            ->orderByDesc('id')
+        $paginator = self::applyDonationSort((clone $orders)->with('items.causeModel'), $sortColumn, $dir)
             ->paginate(AdminInertiaResources::LIST_PER_PAGE)
             ->withQueryString();
 
@@ -169,7 +174,9 @@ class MarketerPerformanceData
                 'donations' => $donations,
                 'revenue' => $revenue,
                 'average_donation' => $donations > 0 ? round($revenue / $donations, 2) : 0,
+                'donors' => self::countDistinctDonors($paid),
             ],
+            'statusCounts' => self::statusCounts($paidScope),
             'donations' => AdminInertiaResources::paginated(
                 $paginator,
                 fn (DonationOrder $order) => self::marketerDonationRow($order),
@@ -264,13 +271,10 @@ class MarketerPerformanceData
         $range = self::resolveMarketerRange($request, $duration);
         $filters = self::donationFilters($request);
         [$sort, $dir, $sortColumn] = self::resolveDonationSort($request);
-        $orders = self::attributedPaidOrders($user, $range);
+        $orders = self::attributedOrders($user, $range);
         self::applyDonationDeviceFilter($orders, $filters);
 
-        $rows = $orders
-            ->with('items.causeModel')
-            ->orderBy($sortColumn, $dir)
-            ->orderByDesc('id')
+        $rows = self::applyDonationSort($orders->with('items.causeModel'), $sortColumn, $dir)
             ->get()
             ->map(fn (DonationOrder $order) => self::marketerDonationExportRow($order))
             ->values()
@@ -298,13 +302,10 @@ class MarketerPerformanceData
         $range = self::resolveMarketerRange($request, $duration);
         $filters = self::donationListFilters($request);
         [$sort, $dir, $sortColumn] = self::resolveDonationSort($request);
-        $orders = self::attributedPaidOrders($user, $range);
+        $orders = self::attributedOrders($user, $range);
         self::applyDonationListFilters($orders, $filters);
 
-        $rows = $orders
-            ->with('items.causeModel')
-            ->orderBy($sortColumn, $dir)
-            ->orderByDesc('id')
+        $rows = self::applyDonationSort($orders->with('items.causeModel'), $sortColumn, $dir)
             ->get()
             ->map(fn (DonationOrder $order) => self::marketerDonationExportRow($order))
             ->values()
@@ -531,6 +532,81 @@ class MarketerPerformanceData
     }
 
     /**
+     * Every donation attempt attributed to this marketer (all statuses), scoped by paid_at or, for unpaid orders, created_at.
+     *
+     * @param  array{start: ?Carbon, end: ?Carbon, label?: string}  $range
+     */
+    private static function attributedOrders(User $user, array $range): Builder
+    {
+        $query = DonationOrder::query();
+        AdminStaffReferralsData::applyPartnerAttributionFilter($query, $user);
+
+        if ($range['start'] !== null) {
+            $query->whereRaw('COALESCE(paid_at, created_at) >= ?', [$range['start']]);
+        }
+
+        if ($range['end'] !== null) {
+            $query->whereRaw('COALESCE(paid_at, created_at) <= ?', [$range['end']]);
+        }
+
+        return $query;
+    }
+
+    private static function applyDonationSort(Builder $query, string $column, string $dir): Builder
+    {
+        if ($column === 'paid_at') {
+            $query->orderByRaw('COALESCE(paid_at, created_at) '.($dir === 'asc' ? 'asc' : 'desc'));
+        } else {
+            $query->orderBy($column, $dir);
+        }
+
+        return $query->orderByDesc('id');
+    }
+
+    private static function applySubscriptionCondition(Builder $query): void
+    {
+        $query->where(function (Builder $sub): void {
+            $sub->where('is_recurring', true)->orWhereNotNull('donation_subscription_id');
+        });
+    }
+
+    /**
+     * Distinct donor total only — identities are never returned to marketers.
+     */
+    private static function countDistinctDonors(Builder $orders): int
+    {
+        $known = (clone $orders)->whereNotNull('donor_id')->distinct()->count('donor_id');
+        $guests = (clone $orders)->whereNull('donor_id')
+            ->whereNotNull('donor_email')->where('donor_email', '!=', '')
+            ->distinct()->count(DB::raw('LOWER(donor_email)'));
+
+        return $known + $guests;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private static function statusCounts(Builder $orders): array
+    {
+        $byStatus = (clone $orders)->reorder()
+            ->selectRaw('status, COUNT(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+
+        $subscription = (clone $orders)->reorder();
+        self::applySubscriptionCondition($subscription);
+
+        return [
+            'all' => (int) $byStatus->sum(),
+            'paid' => (int) ($byStatus[DonationOrder::STATUS_PAID] ?? 0),
+            'pending' => (int) ($byStatus[DonationOrder::STATUS_PENDING] ?? 0),
+            'failed' => (int) ($byStatus[DonationOrder::STATUS_FAILED] ?? 0),
+            'refunded' => (int) ($byStatus[DonationOrder::STATUS_REFUNDED] ?? 0),
+            'subscription' => $subscription->count(),
+        ];
+    }
+
+    /**
      * @return array<string, string>
      */
     private static function donationFilters(Request $request): array
@@ -549,7 +625,7 @@ class MarketerPerformanceData
     {
         $filters = self::donationFilters($request);
 
-        foreach (['utm_campaign', 'utm_medium', 'utm_content', 'cause', 'title', 'city', 'state'] as $key) {
+        foreach (['utm_campaign', 'utm_medium', 'utm_content', 'cause', 'title', 'city', 'state', 'status', 'payment_type', 'source', 'platform'] as $key) {
             $filters[$key] = trim((string) $request->input($key, ''));
         }
 
@@ -577,8 +653,33 @@ class MarketerPerformanceData
     /**
      * @param  array<string, string>  $filters
      */
-    private static function applyDonationListFilters(Builder $query, array $filters): void
+    private static function applyDonationListFilters(Builder $query, array $filters, bool $withStatus = true): void
     {
+        if ($withStatus) {
+            $status = $filters['status'] ?? '';
+            if (in_array($status, [DonationOrder::STATUS_PAID, DonationOrder::STATUS_PENDING, DonationOrder::STATUS_FAILED, DonationOrder::STATUS_REFUNDED], true)) {
+                $query->where('status', $status);
+            }
+        }
+
+        $paymentType = $filters['payment_type'] ?? '';
+        if ($paymentType === 'subscription') {
+            self::applySubscriptionCondition($query);
+        } elseif ($paymentType === 'one_time') {
+            $query->where(function (Builder $one): void {
+                $one->where(fn (Builder $a) => $a->whereNull('is_recurring')->orWhere('is_recurring', false))
+                    ->whereNull('donation_subscription_id');
+            });
+        }
+
+        if (($filters['source'] ?? '') !== '') {
+            DonationAttributionService::applyTrafficSourceFilter($query, $filters['source']);
+        }
+
+        if (($filters['platform'] ?? '') !== '') {
+            DonationAttributionService::applyPlatformFilter($query, $filters['platform']);
+        }
+
         foreach (['utm_campaign', 'utm_medium', 'utm_content', 'city', 'state'] as $column) {
             $value = $filters[$column] ?? '';
             if ($value !== '') {
@@ -1193,6 +1294,8 @@ class MarketerPerformanceData
             'cause' => self::distinctDonationCauses($user),
             'title' => self::distinctDonationTitles($user),
             'device_type' => self::distinctDonationDevices($user),
+            'source' => DonationAttributionService::trafficSourceOptions(),
+            'platform' => DonationAttributionService::platformOptions(),
         ];
     }
 
@@ -1305,7 +1408,9 @@ class MarketerPerformanceData
             'ip_location' => self::formatDonationIpLocation($order),
             'device' => self::normalizeDeviceValue($order->device_type),
             'amount' => round((float) $order->total_amount, 2),
-            'time' => $paidAt?->format('d M Y, h:i A') ?: '—',
+            'status' => (string) $order->status,
+            'payment_type' => ($order->is_recurring || $order->donation_subscription_id) ? 'subscription' : 'one_time',
+            'time' => ($paidAt ?? $order->created_at?->timezone(config('app.timezone')))?->format('d M Y, h:i A') ?: '—',
         ];
     }
 
@@ -1354,6 +1459,8 @@ class MarketerPerformanceData
             'IP',
             'IP location',
             'Device',
+            'Status',
+            'Type',
             'Amount',
             'Time',
         ];
@@ -1378,6 +1485,8 @@ class MarketerPerformanceData
             'IP' => $row['ip_address'],
             'IP location' => $row['ip_location'],
             'Device' => self::deviceLabel($row['device']),
+            'Status' => ucfirst($row['status']),
+            'Type' => $row['payment_type'] === 'subscription' ? 'Subscription' : 'One-time',
             'Amount' => $row['amount'],
             'Time' => $row['time'],
         ];
@@ -1498,6 +1607,14 @@ class MarketerPerformanceData
             'ip_country_code',
             'ip_city',
             'ip_isp',
+            'source',
+            'platform',
+            'status',
+            'payment_type',
+            'cause',
+            'title',
+            'city',
+            'state',
         ] as $key) {
             $filters[$key] = trim((string) $request->input($key, ''));
         }
@@ -1545,6 +1662,9 @@ class MarketerPerformanceData
             $query->where('extra_params->aid', $aid);
         }
 
+        self::applyVisitTrafficFilters($query, $filters);
+        self::applyVisitOrderFilters($query, $filters);
+
         foreach (['ip_country_code', 'ip_city', 'ip_isp'] as $column) {
             $value = $filters[$column] ?? '';
 
@@ -1554,6 +1674,72 @@ class MarketerPerformanceData
 
             $query->where($column, $value);
         }
+    }
+
+    /**
+     * Visits carry no normalized attribution columns, so source/platform are matched on UTM, referrer and landing URL.
+     *
+     * @param  array<string, string>  $filters
+     */
+    private static function applyVisitTrafficFilters(Builder $query, array $filters): void
+    {
+        $match = function (array $utmSources, array $needles) use ($query): void {
+            $query->where(function (Builder $inner) use ($utmSources, $needles): void {
+                $inner->whereIn(DB::raw("LOWER(COALESCE(utm_source, ''))"), $utmSources);
+
+                foreach (['referrer', 'landing_url'] as $column) {
+                    foreach ($needles as $needle) {
+                        $inner->orWhereRaw("LOWER(COALESCE({$column}, '')) LIKE ?", ['%'.$needle.'%']);
+                    }
+                }
+            });
+        };
+
+        $source = $filters['source'] ?? '';
+        if ($source === 'organic') {
+            $query->where(function (Builder $q): void {
+                $q->whereNull('utm_source')->orWhere('utm_source', '');
+            });
+        } elseif ($source !== '') {
+            match ($source) {
+                'meta' => $match(['facebook', 'fb', 'meta', 'instagram', 'ig', 'messenger'], ['facebook.', 'instagram.', 'fbclid', 'igshid']),
+                'google' => $match(['google', 'adwords'], ['google.', 'gclid']),
+                'youtube' => $match(['youtube', 'yt'], ['youtube.', 'youtu.be']),
+                'whatsapp' => $match(['whatsapp', 'wa'], ['whatsapp.', 'wa.me']),
+                'email' => $match(['email', 'newsletter', 'mail'], []),
+                'wordpress' => $match(['wordpress', 'wp'], []),
+                default => null,
+            };
+        }
+
+        $platform = $filters['platform'] ?? '';
+        if ($platform !== '') {
+            match ($platform) {
+                'facebook' => $match(['facebook', 'fb', 'meta'], ['facebook.', 'fbclid']),
+                'instagram' => $match(['instagram', 'ig'], ['instagram.', 'igshid']),
+                'messenger' => $match(['messenger'], ['messenger.']),
+                'audience_network' => $match(['audience_network', 'an'], ['audience_network']),
+                default => null,
+            };
+        }
+    }
+
+    /**
+     * Order-level filters apply to visits linked to a matching donation order.
+     *
+     * @param  array<string, string>  $filters
+     */
+    private static function applyVisitOrderFilters(Builder $query, array $filters): void
+    {
+        $orderFilters = array_intersect_key($filters, array_flip(['status', 'payment_type', 'cause', 'title', 'city', 'state']));
+
+        if (array_filter($orderFilters, fn ($value) => $value !== '') === []) {
+            return;
+        }
+
+        $orders = DonationOrder::query()->select('id');
+        self::applyDonationListFilters($orders, $orderFilters);
+        $query->whereIn('donation_order_id', $orders);
     }
 
     /**
@@ -1577,6 +1763,12 @@ class MarketerPerformanceData
             'ip_country_code' => self::distinctVisitColumn($user, 'ip_country_code'),
             'ip_city' => self::distinctVisitColumn($user, 'ip_city'),
             'ip_isp' => self::distinctVisitColumn($user, 'ip_isp'),
+            'source' => DonationAttributionService::trafficSourceOptions(),
+            'platform' => DonationAttributionService::platformOptions(),
+            'cause' => self::distinctDonationCauses($user),
+            'title' => self::distinctDonationTitles($user),
+            'city' => self::distinctDonationColumn($user, 'city'),
+            'state' => self::distinctDonationColumn($user, 'state'),
         ];
     }
 

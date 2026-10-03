@@ -17,7 +17,9 @@ use App\Services\DonationAttributionService;
 use App\Services\DonationPaymentService;
 use App\Services\PostalCodeLookupService;
 use App\Services\RazorpayRefundService;
+use App\Models\User;
 use App\Support\AdminInertiaData;
+use App\Support\AdminStaffReferralsData;
 use App\Support\AdminInertiaResources;
 use App\Support\DonationVisibility;
 use App\Support\PanRequirementService;
@@ -102,6 +104,7 @@ class AdminDonationController extends Controller
             $request->filled('platform'),
             $request->filled('utm_campaign'),
             $request->filled('utm_content'),
+            $request->filled('partner_user_id'),
         ])->filter()->count();
 
         [$sort, $dir] = $this->resolveDonationsListSort($request);
@@ -186,6 +189,13 @@ class AdminDonationController extends Controller
             'platformOptions' => collect(DonationAttributionService::platformOptions())
                 ->map(fn (string $label, string $value) => ['value' => $value, 'label' => $label])
                 ->values(),
+            'partnerOptions' => User::query()
+                ->whereNotNull('referral_code')
+                ->where('referral_code', '!=', '')
+                ->orderBy('name')
+                ->get(['id', 'name', 'referral_code'])
+                ->map(fn (User $partner) => ['id' => $partner->id, 'name' => $partner->name, 'code' => (string) $partner->referral_code])
+                ->values(),
             'campaignOptions' => $campaignOptions,
             'employeeOptions' => $employeeOptions,
             'causes' => Cause::query()->orderBy('title')->get(['id', 'title']),
@@ -219,6 +229,7 @@ class AdminDonationController extends Controller
                 'platform' => $request->input('platform'),
                 'utm_campaign' => $request->input('utm_campaign'),
                 'utm_content' => $request->input('utm_content'),
+                'partner_user_id' => $request->input('partner_user_id'),
                 'sort' => $sort,
                 'dir' => $dir,
             ],
@@ -1001,7 +1012,7 @@ class AdminDonationController extends Controller
         // Search must look across all donations unless the user picks an explicit custom range.
         if ($duration === 'custom') {
             $this->applyCreatedAtDateRange($query, $request->input('from_date'), $request->input('to_date'));
-        } elseif (! $this->hasDonationsSearchTerm($request)) {
+        } else {
             $this->applyDurationFilter($query, $duration);
         }
 
@@ -1041,6 +1052,16 @@ class AdminDonationController extends Controller
 
         if ($request->filled('utm_content')) {
             $query->where('utm_content', (string) $request->input('utm_content'));
+        }
+
+        if ($request->filled('partner_user_id')) {
+            $partner = User::query()->find((int) $request->input('partner_user_id'));
+
+            if ($partner) {
+                AdminStaffReferralsData::applyPartnerAttributionFilter($query, $partner);
+            } else {
+                $query->whereRaw('0 = 1');
+            }
         }
 
         if ($this->hasDonationsSearchTerm($request)) {
@@ -1185,9 +1206,14 @@ class AdminDonationController extends Controller
      */
     private function resolveDonationsListDuration(Request $request): string
     {
+        if ($request->filled('from_date') || $request->filled('to_date')) {
+            return 'custom';
+        }
+
         $duration = (string) $request->input('duration', 'today');
 
-        if ($this->hasDonationsSearchTerm($request) && $duration !== 'custom') {
+        // A search on the default period looks across all donations; any other chosen period is honoured.
+        if ($this->hasDonationsSearchTerm($request) && in_array($duration, ['today', ''], true)) {
             return 'all';
         }
 

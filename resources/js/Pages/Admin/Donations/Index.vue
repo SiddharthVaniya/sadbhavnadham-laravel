@@ -43,6 +43,7 @@ const props = defineProps({
     providerOptions: { type: Array, default: () => [] },
     sourceOptions: { type: Array, default: () => [] },
     platformOptions: { type: Array, default: () => [] },
+    partnerOptions: { type: Array, default: () => [] },
     campaignOptions: { type: Array, default: () => [] },
     employeeOptions: { type: Array, default: () => [] },
     causes: { type: Array, default: () => [] },
@@ -66,6 +67,7 @@ const form = reactive({
     platform: props.filters.platform ?? '',
     utm_campaign: props.filters.utm_campaign ?? '',
     utm_content: props.filters.utm_content ?? '',
+    partner_user_id: props.filters.partner_user_id ?? '',
     sort: props.sort ?? 'created_at_ts',
     dir: props.dir ?? 'desc',
 });
@@ -140,7 +142,9 @@ const goNextDay = () => {
 const listQueryParams = (extra = {}) => {
     const payload = { ...form, ...extra };
 
-    if (String(payload.search || '').trim() !== '' && payload.duration !== 'custom' && ! payload.from_date && ! payload.to_date) {
+    if (payload.from_date || payload.to_date) {
+        payload.duration = 'custom';
+    } else if (String(payload.search || '').trim() !== '' && payload.duration === 'today') {
         payload.duration = 'all';
     }
 
@@ -366,6 +370,13 @@ const exportUrl = computed(() => {
                     <p class="mt-1 text-[11px] leading-snug text-muted-foreground">
                         Facebook / Instagram when source is Meta.
                     </p>
+                </div>
+                <div class="md:col-span-2">
+                    <label class="admin-label !mb-1 !text-xs">Partner</label>
+                    <select v-model="form.partner_user_id" class="admin-input !py-2">
+                        <option value="">All partners</option>
+                        <option v-for="partner in partnerOptions" :key="partner.id" :value="partner.id">{{ partner.name }} ({{ partner.code }})</option>
+                    </select>
                 </div>
                 <div class="md:col-span-3">
                     <label class="admin-label !mb-1 !text-xs">Campaign (utm_campaign)</label>

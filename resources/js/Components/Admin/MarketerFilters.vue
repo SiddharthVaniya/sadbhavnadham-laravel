@@ -65,10 +65,33 @@ const emptyFilters = () => {
             city: '',
             state: '',
             device_type: '',
+            status: '',
+            payment_type: '',
+            source: '',
+            platform: '',
         };
     }
 
-    if (isDonations.value || isCampaigns.value) {
+    if (isCampaigns.value) {
+        return {
+            from_date: '',
+            to_date: '',
+            utm_campaign: '',
+            utm_medium: '',
+            utm_content: '',
+            cause: '',
+            title: '',
+            city: '',
+            state: '',
+            device_type: '',
+            status: '',
+            payment_type: '',
+            source: '',
+            platform: '',
+        };
+    }
+
+    if (isDonations.value) {
         return {
             from_date: '',
             to_date: '',
@@ -93,6 +116,8 @@ const emptyFilters = () => {
         ip_country_code: '',
         ip_city: '',
         ip_isp: '',
+        source: '',
+        platform: '',
     };
 };
 
@@ -220,13 +245,31 @@ const deviceLabel = (value) => {
             </select>
         </div>
         <div v-if="isTracking">
-            <label class="admin-label !mb-1 !text-xs">Source</label>
+            <label class="admin-label !mb-1 !text-xs">UTM source</label>
             <select v-model="form.utm_source" class="admin-input !py-2">
-                <option value="">All sources</option>
+                <option value="">All UTM sources</option>
                 <option v-for="option in optionsFor('utm_source')" :key="option" :value="option">{{ option }}</option>
             </select>
         </div>
-        <template v-if="isDonationList">
+        <template v-if="isDonationList || isCampaigns">
+            <div>
+                <label class="admin-label !mb-1 !text-xs">Status</label>
+                <select v-model="form.status" class="admin-input !py-2">
+                    <option value="">All statuses</option>
+                    <option value="paid">Paid</option>
+                    <option value="pending">Pending</option>
+                    <option value="failed">Failed</option>
+                    <option value="refunded">Refunded</option>
+                </select>
+            </div>
+            <div>
+                <label class="admin-label !mb-1 !text-xs">Payment type</label>
+                <select v-model="form.payment_type" class="admin-input !py-2">
+                    <option value="">All types</option>
+                    <option value="one_time">One-time</option>
+                    <option value="subscription">Subscription</option>
+                </select>
+            </div>
             <div>
                 <label class="admin-label !mb-1 !text-xs">Campaign</label>
                 <select v-model="form.utm_campaign" class="admin-input !py-2">
@@ -274,6 +317,22 @@ const deviceLabel = (value) => {
                 <select v-model="form.state" class="admin-input !py-2">
                     <option value="">All states</option>
                     <option v-for="option in optionsFor('state')" :key="option" :value="option">{{ option }}</option>
+                </select>
+            </div>
+        </template>
+        <template v-if="isDonationList || isCampaigns || isTracking">
+            <div>
+                <label class="admin-label !mb-1 !text-xs">Source</label>
+                <select v-model="form.source" class="admin-input !py-2">
+                    <option value="">All sources</option>
+                    <option v-for="(label, value) in (filterOptions?.source || {})" :key="value" :value="value">{{ label }}</option>
+                </select>
+            </div>
+            <div>
+                <label class="admin-label !mb-1 !text-xs">Platform</label>
+                <select v-model="form.platform" class="admin-input !py-2">
+                    <option value="">All platforms</option>
+                    <option v-for="(label, value) in (filterOptions?.platform || {})" :key="value" :value="value">{{ label }}</option>
                 </select>
             </div>
         </template>

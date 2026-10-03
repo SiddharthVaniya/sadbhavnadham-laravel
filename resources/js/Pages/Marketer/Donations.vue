@@ -5,6 +5,7 @@ import {
     HandCoins,
     HeartHandshake,
     IndianRupee,
+    Users,
 } from '@lucide/vue';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import DataTable from '@/Components/Admin/DataTable.vue';
@@ -19,6 +20,7 @@ const props = defineProps({
     durationLabel: { type: String, required: true },
     profile: { type: Object, required: true },
     summary: { type: Object, default: () => ({}) },
+    statusCounts: { type: Object, default: () => ({}) },
     donations: { type: Object, default: () => ({ data: [], links: [], meta: {} }) },
     filters: { type: Object, default: () => ({}) },
     filterOptions: { type: Object, default: () => ({}) },
@@ -35,6 +37,31 @@ const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN
 const donationCount = computed(() => Number(props.summary?.donations ?? 0));
 const donationRevenue = computed(() => Number(props.summary?.revenue ?? 0));
 const averageDonation = computed(() => Number(props.summary?.average_donation ?? 0));
+
+const donorCount = computed(() => Number(props.summary?.donors ?? 0));
+
+const statusTabs = computed(() => [
+    { key: '', label: 'All', count: props.statusCounts?.all ?? 0 },
+    { key: 'paid', label: 'Paid', count: props.statusCounts?.paid ?? 0 },
+    { key: 'pending', label: 'Pending', count: props.statusCounts?.pending ?? 0 },
+    { key: 'failed', label: 'Failed', count: props.statusCounts?.failed ?? 0 },
+    { key: 'refunded', label: 'Refunded', count: props.statusCounts?.refunded ?? 0 },
+]);
+
+const statusClass = (status) => ({
+    paid: 'bg-emerald-100 text-emerald-700',
+    pending: 'bg-amber-100 text-amber-700',
+    failed: 'bg-red-100 text-red-700',
+    refunded: 'bg-slate-200 text-slate-700',
+}[status] || 'bg-muted text-muted-foreground');
+
+const setStatus = (status) => {
+    router.get('/marketer/donations', listQueryParams({ status }), {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
+};
 
 const deviceLabel = (value) => {
     const labels = {
@@ -96,6 +123,7 @@ const donationColumns = [
     { key: 'ip_address', label: 'IP', sortable: true },
     { key: 'ip_location', label: 'IP location', sortable: true },
     { key: 'device', label: 'Device', sortable: true },
+    { key: 'status', label: 'Status', sortable: true },
     { key: 'amount', label: 'Amount', sortable: true, align: 'right' },
     { key: 'time', label: 'Time', sortable: true },
 ];
@@ -133,7 +161,7 @@ const donationRows = computed(() => (props.donations?.data || []).map((row) => (
                     Donations, {{ userName }}
                 </h2>
                 <p class="mt-1 max-w-2xl text-sm text-muted-foreground">
-                    Paid orders linked to your tracking code. Filter by campaign, medium, ad, cause, title, location, IP, and device.
+                    Orders linked to your tracking code. Filter by status, type, source, platform, campaign, medium, ad, cause, title, location, and device.
                 </p>
             </div>
             <div class="flex flex-wrap items-center gap-2">
@@ -154,7 +182,7 @@ const donationRows = computed(() => (props.donations?.data || []).map((row) => (
             :filter-options="filterOptions"
         />
 
-        <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MarketerStatCard
                 label="Paid donations"
                 :value="formatNumber(donationCount)"
@@ -174,6 +202,15 @@ const donationRows = computed(() => (props.donations?.data || []).map((row) => (
                 </template>
             </MarketerStatCard>
             <MarketerStatCard
+                label="Donors"
+                :value="formatNumber(donorCount)"
+                hint="Unique donors with paid orders"
+            >
+                <template #icon>
+                    <Users class="size-4" />
+                </template>
+            </MarketerStatCard>
+            <MarketerStatCard
                 label="Average donation"
                 :value="formatMoney(averageDonation)"
                 hint="Per paid order"
@@ -184,13 +221,31 @@ const donationRows = computed(() => (props.donations?.data || []).map((row) => (
             </MarketerStatCard>
         </div>
 
+        <div class="mb-4 flex flex-wrap gap-2">
+            <button
+                v-for="tab in statusTabs"
+                :key="tab.key"
+                type="button"
+                class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition"
+                :class="(filters.status || '') === tab.key ? 'border-foreground bg-foreground text-background' : 'border-border bg-card text-foreground hover:bg-muted'"
+                @click="setStatus(tab.key)"
+            >
+                {{ tab.label }}
+                <span class="tabular-nums opacity-70">{{ formatNumber(tab.count) }}</span>
+            </button>
+            <span class="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium">
+                Subscriptions
+                <span class="tabular-nums opacity-70">{{ formatNumber(statusCounts.subscription) }}</span>
+            </span>
+        </div>
+
         <Card class="shadow-none">
             <CardHeader>
                 <CardTitle class="text-base">
                     {{ profile.code ? `Attributed donations · ${profile.code}` : 'Attributed donations' }}
                 </CardTitle>
                 <CardDescription>
-                    Paid orders linked to your tracking code for the selected filters.
+                    Orders linked to your tracking code for the selected filters.
                 </CardDescription>
             </CardHeader>
             <CardContent class="p-0">
@@ -204,6 +259,12 @@ const donationRows = computed(() => (props.donations?.data || []).map((row) => (
                 >
                     <template #cell-cause="{ row }">
                         <span class="font-medium">{{ row.cause }}</span>
+                    </template>
+                    <template #cell-status="{ row }">
+                        <span class="inline-flex items-center gap-1.5">
+                            <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize" :class="statusClass(row.status)">{{ row.status }}</span>
+                            <span v-if="row.payment_type === 'subscription'" class="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-semibold text-violet-700">Subscription</span>
+                        </span>
                     </template>
                     <template #cell-ip_address="{ row }">
                         <span class="font-mono text-[12px] tabular-nums">{{ row.ip_address }}</span>

@@ -6,6 +6,7 @@ import {
     HandCoins,
     HeartHandshake,
     IndianRupee,
+    Users,
 } from '@lucide/vue';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import MarketerFilters from '@/Components/Admin/MarketerFilters.vue';
@@ -22,6 +23,7 @@ const props = defineProps({
     durationLabel: { type: String, required: true },
     profile: { type: Object, required: true },
     summary: { type: Object, default: () => ({}) },
+    statusCounts: { type: Object, default: () => ({}) },
     target: { type: Object, default: () => ({}) },
     monthlyBudget: { type: Object, default: () => ({ year_month: '', target_amount: null, spend_amount: 0 }) },
     dailyTrend: { type: Object, default: () => ({ granularity: 'day', points: [] }) },
@@ -52,6 +54,14 @@ const greeting = computed(() => {
 const formatNumber = (value) => Number(value || 0).toLocaleString('en-IN');
 const formatMoney = (amount) => `₹ ${formatNumber(amount)}`;
 const donationCount = computed(() => Number(props.summary?.donations ?? 0));
+const statusLinks = [
+    { label: 'Pending', count: 'pending', params: { status: 'pending' } },
+    { label: 'Failed', count: 'failed', params: { status: 'failed' } },
+    { label: 'Refunded', count: 'refunded', params: { status: 'refunded' } },
+    { label: 'Subscriptions', count: 'subscription', params: { payment_type: 'subscription' } },
+];
+const statusHref = (item) => '/marketer/donations?' + new URLSearchParams(listQueryParams(item.params)).toString();
+const donorCount = computed(() => Number(props.summary?.donors ?? 0));
 const collectedAmount = computed(() => Number(props.summary?.revenue ?? 0));
 const averageDonation = computed(() => Number(props.summary?.average_donation ?? 0));
 const targetPercent = computed(() => {
@@ -176,7 +186,7 @@ const exportUrl = (format) => {
             :filter-options="filterOptions"
         />
 
-        <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <div class="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MarketerStatCard
                 label="Paid donations"
                 :value="formatNumber(donationCount)"
@@ -184,6 +194,15 @@ const exportUrl = (format) => {
             >
                 <template #icon>
                     <HeartHandshake class="size-4" />
+                </template>
+            </MarketerStatCard>
+            <MarketerStatCard
+                label="Donors"
+                :value="formatNumber(donorCount)"
+                hint="Unique donors with paid orders"
+            >
+                <template #icon>
+                    <Users class="size-4" />
                 </template>
             </MarketerStatCard>
             <MarketerStatCard
@@ -222,6 +241,18 @@ const exportUrl = (format) => {
                     <IndianRupee class="size-4" />
                 </template>
             </MarketerStatCard>
+        </div>
+
+        <div class="mb-6 flex flex-wrap gap-2">
+            <Link
+                v-for="item in statusLinks"
+                :key="item.label"
+                :href="statusHref(item)"
+                class="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium hover:bg-muted"
+            >
+                {{ item.label }}
+                <span class="tabular-nums opacity-70">{{ formatNumber(statusCounts[item.count]) }}</span>
+            </Link>
         </div>
 
         <div class="mb-6 grid gap-4 xl:grid-cols-12">
