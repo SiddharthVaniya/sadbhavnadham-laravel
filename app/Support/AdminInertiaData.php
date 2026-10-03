@@ -5,6 +5,7 @@ namespace App\Support;
 use App\Models\Cause;
 use App\Models\DonationItem;
 use App\Models\DonationOrder;
+use App\Models\DonationTelecallerNote;
 use App\Models\PaymentEvent;
 use App\Models\RazorpayQrCode;
 use App\Services\DonationAttributionService;
@@ -19,6 +20,45 @@ class AdminInertiaData
      * @var array<int, array{id: string, name: string, uuid: ?string, url: ?string}|null>
      */
     private static array $qrSummaryByOrderId = [];
+
+    /**
+     * @var array<int, array{speaker: string, name: string, message: string, at: ?string}>
+     */
+    private static array $lastTelecallerNoteByOrderId = [];
+
+    /**
+     * @param  iterable<DonationOrder>  $orders
+     */
+    private static function warmLastTelecallerNotes(iterable $orders): void
+    {
+        self::$lastTelecallerNoteByOrderId = [];
+        $ids = collect($orders)->pluck('id')->filter()->all();
+
+        if ($ids === []) {
+            return;
+        }
+
+        try {
+            $latestIds = DonationTelecallerNote::query()
+                ->whereIn('donation_order_id', $ids)
+                ->selectRaw('MAX(id) as id')
+                ->groupBy('donation_order_id')
+                ->pluck('id');
+
+            $notes = DonationTelecallerNote::query()->whereIn('id', $latestIds)->get();
+        } catch (\Throwable) {
+            return;
+        }
+
+        $notes->each(function (DonationTelecallerNote $note): void {
+            self::$lastTelecallerNoteByOrderId[$note->donation_order_id] = [
+                'speaker' => $note->speaker,
+                'name' => (string) $note->telecaller_name,
+                'message' => $note->message,
+                'at' => $note->created_at?->format('d M, h:i A'),
+            ];
+        });
+    }
 
     public static function donationRow(DonationOrder $order): array
     {
@@ -68,6 +108,7 @@ class AdminInertiaData
             'edit_url' => $order->isPaid()
                 ? route('admin.donations.edit', $order)
                 : null,
+            'last_telecaller_note' => self::$lastTelecallerNoteByOrderId[$order->id] ?? null,
         ];
     }
 
@@ -421,6 +462,7 @@ class AdminInertiaData
         AdminDonationLaterPaid::clearCache();
         RazorpayPaymentFailure::clearCache();
         self::warmQrLookups($paginator->items());
+        self::warmLastTelecallerNotes($paginator->items());
         AdminDonationLaterPaid::warm($paginator->items());
         RazorpayPaymentFailure::warm($paginator->items());
 

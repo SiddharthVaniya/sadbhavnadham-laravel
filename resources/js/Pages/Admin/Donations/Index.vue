@@ -1,7 +1,8 @@
 <script setup>
-import { computed, reactive, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
-import { Eye, Pencil } from '@lucide/vue';
+import { Eye, MessageSquareText, Pencil } from '@lucide/vue';
+import TelecallerConversationModal from '@/Components/Admin/TelecallerConversationModal.vue';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
 import StatusBadge from '@/Components/Admin/StatusBadge.vue';
@@ -14,6 +15,17 @@ import { mergeDurationOptions } from '@/utils/periodOptions';
 import { isSingleDayBeforeToday, nextDayYmd, resolveSingleDayYmd } from '@/utils/nextDayFilter';
 
 const page = usePage();
+const telecallerOpen = ref(false);
+const telecallerRow = ref(null);
+const openTelecaller = (row) => {
+    telecallerRow.value = row;
+    telecallerOpen.value = true;
+};
+const onTelecallerSaved = (last) => {
+    if (telecallerRow.value) {
+        telecallerRow.value.last_telecaller_note = last;
+    }
+};
 const canManageDonations = computed(() => page.props.auth.permissions?.includes('manage donations') ?? false);
 
 const props = defineProps({
@@ -223,6 +235,7 @@ const donationColumns = [
     { key: 'status', label: 'Status', sortable: true },
     { key: 'city', label: 'City', sortable: true },
     { key: 'created_at_ts', label: 'Paid / date', sortable: true },
+    { key: 'last_note', label: 'Last call note', sortable: false },
     { key: 'actions', label: 'Action', sortable: false, align: 'right' },
 ];
 
@@ -464,12 +477,38 @@ const exportUrl = computed(() => {
                         <div>{{ row.created_date }}</div>
                         <div class="text-xs text-muted-foreground">{{ row.created_time }}</div>
                     </template>
+                    <template #cell-last_note="{ row }">
+                        <button
+                            v-if="row.last_telecaller_note"
+                            type="button"
+                            class="block w-44 text-left"
+                            :title="row.last_telecaller_note.message"
+                            @click="openTelecaller(row)"
+                        >
+                            <span class="block truncate text-sm text-foreground">{{ row.last_telecaller_note.message }}</span>
+                            <span class="block truncate text-xs text-muted-foreground">
+                                {{ row.last_telecaller_note.speaker === 'donor' ? row.donor_name : (row.last_telecaller_note.name || 'Telecaller') }}
+                                · {{ row.last_telecaller_note.at }}
+                            </span>
+                        </button>
+                        <span v-else class="text-xs text-muted-foreground">—</span>
+                    </template>
                     <template #cell-actions="{ row }">
                         <div class="inline-flex items-center justify-end gap-1">
                             <Button as-child variant="ghost" size="icon-sm" class="text-muted-foreground">
                                 <Link :href="detailHref(row)" title="Details" aria-label="Details">
                                     <Eye class="size-4" />
                                 </Link>
+                            </Button>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                class="text-muted-foreground"
+                                title="Telecaller conversation"
+                                aria-label="Telecaller conversation"
+                                @click="openTelecaller(row)"
+                            >
+                                <MessageSquareText class="size-4" />
                             </Button>
                             <Button
                                 v-if="canManageDonations && row.edit_url"
@@ -490,5 +529,6 @@ const exportUrl = computed(() => {
                 </DataTable>
             </div>
         </div>
+        <TelecallerConversationModal :open="telecallerOpen" :donation="telecallerRow" @close="telecallerOpen = false" @saved="onTelecallerSaved" />
     </AdminLayout>
 </template>

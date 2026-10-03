@@ -10,6 +10,7 @@ use App\Http\Controllers\Admin\AdminCheckoutRecoveryController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDonationCampaignController;
 use App\Http\Controllers\Admin\AdminDonationController;
+use App\Http\Controllers\Admin\AdminDonationTelecallerNoteController;
 use App\Http\Controllers\Admin\AdminDonorController;
 use App\Http\Controllers\Admin\AdminDonorCrmController;
 use App\Http\Controllers\Admin\AdminMarketerBudgetController;
@@ -260,6 +261,12 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::get('/donations/recovery', [AdminCheckoutRecoveryController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_RECOVERY_VIEW))
         ->name('donations.recovery');
+    Route::get('/donations/{donationOrder}/telecaller-notes', [AdminDonationTelecallerNoteController::class, 'index'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_VIEW))
+        ->name('donations.telecaller-notes.index');
+    Route::post('/donations/{donationOrder}/telecaller-notes', [AdminDonationTelecallerNoteController::class, 'store'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_VIEW))
+        ->name('donations.telecaller-notes.store');
     Route::get('/donations/{donationOrder}', [AdminDonationController::class, 'show'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_VIEW))
         ->name('donations.show');
