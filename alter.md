@@ -1,15 +1,14 @@
-﻿# Database alter queries (do not run automatically)
+# Database alter queries (do not run automatically)
 
 Apply these manually after reviewing. Agents must **not** change the database directly.
 
-## Payment-fail WhatsApp campaign (`payment_failed_retry_payment`)
+## Payment-fail WhatsApp campaign (`failed_payment_qr_of_paymet_link`)
 
 Template body variables:
 
-1. `{{1}}` — donor first/full name  
-2. `{{2}}` — order reference (`provider_order_id`)  
-3. `{{3}}` — amount (number only; template already has `₹`)  
-4. `{{4}}` — Razorpay payment-link URL  
+1. `{{1}}` — donor first/full name
+2. `{{2}}` — amount (number with ₹)
+3. `{{3}}` — Razorpay payment-link URL
 
 ### Preview current values
 
@@ -23,15 +22,16 @@ ORDER BY id;
 
 ```sql
 UPDATE causes
-SET aisensy_payment_link_campaign = 'payment_failed_retry_payment',
+SET aisensy_payment_link_campaign = 'failed_payment_qr_of_paymet_link',
     updated_at = NOW()
 WHERE aisensy_payment_link_campaign IS NULL
    OR aisensy_payment_link_campaign IN (
         'Failed_payment_Link_send',
         'PaymentLink_Created_LIVE',
-        'payment-link-campaign'
+        'payment-link-campaign',
+        'payment_failed_retry_payment'
    )
-   OR aisensy_payment_link_campaign <> 'payment_failed_retry_payment';
+   OR aisensy_payment_link_campaign <> 'failed_payment_qr_of_paymet_link';
 ```
 
 ### Optional: only Old Age Home (if others already correct)
