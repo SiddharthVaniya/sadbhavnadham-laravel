@@ -37,6 +37,12 @@ class AiSensyService
         $countryCode = $config['country_code'] ?? '91';
         $cause = $order->items->first()?->causeModel;
 
+        // Remap the old 4-param campaign to the new 3-param QR campaign.
+        // Any cause still storing the legacy name gets upgraded automatically.
+        if ($campaign === 'payment_failed_retry_payment') {
+            $campaign = config('services.aisensy.default.payment_link_campaign', 'failed_payment_qr_of_paymet_link');
+        }
+
         if (! $apiKey || ! $campaign) {
             Log::error('AiSensy config missing (payment link)', [
                 'order_id' => $order->id,
