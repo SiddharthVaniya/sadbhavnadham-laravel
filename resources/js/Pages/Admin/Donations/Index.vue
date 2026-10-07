@@ -234,7 +234,6 @@ const donationColumns = [
     { key: 'payment_id', label: 'Donation', sortable: true },
     { key: 'donor_name', label: 'Donor', sortable: true },
     { key: 'source', label: 'Source', sortable: true },
-    { key: 'marketer', label: 'Marketer', sortable: false },
     { key: 'cause', label: 'Cause', sortable: true },
     { key: 'total_amount', label: 'Amount', sortable: true, align: 'right' },
     { key: 'status', label: 'Status', sortable: true },
@@ -451,13 +450,6 @@ const exportUrl = computed(() => {
                         <div v-if="row.utm_campaign" class="w-40 truncate text-xs text-muted-foreground" :title="row.utm_campaign">
                             {{ row.utm_campaign }}
                         </div>
-                    </template>
-                    <template #cell-marketer="{ row }">
-                        <div v-if="row.partner_name || row.partner_code" class="w-36 text-sm">
-                            <div class="truncate font-medium" :title="row.partner_name">{{ row.partner_name || '—' }}</div>
-                            <div v-if="row.partner_code" class="truncate text-xs text-muted-foreground">{{ row.partner_code }}</div>
-                        </div>
-                        <span v-else class="text-muted-foreground">—</span>
                     </template>
                     <template #cell-cause="{ row }">
                         <div class="w-36 truncate font-medium text-foreground" :title="row.cause">{{ row.cause }}</div>
