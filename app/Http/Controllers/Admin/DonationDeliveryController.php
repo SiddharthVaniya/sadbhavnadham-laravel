@@ -275,4 +275,48 @@ class DonationDeliveryController extends Controller
             ->with('status', $message)
             ->with('flash_tone', $tone);
     }
+
+    public function paymentLinkQr(DonationOrder $order)
+    {
+        $this->authorize('view', $order);
+
+        $url = $order->payment_link_url ?? $order->delivery['payment_link_whatsapp']['url'] ?? null;
+        if (!$url) {
+            abort(404, 'No payment link available.');
+        }
+
+        $bgPath = public_path('images/qrbg.jpg');
+        if (!file_exists($bgPath)) {
+            abort(404, 'Background image not found.');
+        }
+
+        $bg = imagecreatefromjpeg($bgPath);
+        $bgWidth = imagesx($bg);
+        $bgHeight = imagesy($bg);
+
+        // Fetch QR code
+        $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=350x350&data=' . urlencode($url);
+        $qrData = @file_get_contents($qrUrl);
+        if (!$qrData) {
+            abort(500, 'Could not generate QR code.');
+        }
+        $qrImage = imagecreatefromstring($qrData);
+        $qrWidth = imagesx($qrImage);
+        $qrHeight = imagesy($qrImage);
+
+        // Put QR code horizontally centered, moved slightly down to fit the card
+        $dstX = ($bgWidth - $qrWidth) / 2;
+        $dstY = ($bgHeight - $qrHeight) / 2 + 50;
+
+        imagecopy($bg, $qrImage, $dstX, $dstY, 0, 0, $qrWidth, $qrHeight);
+
+        ob_start();
+        imagejpeg($bg, null, 90);
+        $image = ob_get_clean();
+
+        imagedestroy($bg);
+        imagedestroy($qrImage);
+
+        return response($image, 200)->header('Content-Type', 'image/jpeg');
+    }
 }

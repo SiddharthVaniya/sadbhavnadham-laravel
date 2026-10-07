@@ -723,6 +723,7 @@ class AdminInertiaResources
             'whatsapp_payment_link_url' => route('admin.donations.whatsapp.payment-link', $order),
             'payment_link_notify_email_url' => route('admin.donations.payment-link.notify', [$order, 'email']),
             'payment_link_notify_sms_url' => route('admin.donations.payment-link.notify', [$order, 'sms']),
+            'payment_link_qr_url' => route('admin.donations.payment-link.qr', $order),
             'certificate_url' => $order->isPaid()
                 ? app(\App\Services\DonationCertificateService::class)->existingPublicUrl($order)
                 : null,

@@ -37,6 +37,7 @@ const donorSourceMode = ref('recent_failed');
 const donorSourcesLoading = ref(false);
 const donorCopying = ref(false);
 const selectedDonorSource = ref(null);
+const paymentLinkQrVisible = ref(false);
 let donorSearchTimer = null;
 
 const openDonorPicker = () => {
@@ -1027,6 +1028,35 @@ const paymentLinkSmsButtonLabel = computed(() => {
                             >
                                 {{ delivery.payment_link_whatsapp.url || donation.payment_link_url }}
                             </a>
+                            <div v-if="isFailed && donation.payment_link_qr_url" class="mt-4 rounded-xl border border-border p-4 bg-card shadow-sm">
+                                <h4 class="mb-3 text-sm font-semibold text-foreground">Payment QR Code</h4>
+                                <div v-if="!paymentLinkQrVisible">
+                                    <button
+                                        type="button"
+                                        class="inline-flex items-center rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background hover:bg-foreground/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
+                                        @click="paymentLinkQrVisible = true"
+                                    >
+                                        Generate QR Image
+                                    </button>
+                                </div>
+                                <div v-else class="flex flex-col items-start gap-4">
+                                    <img
+                                        :src="donation.payment_link_qr_url"
+                                        class="w-full max-w-[280px] rounded-lg border border-border shadow-md"
+                                        alt="Payment QR"
+                                    >
+                                    <a
+                                        :href="donation.payment_link_qr_url"
+                                        download="donation-qr.jpg"
+                                        class="inline-flex items-center rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="mr-1.5 h-4 w-4 text-muted-foreground" viewBox="0 0 20 20" fill="currentColor">
+                                            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                                        </svg>
+                                        Download Image
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
                             <button

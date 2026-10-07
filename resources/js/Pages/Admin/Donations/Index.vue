@@ -239,7 +239,7 @@ const donationColumns = [
     { key: 'status', label: 'Status', sortable: true },
     { key: 'city', label: 'City', sortable: true },
     { key: 'created_at_ts', label: 'Paid / date', sortable: true },
-    { key: 'last_note', label: 'Last call note', sortable: false },
+    { key: 'last_note', label: 'Telecaller', sortable: false },
     { key: 'actions', label: 'Action', sortable: false, align: 'right' },
 ];
 
@@ -492,15 +492,10 @@ const exportUrl = computed(() => {
                         <button
                             v-if="row.last_telecaller_note"
                             type="button"
-                            class="block w-44 text-left"
-                            :title="row.last_telecaller_note.message"
+                            class="block w-32 truncate text-left text-sm font-medium text-foreground"
                             @click="openTelecaller(row)"
                         >
-                            <span class="block truncate text-sm text-foreground">{{ row.last_telecaller_note.message }}</span>
-                            <span class="block truncate text-xs text-muted-foreground">
-                                {{ row.last_telecaller_note.speaker === 'donor' ? row.donor_name : (row.last_telecaller_note.name || 'Telecaller') }}
-                                · {{ row.last_telecaller_note.at }}
-                            </span>
+                            {{ row.last_telecaller_note.name || 'Telecaller' }}
                         </button>
                         <span v-else class="text-xs text-muted-foreground">—</span>
                     </template>

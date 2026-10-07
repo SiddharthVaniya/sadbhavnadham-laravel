@@ -398,6 +398,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
         ->whereIn('medium', ['email', 'sms'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::RECEIPT_RESEND_NOTIFICATIONS))
         ->name('donations.payment-link.notify');
+    Route::get('/donations/{order}/payment-link-qr', [DonationDeliveryController::class, 'paymentLinkQr'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::RECEIPT_PREVIEW))
+        ->name('donations.payment-link.qr');
 
     Route::get('roles', [RoleController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::ROLE_MANAGE))
