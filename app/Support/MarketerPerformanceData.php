@@ -8,6 +8,7 @@ use App\Models\LinkTrackingSummary;
 use App\Models\LinkTrackingVisit;
 use App\Models\User;
 use App\Services\DonationAttributionService;
+use App\Support\AdminInertiaData;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -1391,11 +1392,16 @@ class MarketerPerformanceData
     {
         $item = $order->items->first();
         $paidAt = $order->paid_at?->timezone(config('app.timezone'));
+        $qr = AdminInertiaData::donationQrSummary($order);
 
         return [
             'campaign' => filled($order->utm_campaign) ? (string) $order->utm_campaign : '—',
             'medium' => filled($order->utm_medium) ? (string) $order->utm_medium : '—',
             'ad' => filled($order->utm_content) ? (string) $order->utm_content : '—',
+            'channel' => $qr !== null
+                ? ('QR · '.($qr['name'] ?? 'QR'))
+                : '—',
+            'is_qr' => $qr !== null,
             'cause' => self::displayCauseTitle(
                 $item?->causeModel?->title ?? $item?->cause ?? '—',
                 $item?->title,
@@ -1451,6 +1457,7 @@ class MarketerPerformanceData
             'Campaign',
             'Medium',
             'Ad',
+            'Channel',
             'Cause',
             'Title',
             'Pincode',
@@ -1477,6 +1484,7 @@ class MarketerPerformanceData
             'Campaign' => $row['campaign'],
             'Medium' => $row['medium'],
             'Ad' => $row['ad'],
+            'Channel' => $row['channel'],
             'Cause' => $row['cause'],
             'Title' => $row['title'],
             'Pincode' => $row['pincode'],

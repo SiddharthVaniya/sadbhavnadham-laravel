@@ -115,6 +115,7 @@ const donationColumns = [
     { key: 'campaign', label: 'Campaign', sortable: true },
     { key: 'medium', label: 'Medium', sortable: true },
     { key: 'ad', label: 'Ad', sortable: true },
+    { key: 'channel', label: 'Channel', sortable: false },
     { key: 'cause', label: 'Cause', sortable: true },
     { key: 'title', label: 'Title', sortable: true },
     { key: 'pincode', label: 'Pincode', sortable: true },
@@ -133,6 +134,8 @@ const donationRows = computed(() => (props.donations?.data || []).map((row) => (
     campaign: row.campaign || '—',
     medium: row.medium || '—',
     ad: row.ad || '—',
+    channel: row.channel || '—',
+    is_qr: Boolean(row.is_qr),
     cause: row.cause || '—',
     title: row.title || '—',
     pincode: row.pincode || '—',
@@ -257,6 +260,16 @@ const donationRows = computed(() => (props.donations?.data || []).map((row) => (
                     empty-message="No attributed donations yet for this view."
                     @sort="toggleSort"
                 >
+                    <template #cell-channel="{ row }">
+                        <span
+                            v-if="row.is_qr"
+                            class="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700"
+                            :title="row.channel"
+                        >
+                            {{ row.channel }}
+                        </span>
+                        <span v-else class="text-muted-foreground">—</span>
+                    </template>
                     <template #cell-cause="{ row }">
                         <span class="font-medium">{{ row.cause }}</span>
                     </template>

@@ -7,6 +7,7 @@ import PageHeader from '@/Components/Admin/PageHeader.vue';
 const props = defineProps({
     qrCode: { type: Object, required: true },
     causes: { type: Array, default: () => [] },
+    marketers: { type: Array, default: () => [] },
     can_update: { type: Boolean, default: false },
 });
 
@@ -19,6 +20,7 @@ const canSync = computed(() => page.props.auth.permissions?.includes('sync qr co
 const mappingForm = useForm({
     cause_id: props.qrCode.cause_id ? String(props.qrCode.cause_id) : '',
     cause_package_id: props.qrCode.cause_package_id ? String(props.qrCode.cause_package_id) : '',
+    partner_user_id: props.qrCode.partner_user_id ? String(props.qrCode.partner_user_id) : '',
 });
 
 const filteredPackages = computed(() => {
@@ -61,6 +63,7 @@ const saveMapping = () => {
     mappingForm.transform((data) => ({
         cause_id: data.cause_id || null,
         cause_package_id: data.cause_id && data.cause_package_id ? data.cause_package_id : null,
+        partner_user_id: data.partner_user_id || null,
     })).put(props.qrCode.update_url, { preserveScroll: true });
 };
 </script>
@@ -193,6 +196,20 @@ const saveMapping = () => {
                             <p v-if="mappingForm.errors.cause_package_id" class="mt-1 text-sm text-rose-700">{{ mappingForm.errors.cause_package_id }}</p>
                         </div>
 
+                        <div>
+                            <label class="admin-label">Marketer (optional)</label>
+                            <select v-model="mappingForm.partner_user_id" class="admin-input">
+                                <option value="">No marketer</option>
+                                <option v-for="marketer in marketers" :key="marketer.id" :value="String(marketer.id)">
+                                    {{ marketer.name }} ({{ marketer.code }})
+                                </option>
+                            </select>
+                            <p v-if="mappingForm.errors.partner_user_id" class="mt-1 text-sm text-rose-700">{{ mappingForm.errors.partner_user_id }}</p>
+                            <p class="mt-1 text-xs text-muted-foreground">
+                                Donations through this QR are credited to this marketer.
+                            </p>
+                        </div>
+
                         <button type="submit" class="admin-btn-primary !py-2" :disabled="mappingForm.processing">
                             {{ mappingForm.processing ? 'Saving…' : 'Save mapping' }}
                         </button>
@@ -206,6 +223,13 @@ const saveMapping = () => {
                         <div>
                             <dt class="text-muted-foreground">Package</dt>
                             <dd class="font-medium">{{ qrCode.package_title || '—' }}</dd>
+                        </div>
+                        <div>
+                            <dt class="text-muted-foreground">Marketer</dt>
+                            <dd class="font-medium">
+                                {{ qrCode.partner_name || '—' }}
+                                <span v-if="qrCode.partner_code" class="text-muted-foreground">({{ qrCode.partner_code }})</span>
+                            </dd>
                         </div>
                     </dl>
                 </div>

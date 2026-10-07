@@ -953,3 +953,54 @@ it('marks an attachable visit converted when paid order has partner_user_id', fu
 
     Carbon::setTestNow();
 });
+
+it('lists a marketer-attributed qr donation with the qr channel label', function () {
+    $ashvini = digitalMarketer([
+        'referral_code' => 'ashvini',
+        'email' => 'ashvini-qr-channel@example.com',
+    ]);
+
+    $qr = \App\Models\RazorpayQrCode::factory()->create([
+        'name' => 'Temple Counter QR',
+        'razorpay_qr_code_id' => 'qr_marketer_channel_1',
+        'partner_user_id' => $ashvini->id,
+        'partner_code' => 'ashvini',
+    ]);
+
+    $order = DonationOrder::query()->create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY_QR,
+        'provider_order_id' => 'qr-marketer-channel-order',
+        'provider_payment_id' => 'pay_qr_marketer_channel_1',
+        'donor_name' => 'QR Channel Donor',
+        'donor_email' => 'qrchannel@example.com',
+        'donor_phone' => '9876500777',
+        'currency' => 'INR',
+        'total_amount' => 901,
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'partner_user_id' => $ashvini->id,
+        'partner_code' => 'ashvini',
+    ]);
+
+    \App\Models\PaymentEvent::query()->create([
+        'donation_order_id' => $order->id,
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY_QR,
+        'event' => 'payment.captured',
+        'provider_payment_id' => 'pay_qr_marketer_channel_1',
+        'amount' => 901,
+        'payload' => ['qr_code_id' => $qr->razorpay_qr_code_id],
+        'created_at' => now(),
+    ]);
+
+    \App\Support\AdminInertiaData::clearQrLookupCache();
+
+    actingAs($ashvini)
+        ->get(route('marketer.donations', ['duration' => 'all']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Marketer/Donations')
+            ->has('donations.data', 1)
+            ->where('donations.data.0.is_qr', true)
+            ->where('donations.data.0.channel', 'QR · Temple Counter QR')
+            ->where('summary.donations', 1));
+});

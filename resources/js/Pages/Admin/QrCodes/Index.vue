@@ -28,6 +28,7 @@ const columns = [
     { key: 'payment_amount', label: 'Amount', sortable: false, align: 'right' },
     { key: 'status_label', label: 'Status', sortable: false },
     { key: 'cause_title', label: 'Cause', sortable: false },
+    { key: 'partner_name', label: 'Marketer', sortable: false },
     { key: 'payments_count_received', label: 'Payments', sortable: false, align: 'right' },
     { key: 'payments_amount_received', label: 'Collected', sortable: false, align: 'right' },
     { key: 'created_at', label: 'Created', sortable: false },
@@ -153,6 +154,13 @@ const syncAll = () => {
                         <div v-if="row.cause_title" class="text-sm">
                             <div class="font-medium">{{ row.cause_title }}</div>
                             <div v-if="row.package_title" class="text-xs text-muted-foreground">{{ row.package_title }}</div>
+                        </div>
+                        <span v-else class="text-muted-foreground">—</span>
+                    </template>
+                    <template #cell-partner_name="{ row }">
+                        <div v-if="row.partner_name" class="text-sm">
+                            <div class="font-medium">{{ row.partner_name }}</div>
+                            <div v-if="row.partner_code" class="text-xs text-muted-foreground">{{ row.partner_code }}</div>
                         </div>
                         <span v-else class="text-muted-foreground">—</span>
                     </template>

@@ -4,6 +4,8 @@ namespace App\Http\Requests\Admin;
 
 use App\Models\CausePackage;
 use App\Models\RazorpayQrCode;
+use App\Models\User;
+use App\Support\StaffReferral;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -34,6 +36,7 @@ class StoreRazorpayQrCodeRequest extends FormRequest
             ],
             'cause_id' => ['nullable', 'integer', 'exists:causes,id'],
             'cause_package_id' => ['nullable', 'integer', 'exists:cause_packages,id'],
+            'partner_user_id' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }
 
@@ -83,13 +86,18 @@ class StoreRazorpayQrCodeRequest extends FormRequest
      *     fixed_amount?: bool,
      *     payment_amount?: float|int|null,
      *     cause_id: ?int,
-     *     cause_package_id: ?int
+     *     cause_package_id: ?int,
+     *     partner_user_id: ?int,
+     *     partner_code: ?string
      * }
      */
     public function createPayload(): array
     {
         $validated = $this->validated();
         $causeId = filled($validated['cause_id'] ?? null) ? (int) $validated['cause_id'] : null;
+        $partnerUserId = filled($validated['partner_user_id'] ?? null)
+            ? (int) $validated['partner_user_id']
+            : null;
 
         return [
             ...$validated,
@@ -97,6 +105,23 @@ class StoreRazorpayQrCodeRequest extends FormRequest
             'cause_package_id' => $causeId && filled($validated['cause_package_id'] ?? null)
                 ? (int) $validated['cause_package_id']
                 : null,
+            'partner_user_id' => $partnerUserId,
+            'partner_code' => $this->partnerCode($partnerUserId),
         ];
+    }
+
+    private function partnerCode(?int $partnerUserId): ?string
+    {
+        if ($partnerUserId === null) {
+            return null;
+        }
+
+        $code = User::query()
+            ->whereKey($partnerUserId)
+            ->value('referral_code');
+
+        $normalized = StaffReferral::normalize(is_string($code) ? $code : null);
+
+        return $normalized;
     }
 }

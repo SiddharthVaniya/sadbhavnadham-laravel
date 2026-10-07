@@ -93,6 +93,8 @@ class AdminInertiaData
             'qr_code_id' => $qr['id'] ?? null,
             'qr_code_name' => $qr['name'] ?? null,
             'qr_code_url' => $qr['url'] ?? null,
+            'partner_code' => $order->partner_code ?: null,
+            'partner_name' => $order->partner?->name,
             'later_paid' => $laterPaid !== null,
             'later_paid_url' => $laterPaid['url'] ?? null,
             'later_paid_payment_id' => $laterPaid['payment_id'] ?? null,

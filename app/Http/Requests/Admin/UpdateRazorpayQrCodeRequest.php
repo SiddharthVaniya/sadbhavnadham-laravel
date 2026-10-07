@@ -3,6 +3,8 @@
 namespace App\Http\Requests\Admin;
 
 use App\Models\CausePackage;
+use App\Models\User;
+use App\Support\StaffReferral;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -23,6 +25,7 @@ class UpdateRazorpayQrCodeRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:1000'],
             'cause_id' => ['nullable', 'integer', 'exists:causes,id'],
             'cause_package_id' => ['nullable', 'integer', 'exists:cause_packages,id'],
+            'partner_user_id' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }
 
@@ -54,19 +57,35 @@ class UpdateRazorpayQrCodeRequest extends FormRequest
     }
 
     /**
-     * @return array{name?: string, description?: ?string, cause_id: ?int, cause_package_id: ?int}
+     * @return array{name?: string, description?: ?string, cause_id: ?int, cause_package_id: ?int, partner_user_id: ?int, partner_code: ?string}
      */
     public function mappingPayload(): array
     {
         $validated = $this->validated();
-        $causeId = filled($validated['cause_id'] ?? null) ? (int) $validated['cause_id'] : null;
 
-        $payload = [
-            'cause_id' => $causeId,
-            'cause_package_id' => $causeId && filled($validated['cause_package_id'] ?? null)
+        $payload = [];
+
+        if (array_key_exists('cause_id', $validated) || array_key_exists('cause_package_id', $validated)) {
+            $causeId = filled($validated['cause_id'] ?? null) ? (int) $validated['cause_id'] : null;
+
+            $payload['cause_id'] = $causeId;
+            $payload['cause_package_id'] = $causeId && filled($validated['cause_package_id'] ?? null)
                 ? (int) $validated['cause_package_id']
-                : null,
-        ];
+                : null;
+        }
+
+        if (array_key_exists('partner_user_id', $validated)) {
+            $partnerUserId = filled($validated['partner_user_id'])
+                ? (int) $validated['partner_user_id']
+                : null;
+
+            $payload['partner_user_id'] = $partnerUserId;
+            $payload['partner_code'] = $partnerUserId !== null
+                ? StaffReferral::normalize(
+                    User::query()->whereKey($partnerUserId)->value('referral_code')
+                )
+                : null;
+        }
 
         if (array_key_exists('name', $validated)) {
             $payload['name'] = $validated['name'];

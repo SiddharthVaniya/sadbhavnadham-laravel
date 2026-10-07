@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\RazorpayQrCode;
 use App\Models\User;
+use App\Support\StaffReferral;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 use Razorpay\Api\Api;
@@ -68,21 +69,26 @@ class RazorpayQrCodeService
         $qr = $this->upsertFromEntity($entity, $actor?->id);
 
         $causeId = filled($input['cause_id'] ?? null) ? (int) $input['cause_id'] : null;
+        $partnerUserId = filled($input['partner_user_id'] ?? null)
+            ? (int) $input['partner_user_id']
+            : null;
 
         $qr->update([
             'cause_id' => $causeId,
             'cause_package_id' => $causeId && filled($input['cause_package_id'] ?? null)
                 ? (int) $input['cause_package_id']
                 : null,
+            'partner_user_id' => $partnerUserId,
+            'partner_code' => $this->partnerCode($partnerUserId),
         ]);
 
-        return $qr->fresh(['cause', 'package']);
+        return $qr->fresh(['cause', 'package', 'partner']);
     }
 
     /**
      * Local-only mapping (does not call Razorpay).
      *
-     * @param  array{cause_id?: int|null, cause_package_id?: int|null, name?: string, description?: ?string}  $input
+     * @param  array{cause_id?: int|null, cause_package_id?: int|null, partner_user_id?: int|null, partner_code?: ?string, name?: string, description?: ?string}  $input
      */
     public function updateLocalMapping(RazorpayQrCode $qr, array $input): RazorpayQrCode
     {
@@ -100,6 +106,14 @@ class RazorpayQrCodeService
                 : null;
         }
 
+        if (array_key_exists('partner_user_id', $input)) {
+            $partnerUserId = $input['partner_user_id'] ? (int) $input['partner_user_id'] : null;
+            $updates['partner_user_id'] = $partnerUserId;
+            $updates['partner_code'] = $partnerUserId !== null
+                ? ($this->partnerCode($partnerUserId) ?? $this->partnerCodeFromInput($input['partner_code'] ?? null))
+                : null;
+        }
+
         if (array_key_exists('name', $input) && filled($input['name'])) {
             $updates['name'] = trim((string) $input['name']);
         }
@@ -114,7 +128,23 @@ class RazorpayQrCodeService
             $qr->update($updates);
         }
 
-        return $qr->fresh(['cause', 'package']);
+        return $qr->fresh(['cause', 'package', 'partner']);
+    }
+
+    private function partnerCode(?int $partnerUserId): ?string
+    {
+        if ($partnerUserId === null) {
+            return null;
+        }
+
+        $code = User::query()->whereKey($partnerUserId)->value('referral_code');
+
+        return StaffReferral::normalize(is_string($code) ? $code : null);
+    }
+
+    private function partnerCodeFromInput(mixed $code): ?string
+    {
+        return StaffReferral::normalize(is_string($code) ? $code : null);
     }
 
     public function close(RazorpayQrCode $qr): RazorpayQrCode

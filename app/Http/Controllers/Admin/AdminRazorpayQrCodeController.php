@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Admin\StoreRazorpayQrCodeRequest;
 use App\Http\Requests\Admin\UpdateRazorpayQrCodeRequest;
 use App\Models\RazorpayQrCode;
+use App\Models\User;
 use App\Services\RazorpayQrCodeService;
 use App\Support\AdminInertiaResources;
 use Illuminate\Http\RedirectResponse;
@@ -81,6 +82,7 @@ class AdminRazorpayQrCodeController extends Controller
     {
         return Inertia::render('Admin/QrCodes/Create', [
             'causes' => AdminInertiaResources::causeOptionsForCampaigns(),
+            'marketers' => $this->marketerOptions(),
         ]);
     }
 
@@ -106,9 +108,30 @@ class AdminRazorpayQrCodeController extends Controller
         return Inertia::render('Admin/QrCodes/Show', [
             'qrCode' => AdminInertiaResources::qrCodeDetail($qrCode),
             'causes' => AdminInertiaResources::causeOptionsForCampaigns(),
+            'marketers' => $this->marketerOptions(),
             'can_update' => $request->user()?->can('create qr codes')
                 || $request->user()?->can('manage qr codes'),
         ]);
+    }
+
+    /**
+     * Users with a referral code, available as QR marketers.
+     *
+     * @return \Illuminate\Support\Collection<int, array{id: int, name: string, code: string}>
+     */
+    private function marketerOptions(): \Illuminate\Support\Collection
+    {
+        return User::query()
+            ->whereNotNull('referral_code')
+            ->where('referral_code', '!=', '')
+            ->orderBy('name')
+            ->get(['id', 'name', 'referral_code'])
+            ->map(fn (User $user): array => [
+                'id' => $user->id,
+                'name' => $user->name,
+                'code' => (string) $user->referral_code,
+            ])
+            ->values();
     }
 
     public function update(UpdateRazorpayQrCodeRequest $request, RazorpayQrCode $qrCode): RedirectResponse

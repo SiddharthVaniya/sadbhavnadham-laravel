@@ -1005,7 +1005,7 @@ class AdminDonationController extends Controller
 
     private function filteredDonationsQuery(Request $request, string $duration = 'all'): Builder
     {
-        $query = DonationOrder::query()->with(['items.causeModel', 'items.package', 'subscription']);
+        $query = DonationOrder::query()->with(['items.causeModel', 'items.package', 'subscription', 'partner']);
 
         DonationVisibility::apply($query, $request->user());
 

@@ -187,5 +187,106 @@ it('skips donation item when qr has no cause mapping', function () {
     $order = DonationOrder::query()->where('provider_payment_id', 'pay_qr_unmapped_001')->first();
 
     expect($order)->not->toBeNull()
-        ->and(DonationItem::query()->where('donation_order_id', $order->id)->exists())->toBeFalse();
+        ->and(DonationItem::query()->where('donation_order_id', $order->id)->exists())->toBeFalse()
+        ->and($order->partner_user_id)->toBeNull()
+        ->and($order->partner_code)->toBeNull();
+});
+
+it('persists the chosen marketer when updating a qr mapping', function () {
+    $user = createQrMappingAdmin();
+    $marketer = User::factory()->create(['referral_code' => 'sadb-42']);
+    $qr = RazorpayQrCode::factory()->create();
+
+    actingAs($user)
+        ->put(route('admin.qr-codes.update', $qr), [
+            'partner_user_id' => $marketer->id,
+        ])
+        ->assertRedirect();
+
+    $qr->refresh();
+
+    expect($qr->partner_user_id)->toBe($marketer->id)
+        ->and($qr->partner_code)->toBe('sadb-42');
+});
+
+it('clears the marketer when the qr is left unassigned', function () {
+    $user = createQrMappingAdmin();
+    $marketer = User::factory()->create(['referral_code' => 'sadb-99']);
+    $qr = RazorpayQrCode::factory()->create([
+        'partner_user_id' => $marketer->id,
+        'partner_code' => 'sadb-99',
+    ]);
+
+    actingAs($user)
+        ->put(route('admin.qr-codes.update', $qr), [
+            'partner_user_id' => null,
+        ])
+        ->assertRedirect();
+
+    $qr->refresh();
+
+    expect($qr->partner_user_id)->toBeNull()
+        ->and($qr->partner_code)->toBeNull();
+});
+
+it('attributes a captured qr payment to the qr marketer', function () {
+    $marketer = User::factory()->create(['referral_code' => 'sadb-qr']);
+    $cause = Cause::factory()->create();
+    $package = CausePackage::factory()->create(['cause_id' => $cause->id]);
+
+    RazorpayQrCode::factory()->create([
+        'razorpay_qr_code_id' => 'qr_marketer_001',
+        'cause_id' => $cause->id,
+        'cause_package_id' => $package->id,
+        'partner_user_id' => $marketer->id,
+        'partner_code' => 'sadb-qr',
+    ]);
+
+    app(DonationPaymentService::class)->handleCaptured([
+        'id' => 'pay_qr_marketer_001',
+        'entity' => 'payment',
+        'amount' => 50000,
+        'currency' => 'INR',
+        'status' => 'captured',
+        'order_id' => null,
+        'method' => 'upi',
+        'vpa' => 'donor@okaxis',
+        'qr_code_id' => 'qr_marketer_001',
+        'created_at' => now()->timestamp,
+        'notes' => [],
+    ]);
+
+    $order = DonationOrder::query()->where('provider_payment_id', 'pay_qr_marketer_001')->first();
+
+    expect($order)->not->toBeNull()
+        ->and($order->partner_user_id)->toBe($marketer->id)
+        ->and($order->partner_code)->toBe('sadb-qr');
+});
+
+it('leaves partner columns null when the qr has no marketer', function () {
+    RazorpayQrCode::factory()->create([
+        'razorpay_qr_code_id' => 'qr_no_marketer_001',
+        'partner_user_id' => null,
+        'partner_code' => null,
+    ]);
+
+    app(DonationPaymentService::class)->handleCaptured([
+        'id' => 'pay_qr_no_marketer_001',
+        'entity' => 'payment',
+        'amount' => 20000,
+        'currency' => 'INR',
+        'status' => 'captured',
+        'order_id' => null,
+        'method' => 'upi',
+        'vpa' => 'donor@okaxis',
+        'qr_code_id' => 'qr_no_marketer_001',
+        'created_at' => now()->timestamp,
+        'notes' => [],
+    ]);
+
+    $order = DonationOrder::query()->where('provider_payment_id', 'pay_qr_no_marketer_001')->first();
+
+    expect($order)->not->toBeNull()
+        ->and($order->partner_user_id)->toBeNull()
+        ->and($order->partner_code)->toBeNull();
 });

@@ -629,7 +629,7 @@ class AdminInertiaResources
 
     public static function qrCodeListRow(\App\Models\RazorpayQrCode $qr): array
     {
-        $qr->loadMissing(['cause:id,title,slug', 'package:id,title,amount']);
+        $qr->loadMissing(['cause:id,title,slug', 'package:id,title,amount', 'partner:id,name,referral_code']);
 
         return [
             'uuid' => $qr->qr_uuid,
@@ -649,6 +649,9 @@ class AdminInertiaResources
             'cause_title' => $qr->cause?->title,
             'cause_package_id' => $qr->cause_package_id,
             'package_title' => $qr->package?->title,
+            'partner_user_id' => $qr->partner_user_id,
+            'partner_code' => $qr->partner_code,
+            'partner_name' => $qr->partner?->name,
             'created_at' => $qr->created_at?->format('d M Y, h:i A'),
             'created_at_ts' => $qr->created_at?->timestamp ?? 0,
         ];

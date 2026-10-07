@@ -6,6 +6,7 @@ import PageHeader from '@/Components/Admin/PageHeader.vue';
 
 const props = defineProps({
     causes: { type: Array, default: () => [] },
+    marketers: { type: Array, default: () => [] },
 });
 
 const form = useForm({
@@ -16,6 +17,7 @@ const form = useForm({
     payment_amount: '',
     cause_id: '',
     cause_package_id: '',
+    partner_user_id: '',
 });
 
 const filteredPackages = computed(() => {
@@ -40,6 +42,7 @@ const submit = () => {
         payment_amount: data.fixed_amount ? data.payment_amount : null,
         cause_id: data.cause_id || null,
         cause_package_id: data.cause_id && data.cause_package_id ? data.cause_package_id : null,
+        partner_user_id: data.partner_user_id || null,
     })).post('/admin/qr-codes');
 };
 </script>
@@ -121,6 +124,24 @@ const submit = () => {
                     </option>
                 </select>
                 <p v-if="form.errors.cause_package_id" class="mt-1 text-sm text-rose-700">{{ form.errors.cause_package_id }}</p>
+            </div>
+
+            <div class="border-t border-border pt-4">
+                <h3 class="text-sm font-semibold text-foreground">Marketer attribution (optional)</h3>
+                <p class="mt-1 text-xs text-muted-foreground">
+                    When set, donations arriving through this QR are credited to this marketer.
+                </p>
+            </div>
+
+            <div>
+                <label class="admin-label">Marketer</label>
+                <select v-model="form.partner_user_id" class="admin-input">
+                    <option value="">No marketer</option>
+                    <option v-for="marketer in marketers" :key="marketer.id" :value="String(marketer.id)">
+                        {{ marketer.name }} ({{ marketer.code }})
+                    </option>
+                </select>
+                <p v-if="form.errors.partner_user_id" class="mt-1 text-sm text-rose-700">{{ form.errors.partner_user_id }}</p>
             </div>
 
             <div class="flex flex-wrap gap-2 pt-2">

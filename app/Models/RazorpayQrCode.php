@@ -41,6 +41,8 @@ class RazorpayQrCode extends Model
         'created_by',
         'cause_id',
         'cause_package_id',
+        'partner_user_id',
+        'partner_code',
     ];
 
     protected function casts(): array
@@ -83,6 +85,11 @@ class RazorpayQrCode extends Model
     public function package(): BelongsTo
     {
         return $this->belongsTo(CausePackage::class, 'cause_package_id');
+    }
+
+    public function partner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'partner_user_id');
     }
 
     public function isActive(): bool

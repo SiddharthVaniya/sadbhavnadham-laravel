@@ -856,3 +856,42 @@ ALTER TABLE marketer_monthly_budgets
 ```sql
 ALTER TABLE marketer_monthly_budgets DROP COLUMN limit_amount;
 ```
+
+## 2026-10-07 - Marketer attribution on QR codes
+
+Assign a marketer (user with a `referral_code`) to a Razorpay QR so QR donations are credited to that marketer (`donation_orders.partner_user_id` + `partner_code`), visible in Donations and the marketer portal. Migration file (do **not** auto-run): `database/migrations/2026_10_07_120000_add_partner_to_razorpay_qr_codes_table.php`
+
+### Preview
+
+```sql
+SHOW COLUMNS FROM razorpay_qr_codes LIKE 'partner%';
+```
+
+### Alter
+
+```sql
+ALTER TABLE razorpay_qr_codes
+    ADD COLUMN partner_user_id BIGINT UNSIGNED NULL AFTER cause_package_id,
+    ADD COLUMN partner_code VARCHAR(40) NULL AFTER partner_user_id,
+    ADD CONSTRAINT razorpay_qr_codes_partner_user_id_foreign
+        FOREIGN KEY (partner_user_id) REFERENCES users (id) ON DELETE SET NULL;
+```
+
+### Optional: backfill partner_code from the linked user
+
+```sql
+UPDATE razorpay_qr_codes qr
+INNER JOIN users u ON u.id = qr.partner_user_id
+SET qr.partner_code = u.referral_code
+WHERE qr.partner_user_id IS NOT NULL
+  AND (qr.partner_code IS NULL OR qr.partner_code = '');
+```
+
+### Rollback
+
+```sql
+ALTER TABLE razorpay_qr_codes
+    DROP FOREIGN KEY razorpay_qr_codes_partner_user_id_foreign,
+    DROP COLUMN partner_code,
+    DROP COLUMN partner_user_id;
+```

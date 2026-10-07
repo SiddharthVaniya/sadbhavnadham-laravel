@@ -137,3 +137,35 @@ it('shows qr context on the admin donation detail page', function () {
             ->where('donation.qr_code_name', 'Website Footer QR')
             ->where('donation.qr_code_url', route('admin.qr-codes.show', $qr)));
 });
+
+it('exposes the attributed marketer on the donations index', function () {
+    $user = createQrBadgeAdminUser();
+    $marketer = User::factory()->create(['name' => 'Meera Marketer', 'referral_code' => 'sadb-meera']);
+
+    DonationOrder::create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY_QR,
+        'provider_payment_id' => 'pay_qr_partner_1',
+        'donor_name' => 'Partner Donor',
+        'donor_email' => 'partner@example.com',
+        'donor_phone' => '9876500009',
+        'currency' => 'INR',
+        'total_amount' => 750,
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'partner_user_id' => $marketer->id,
+        'partner_code' => 'sadb-meera',
+    ]);
+
+    actingAs($user)
+        ->get(route('admin.donations.index', ['duration' => 'all']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Admin/Donations/Index')
+            ->where('donations.data', function ($rows) {
+                $row = collect($rows)->firstWhere('payment_id', 'pay_qr_partner_1');
+
+                return is_array($row)
+                    && ($row['partner_name'] ?? null) === 'Meera Marketer'
+                    && ($row['partner_code'] ?? null) === 'sadb-meera';
+            }));
+});

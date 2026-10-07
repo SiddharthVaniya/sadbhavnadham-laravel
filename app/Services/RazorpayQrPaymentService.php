@@ -86,6 +86,14 @@ class RazorpayQrPaymentService
 
         $paidAt = DonationPaymentService::resolvePaymentCapturedAt($payment);
 
+        $qr = RazorpayQrCode::query()
+            ->with(['cause:id,title,slug', 'package:id,title,amount'])
+            ->where('razorpay_qr_code_id', $qrCodeId)
+            ->first();
+
+        $partnerUserId = $qr?->partner_user_id;
+        $partnerCode = filled($qr?->partner_code) ? (string) $qr->partner_code : null;
+
         $order = DonationOrder::query()->create([
             'payment_provider' => DonationOrder::PROVIDER_RAZORPAY_QR,
             'source_channel' => DonationAttributionService::CHANNEL_RAZORPAY_QR,
@@ -108,9 +116,11 @@ class RazorpayQrPaymentService
             'paid_at' => $paidAt,
             'created_at' => $paidAt,
             'updated_at' => $paidAt,
+            'partner_user_id' => $partnerUserId,
+            'partner_code' => $partnerCode,
         ]);
 
-        $this->attachMappedCauseItem($order, $qrCodeId, $amount);
+        $this->attachMappedCauseItem($order, $qrCodeId, $amount, $qr);
 
         PaymentEvent::query()->create([
             'donation_order_id' => $order->id,
@@ -135,13 +145,13 @@ class RazorpayQrPaymentService
         return $order;
     }
 
-    private function attachMappedCauseItem(DonationOrder $order, ?string $qrCodeId, float $amount): void
+    private function attachMappedCauseItem(DonationOrder $order, ?string $qrCodeId, float $amount, ?RazorpayQrCode $qr = null): void
     {
         if ($qrCodeId === null || $qrCodeId === '') {
             return;
         }
 
-        $qr = RazorpayQrCode::query()
+        $qr ??= RazorpayQrCode::query()
             ->with(['cause:id,title,slug', 'package:id,title,amount'])
             ->where('razorpay_qr_code_id', $qrCodeId)
             ->first();
