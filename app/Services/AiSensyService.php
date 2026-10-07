@@ -61,44 +61,66 @@ class AiSensyService
 
         $donorName = $order->donor_name ?: 'Donor';
         $destination = $this->formatMobile($order->donor_phone, $countryCode);
+        $formattedAmount = '₹'.number_format((float) $order->total_amount, 0, '.', ',');
 
         /*
-         * Campaign: payment_failed_retry_payment
-         * Body: Hi {{1}} / Order {{2}} / Amount ₹{{3}} / retry link {{4}}
+         * Campaign: failed_payment_qr_of_paymet_link
+         * Body: Dear {{1}} / Amount {{2}} / Payment Link {{3}}
+         * Header: IMAGE (QR composite)
          */
+
+        // Generate and persist the QR image so AiSensy can fetch it.
+        $orderKey = $order->order_uuid ?? 'order-'.$order->id;
+        $qrService = app(\App\Services\PaymentLinkQrService::class);
+        $qrMediaUrl = $qrService->publicUrlForLink($order->payment_link_url, $orderKey);
+
+        if (! $qrMediaUrl) {
+            Log::warning('AiSensy payment link: QR image generation failed, sending without image', [
+                'order_id' => $order->id,
+            ]);
+        }
+
         $payload = [
-            'apiKey' => $apiKey,
-            'campaignName' => $campaign,
-            'destination' => $destination,
-            'userName' => $donorName,
+            'apiKey'        => $apiKey,
+            'campaignName'  => $campaign,
+            'destination'   => $destination,
+            'userName'      => $donorName,
             'templateParams' => [
                 $donorName,
-                $this->paymentLinkOrderReference($order),
-                NumberHelper::formatWholeAmount($order->total_amount),
+                $formattedAmount,
                 $order->payment_link_url,
             ],
-            'source' => 'donation payment recovery',
-            'media' => (object) [],
-            'buttons' => [],
+            'source'        => 'donation payment recovery',
+            'buttons'       => [],
             'carouselCards' => [],
-            'location' => (object) [],
-            'attributes' => (object) [],
+            'location'      => (object) [],
+            'attributes'    => (object) [],
             'paramsFallbackValue' => [
                 'FirstName' => $donorName,
             ],
         ];
 
+        if ($qrMediaUrl) {
+            $payload['media'] = [
+                'url'      => $qrMediaUrl,
+                'filename' => 'payment-qr.jpg',
+            ];
+        } else {
+            $payload['media'] = (object) [];
+        }
+
         Log::info('AiSensy WhatsApp payment_link sending', [
-            'order_id' => $order->id,
-            'campaign_name' => $campaign,
-            'cause_slug' => $cause?->slug,
-            'template_param_count' => 4,
+            'order_id'           => $order->id,
+            'campaign_name'      => $campaign,
+            'cause_slug'         => $cause?->slug,
+            'template_param_count' => 3,
+            'has_qr_media'       => $qrMediaUrl !== null,
         ]);
 
         return $this->send($payload, 'payment_link', [
-            'order_id' => $order->id,
+            'order_id'      => $order->id,
             'campaign_name' => $campaign,
-            'cause_slug' => $cause?->slug,
+            'cause_slug'    => $cause?->slug,
         ]);
     }
 

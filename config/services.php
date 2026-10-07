@@ -55,8 +55,8 @@ return [
             'key' => env('AISENSY_API_KEY'),
             'country_code' => '91',
 
-            // payment_failed_retry_payment — Hi {{1}}, Order {{2}}, Amount ₹{{3}}, link {{4}}
-            'payment_link_campaign' => env('AISENSY_PAYMENT_LINK_CAMPAIGN', 'payment_failed_retry_payment'),
+            // failed_payment_qr_of_paymet_link — IMAGE header QR, 3 body params: {{1}} name, {{2}} amount, {{3}} link
+            'payment_link_campaign' => env('AISENSY_PAYMENT_LINK_CAMPAIGN', 'failed_payment_qr_of_paymet_link'),
 
             // certificate_of_donation_old_age_home_uty — IMAGE header, 5 body params (live)
             'certificate_campaign' => env('AISENSY_CERTIFICATE_CAMPAIGN', 'certificate_of_donation_old_age_home_uty'),
