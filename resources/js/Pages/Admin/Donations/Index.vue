@@ -492,10 +492,19 @@ const exportUrl = computed(() => {
                         <button
                             v-if="row.last_telecaller_note"
                             type="button"
-                            class="block w-32 truncate text-left text-sm font-medium text-foreground"
+                            class="block w-40 truncate text-left"
                             @click="openTelecaller(row)"
                         >
-                            {{ row.last_telecaller_note.name || 'Telecaller' }}
+                            <span class="block truncate text-sm font-medium text-foreground">
+                                {{ row.last_telecaller_note.name || 'Telecaller' }}
+                            </span>
+                            <span
+                                v-if="row.last_telecaller_note.message"
+                                class="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground"
+                                :title="row.last_telecaller_note.message"
+                            >
+                                {{ row.last_telecaller_note.message }}
+                            </span>
                         </button>
                         <span v-else class="text-xs text-muted-foreground">—</span>
                     </template>

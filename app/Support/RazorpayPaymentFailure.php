@@ -74,7 +74,7 @@ class RazorpayPaymentFailure
         'invalid_mobile_number' => 'Invalid mobile number',
         'invalid_order_id' => 'Invalid order',
         'invalid_response_from_gateway' => 'Gateway error',
-        'invalid_user_details' => 'Invalid customer details',
+        'invalid_user_details' => 'Invalid donor details',
         'invalid_vpa' => 'Invalid UPI ID',
         'issuer_technical_error' => 'Issuer bank error',
         'live_mode_not_enabled' => 'Live mode not enabled',
@@ -91,7 +91,7 @@ class RazorpayPaymentFailure
         'otp_attempts_exceeded' => 'OTP attempts exceeded',
         'otp_expired' => 'OTP expired',
         'payment_amount_tampered' => 'Amount tampered',
-        'payment_cancelled' => 'Cancelled by customer',
+        'payment_cancelled' => 'Cancelled by donor',
         'payment_collect_request_expired' => 'UPI request expired',
         'payment_declined' => 'Payment declined',
         'payment_declined_due_to_high_traffic' => 'Gateway busy',
@@ -119,7 +119,7 @@ class RazorpayPaymentFailure
         'upi_autopay_not_supported_on_psp' => 'UPI Autopay unsupported',
         'upi_collect_not_enabled' => 'UPI collect not enabled',
         'upi_intent_not_enabled' => 'UPI intent not enabled',
-        'user_not_eligible' => 'Customer not eligible',
+        'user_not_eligible' => 'Donor not eligible',
         'user_not_registered_for_netbanking' => 'Netbanking not registered',
         'verification_failed' => 'Verification failed',
         'vpa_resolution_failed' => 'UPI ID check failed',
@@ -264,7 +264,7 @@ class RazorpayPaymentFailure
     private static function sourceLabel(mixed $source): ?string
     {
         return match (strtolower(trim((string) $source))) {
-            'customer' => 'Customer',
+            'customer' => 'Donor',
             'business' => 'Business',
             'gateway' => 'Gateway',
             'issuer_bank', 'bank', 'issuer' => 'Bank',
@@ -302,8 +302,8 @@ class RazorpayPaymentFailure
             'gateway technical' => 'Gateway error',
             'timed out' => 'Timed out',
             'timeout' => 'Timed out',
-            'cancelled' => 'Cancelled by customer',
-            'canceled' => 'Cancelled by customer',
+            'cancelled' => 'Cancelled by donor',
+            'canceled' => 'Cancelled by donor',
             'daily limit' => 'Daily limit exceeded',
             'limit exceeded' => 'Limit exceeded',
         ];

@@ -797,7 +797,7 @@ it('keeps a long donor name, package title, city, and failure label as separate 
                     && $paidRow['city'] === 'Rajkot'
                     && is_array($failedRow)
                     && $failedRow['city'] === 'Ahmedabad'
-                    && $failedRow['failure_label'] === 'Customer · Cancelled by customer'
+                    && $failedRow['failure_label'] === 'Donor · Cancelled by donor'
                     && $failedRow['status'] === DonationOrder::STATUS_FAILED;
             }));
 });

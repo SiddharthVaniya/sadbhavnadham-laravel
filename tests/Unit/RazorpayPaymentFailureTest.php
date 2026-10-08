@@ -9,24 +9,24 @@ it('builds a short razorpay failure label from reason and source', function (arr
         'error_source' => 'customer',
         'error_reason' => 'authentication_failed',
         'error_description' => 'Payment failed because of invalid card details',
-    ], 'Customer · Invalid card'],
+    ], 'Donor · Invalid card'],
     'insufficient funds' => [[
         'error_source' => 'customer',
         'error_reason' => 'insufficient_funds',
         'error_description' => 'The customer does not have sufficient funds',
-    ], 'Customer · Insufficient funds'],
+    ], 'Donor · Insufficient funds'],
     'invalid upi id' => [[
         'error_source' => 'customer',
         'error_reason' => 'invalid_vpa',
-    ], 'Customer · Invalid UPI ID'],
+    ], 'Donor · Invalid UPI ID'],
     'upi request expired' => [[
         'error_source' => 'customer',
         'error_reason' => 'payment_collect_request_expired',
-    ], 'Customer · UPI request expired'],
+    ], 'Donor · UPI request expired'],
     'netbanking' => [[
         'error_source' => 'customer',
         'error_reason' => 'user_not_registered_for_netbanking',
-    ], 'Customer · Netbanking not registered'],
+    ], 'Donor · Netbanking not registered'],
     'bank error' => [[
         'error_source' => 'issuer_bank',
         'error_reason' => 'bank_technical_error',
@@ -42,9 +42,9 @@ it('builds a short razorpay failure label from reason and source', function (arr
     'cancelled' => [[
         'error_source' => 'customer',
         'error_reason' => 'payment_cancelled',
-    ], 'Customer · Cancelled by customer'],
+    ], 'Donor · Cancelled by donor'],
     'incorrect otp' => [[
         'error_source' => 'customer',
         'error_reason' => 'incorrect_otp',
-    ], 'Customer · Incorrect OTP'],
+    ], 'Donor · Incorrect OTP'],
 ]);
