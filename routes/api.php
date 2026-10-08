@@ -32,6 +32,9 @@ Route::prefix('donate')->group(function (): void {
     Route::get('/config', [DonateApiController::class, 'config'])->name('donate.api.config');
     Route::get('/pincode/{pincode}', [DonateApiController::class, 'pincode'])->middleware('throttle:60,1')->name('donate.api.pincode');
     Route::get('/bank-details', [DonateApiController::class, 'bankDetails'])->name('donate.api.bank-details');
+    Route::get('/partner-qr', [DonateApiController::class, 'partnerQr'])
+        ->middleware('throttle:120,1')
+        ->name('donate.api.partner-qr');
 
     Route::get('/thank-you/subscription/{subscription}', [DonateApiController::class, 'thankYouSubscription'])
         ->middleware(EnsureThankYouAccess::class)
