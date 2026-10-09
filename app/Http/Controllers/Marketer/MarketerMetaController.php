@@ -15,17 +15,53 @@ class MarketerMetaController extends Controller
 {
     public function index(Request $request): Response
     {
+        return $this->overview($request);
+    }
+
+    public function overview(Request $request): Response
+    {
         /** @var \App\Models\User $user */
         $user = $request->user();
-        $payload = MetaAdSpendQuery::marketerIndex($request, $user->id);
+        $payload = MetaAdSpendQuery::marketerOverview($request, $user->id);
 
-        return Inertia::render('Marketer/Meta', [
+        return Inertia::render('Marketer/Meta/Overview', $this->marketerPageProps($payload));
+    }
+
+    public function analytics(Request $request): Response
+    {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+        $payload = MetaAdSpendQuery::marketerAnalytics($request, $user->id);
+
+        return Inertia::render('Marketer/Meta/Analytics', $this->marketerPageProps($payload));
+    }
+
+    public function ads(Request $request): Response
+    {
+        /** @var \App\Models\User $user */
+        $user = $request->user();
+        $payload = MetaAdSpendQuery::marketerInsights($request, $user->id);
+
+        return Inertia::render('Marketer/Meta/Ads', [
             'filters' => $payload['filters'],
             'filterOptions' => $payload['filter_options'],
-            'analytics' => $payload['analytics'],
             'rows' => $payload['rows'],
             'lastSyncedAt' => $payload['last_synced_at'],
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function marketerPageProps(array $payload): array
+    {
+        return [
+            'filters' => $payload['filters'],
+            'filterOptions' => $payload['filter_options'],
+            'analytics' => $payload['analytics'],
+            'lastSyncedAt' => $payload['last_synced_at'],
+        ];
     }
 
     public function refresh(Request $request): RedirectResponse

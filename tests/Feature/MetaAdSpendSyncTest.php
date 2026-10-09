@@ -129,6 +129,10 @@ it('syncs from live meta and overwrites daily spend plus monthly rollup', functi
             'campaign_id' => 'c-1',
             'campaign_name' => 'Ashvini | Campaign',
             'spend' => '250.50',
+            'impressions' => '12000',
+            'clicks' => '240',
+            'reach' => '9000',
+            'inline_link_clicks' => '180',
             'account_currency' => 'INR',
             'date_start' => $today,
         ],
@@ -140,6 +144,10 @@ it('syncs from live meta and overwrites daily spend plus monthly rollup', functi
             'campaign_id' => 'c-2',
             'campaign_name' => 'Other',
             'spend' => '99',
+            'impressions' => '500',
+            'clicks' => '10',
+            'reach' => '400',
+            'inline_link_clicks' => '5',
             'account_currency' => 'INR',
             'date_start' => $today,
         ],
@@ -171,9 +179,16 @@ it('syncs from live meta and overwrites daily spend plus monthly rollup', functi
     expect((float) $month->spend_amount)->toBe(250.5)
         ->and($month->target_amount)->toBe(50000);
 
+    $matchedRow = MetaAdSpendDaily::query()->where('ad_id', 'ad-1')->first();
+
     expect(MetaAdSpendDaily::query()->count())->toBe(2)
         ->and(MetaAdSpendDaily::query()->where('matched_via', 'unmatched')->count())->toBe(1)
-        ->and(MetaAdSpendDaily::query()->where('user_id', $marketer->id)->count())->toBe(1);
+        ->and(MetaAdSpendDaily::query()->where('user_id', $marketer->id)->count())->toBe(1)
+        ->and($matchedRow)->not->toBeNull()
+        ->and($matchedRow->impressions)->toBe(12000)
+        ->and($matchedRow->clicks)->toBe(240)
+        ->and($matchedRow->reach)->toBe(9000)
+        ->and($matchedRow->inline_link_clicks)->toBe(180);
 });
 
 it('does not zero daily spend when meta returns no matched rows for that day', function () {
@@ -255,20 +270,28 @@ it('filters meta spend by app id and campaign dropdowns', function () {
         'matched_via' => 'ad_name_prefix',
     ]);
 
+    $filterQuery = [
+        'app_id' => 'app-99',
+        'campaign' => 'Camp Alpha',
+        'from_date' => $today,
+        'to_date' => $today,
+    ];
+
     actingAs($admin)
-        ->get(route('admin.meta.index', [
-            'app_id' => 'app-99',
-            'campaign' => 'Camp Alpha',
-            'from_date' => $today,
-            'to_date' => $today,
-        ]))
+        ->get(route('admin.meta.index', $filterQuery))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('Admin/Meta/Index')
-            ->has('rows.data', 1)
-            ->where('rows.data.0.campaign_name', 'Camp Alpha')
+            ->component('Admin/Meta/Overview')
             ->where('analytics.totals.spend', 30)
             ->has('filterOptions.app_ids', 1));
+
+    actingAs($admin)
+        ->get(route('admin.meta.insights', $filterQuery))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Meta/Insights')
+            ->has('rows.data', 1)
+            ->where('rows.data.0.campaign_name', 'Camp Alpha'));
 });
 
 it('filters meta spend by marketer name inside the ad string', function () {
@@ -299,15 +322,24 @@ it('filters meta spend by marketer name inside the ad string', function () {
         'matched_via' => 'unmatched',
     ]);
 
+    $filterQuery = ['q' => 'Ashvini', 'from_date' => $today, 'to_date' => $today];
+
     actingAs($admin)
-        ->get(route('admin.meta.index', ['q' => 'Ashvini', 'from_date' => $today, 'to_date' => $today]))
+        ->get(route('admin.meta.insights', $filterQuery))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('Admin/Meta/Index')
+            ->component('Admin/Meta/Insights')
             ->has('rows.data', 1)
             ->has('filterOptions.accounts')
-            ->has('analytics.totals')
             ->where('rows.data.0.ad_name', 'Ashvini | 09/10 | Sadbhavna | Theme | Cause'));
+
+    actingAs($admin)
+        ->get(route('admin.meta.analytics', $filterQuery))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Meta/Analytics')
+            ->has('analytics.totals')
+            ->has('analytics.by_campaign'));
 });
 
 it('lets marketers view only their meta rows and refresh with throttle', function () {
@@ -336,19 +368,32 @@ it('lets marketers view only their meta rows and refresh with throttle', functio
         'matched_via' => 'ad_name_prefix',
     ]);
 
+    $filterQuery = ['from_date' => $today, 'to_date' => $today];
+
     actingAs($ashvini)
-        ->get(route('marketer.meta', ['from_date' => $today, 'to_date' => $today]))
+        ->get(route('marketer.meta', $filterQuery))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('Marketer/Meta')
-            ->has('rows.data', 1)
+            ->component('Marketer/Meta/Overview')
             ->has('filterOptions')
             ->has('analytics.by_day')
-            ->has('analytics.by_account')
-            ->has('analytics.by_campaign')
-            ->where('rows.data.0.ad_name', 'Ashvini | Ad')
             ->where('analytics.totals.spend', 15)
             ->missing('filterOptions.marketers.0'));
+
+    actingAs($ashvini)
+        ->get(route('marketer.meta.ads', $filterQuery))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Marketer/Meta/Ads')
+            ->has('rows.data', 1)
+            ->where('rows.data.0.ad_name', 'Ashvini | Ad'));
+
+    actingAs($ashvini)
+        ->get(route('marketer.meta.analytics', $filterQuery))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Marketer/Meta/Analytics')
+            ->has('analytics.by_campaign'));
 
     fakeMetaInsights([]);
     $throttleKey = 'meta-sync:marketer:'.$ashvini->id;

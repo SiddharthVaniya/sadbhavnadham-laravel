@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from 'vue';
 import { Link } from '@inertiajs/vue3';
-import { metaAdminTabHref } from '@/utils/metaFilterQuery';
+import { metaMarketerTabHref } from '@/utils/metaFilterQuery';
 
 const props = defineProps({
     current: { type: String, required: true },
@@ -9,10 +9,9 @@ const props = defineProps({
 });
 
 const tabs = computed(() => [
-    { key: 'overview', href: metaAdminTabHref('/admin/meta', props.filters), label: 'Overview' },
-    { key: 'analytics', href: metaAdminTabHref('/admin/meta/analytics', props.filters), label: 'Analytics' },
-    { key: 'insights', href: metaAdminTabHref('/admin/meta/insights', props.filters), label: 'Ad insights' },
-    { key: 'accounts', href: '/admin/meta/accounts', label: 'Accounts' },
+    { key: 'overview', href: metaMarketerTabHref('/marketer/meta', props.filters), label: 'Overview' },
+    { key: 'analytics', href: metaMarketerTabHref('/marketer/meta/analytics', props.filters), label: 'Analytics' },
+    { key: 'ads', href: metaMarketerTabHref('/marketer/meta/ads', props.filters), label: 'Your ads' },
 ]);
 </script>
 

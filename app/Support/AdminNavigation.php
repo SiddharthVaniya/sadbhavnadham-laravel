@@ -157,7 +157,9 @@ class AdminNavigation
                 'permissions_any' => [AdminPermissions::USER_EDIT, AdminPermissions::MANAGE_USERS],
                 'section' => 'Fundraising',
                 'children' => [
-                    ['label' => 'Ads spend', 'route' => 'admin.meta.index'],
+                    ['label' => 'Overview', 'route' => 'admin.meta.index'],
+                    ['label' => 'Analytics', 'route' => 'admin.meta.analytics'],
+                    ['label' => 'Ad insights', 'route' => 'admin.meta.insights'],
                     ['label' => 'Accounts', 'route' => 'admin.meta.accounts'],
                 ],
             ],

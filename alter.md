@@ -1013,6 +1013,10 @@ CREATE TABLE IF NOT EXISTS meta_ad_spend_daily (
     ad_id VARCHAR(255) NOT NULL,
     ad_name VARCHAR(255) NULL DEFAULT NULL,
     spend_amount DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
+    impressions BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    clicks INT UNSIGNED NOT NULL DEFAULT 0,
+    reach BIGINT UNSIGNED NOT NULL DEFAULT 0,
+    inline_link_clicks INT UNSIGNED NOT NULL DEFAULT 0,
     currency VARCHAR(16) NULL DEFAULT NULL,
     user_id BIGINT UNSIGNED NULL DEFAULT NULL,
     matched_via VARCHAR(32) NOT NULL DEFAULT 'unmatched',
@@ -1028,6 +1032,18 @@ CREATE TABLE IF NOT EXISTS meta_ad_spend_daily (
         FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
+
+**Existing DB (add Insights columns after deploy):**
+
+```sql
+ALTER TABLE meta_ad_spend_daily
+    ADD COLUMN impressions BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER spend_amount,
+    ADD COLUMN clicks INT UNSIGNED NOT NULL DEFAULT 0 AFTER impressions,
+    ADD COLUMN reach BIGINT UNSIGNED NOT NULL DEFAULT 0 AFTER clicks,
+    ADD COLUMN inline_link_clicks INT UNSIGNED NOT NULL DEFAULT 0 AFTER reach;
+```
+
+Then run **Sync from live Meta** to backfill impressions/clicks/reach on historical rows.
 
 ### Rollback
 

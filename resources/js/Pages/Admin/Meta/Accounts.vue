@@ -16,12 +16,10 @@ import {
     TableHeader,
     TableRow,
 } from '@/Components/ui/table';
-import MetaSpendAnalytics from '@/Components/Admin/MetaSpendAnalytics.vue';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/ui/card';
 
 defineProps({
     accounts: { type: Array, default: () => [] },
-    analytics: { type: Object, required: true },
     lastSyncedAt: { type: String, default: null },
 });
 
@@ -114,12 +112,6 @@ const removeAccount = (account) => {
         <p v-if="lastSyncedAt" class="mb-4 text-sm text-muted-foreground">
             Last synced: {{ lastSyncedAt }}
         </p>
-
-        <MetaSpendAnalytics
-            :analytics="analytics"
-            show-marketer-charts
-            compact
-        />
 
         <Card class="shadow-none">
             <CardHeader class="pb-2">

@@ -24,6 +24,10 @@ class MetaMarketingApiClient
      *     ad_id: string,
      *     ad_name: ?string,
      *     spend_amount: float,
+     *     impressions: int,
+     *     clicks: int,
+     *     reach: int,
+     *     inline_link_clicks: int,
      *     currency: ?string
      * }>
      */
@@ -56,6 +60,10 @@ class MetaMarketingApiClient
                 'campaign_id',
                 'campaign_name',
                 'spend',
+                'impressions',
+                'clicks',
+                'reach',
+                'inline_link_clicks',
                 'account_currency',
                 'date_start',
             ]),
@@ -109,6 +117,10 @@ class MetaMarketingApiClient
                     'ad_id' => $adId,
                     'ad_name' => $this->nullableString($item['ad_name'] ?? null),
                     'spend_amount' => (float) ($item['spend'] ?? 0),
+                    'impressions' => (int) ($item['impressions'] ?? 0),
+                    'clicks' => (int) ($item['clicks'] ?? 0),
+                    'reach' => (int) ($item['reach'] ?? 0),
+                    'inline_link_clicks' => (int) ($item['inline_link_clicks'] ?? 0),
                     'currency' => $this->nullableString($item['account_currency'] ?? null),
                 ];
             }

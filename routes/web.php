@@ -111,6 +111,8 @@ Route::prefix('marketer')->name('marketer.')->middleware(['auth', 'marketer.port
     Route::get('/visits', [MarketerVisitController::class, 'index'])->name('visits');
     Route::get('/visits/export', [MarketerVisitController::class, 'export'])->name('visits.export');
     Route::get('/meta', [MarketerMetaController::class, 'index'])->name('meta');
+    Route::get('/meta/analytics', [MarketerMetaController::class, 'analytics'])->name('meta.analytics');
+    Route::get('/meta/ads', [MarketerMetaController::class, 'ads'])->name('meta.ads');
     Route::post('/meta/refresh', [MarketerMetaController::class, 'refresh'])->name('meta.refresh');
 });
 
@@ -510,6 +512,12 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::get('meta', [AdminMetaAdController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
         ->name('meta.index');
+    Route::get('meta/analytics', [AdminMetaAdController::class, 'analytics'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('meta.analytics');
+    Route::get('meta/insights', [AdminMetaAdController::class, 'insights'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('meta.insights');
     Route::get('meta/accounts', [AdminMetaAdController::class, 'accounts'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
         ->name('meta.accounts');

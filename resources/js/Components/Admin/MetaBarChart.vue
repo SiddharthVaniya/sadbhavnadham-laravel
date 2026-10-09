@@ -5,9 +5,22 @@ const props = defineProps({
     items: { type: Array, default: () => [] },
     emptyMessage: { type: String, default: 'No data to chart.' },
     valueKey: { type: String, default: 'spend' },
+    valueFormat: { type: String, default: 'money' },
 });
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+
+const formatValue = (value) => {
+    if (props.valueFormat === 'number') {
+        return Number(value || 0).toLocaleString('en-IN');
+    }
+
+    if (props.valueFormat === 'percent') {
+        return `${Number(value || 0).toFixed(1)}%`;
+    }
+
+    return formatMoney(value);
+};
 
 const colors = ['#2563eb', '#ea580c', '#7c3aed', '#059669', '#db2777', '#0f766e', '#ca8a04', '#64748b'];
 
@@ -38,7 +51,7 @@ const rows = computed(() => {
         >
             <div class="flex items-center justify-between gap-3 text-sm">
                 <span class="min-w-0 truncate font-medium" :title="row.name">{{ row.name }}</span>
-                <span class="shrink-0 tabular-nums text-muted-foreground">{{ formatMoney(row.value) }}</span>
+                <span class="shrink-0 tabular-nums text-muted-foreground">{{ formatValue(row.value) }}</span>
             </div>
             <div class="h-2.5 overflow-hidden rounded-full bg-[#eef1f4]">
                 <div

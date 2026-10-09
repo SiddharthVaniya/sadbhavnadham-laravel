@@ -27,6 +27,10 @@ class MetaAdSpendDaily extends Model
         'ad_id',
         'ad_name',
         'spend_amount',
+        'impressions',
+        'clicks',
+        'reach',
+        'inline_link_clicks',
         'currency',
         'user_id',
         'matched_via',
@@ -37,6 +41,22 @@ class MetaAdSpendDaily extends Model
         return [
             'spend_date' => 'date',
             'spend_amount' => 'float',
+            'impressions' => 'integer',
+            'clicks' => 'integer',
+            'reach' => 'integer',
+            'inline_link_clicks' => 'integer',
+        ];
+    }
+
+    /**
+     * @return array{ctr: ?float, cpc: ?float, cpm: ?float}
+     */
+    public static function computedRates(float $spend, int $impressions, int $clicks): array
+    {
+        return [
+            'ctr' => $impressions > 0 ? round(($clicks / $impressions) * 100, 2) : null,
+            'cpc' => $clicks > 0 ? round($spend / $clicks, 2) : null,
+            'cpm' => $impressions > 0 ? round(($spend / $impressions) * 1000, 2) : null,
         ];
     }
 

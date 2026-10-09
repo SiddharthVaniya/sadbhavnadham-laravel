@@ -22,12 +22,48 @@ class MetaAdSpendQuery
      *     last_synced_at: ?string
      * }
      */
-    public static function adminIndex(Request $request): array
+    /**
+     * @return array<string, mixed>
+     */
+    public static function adminOverview(Request $request): array
+    {
+        $tz = config('app.timezone', 'Asia/Kolkata');
+        $filters = self::parseFilters($request, includeMarketer: true, includeMatch: true);
+        $analyticsQuery = self::filteredQuery($filters);
+
+        return [
+            'filters' => $filters,
+            'filter_options' => self::filterOptions(null),
+            'analytics' => self::buildAnalytics($analyticsQuery, includeMarketerBreakdown: true, includeRanks: false),
+            'last_synced_at' => self::lastSyncedAt($tz),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function adminAnalytics(Request $request): array
+    {
+        $tz = config('app.timezone', 'Asia/Kolkata');
+        $filters = self::parseFilters($request, includeMarketer: true, includeMatch: true);
+        $analyticsQuery = self::filteredQuery($filters);
+
+        return [
+            'filters' => $filters,
+            'filter_options' => self::filterOptions(null),
+            'analytics' => self::buildAnalytics($analyticsQuery, includeMarketerBreakdown: true, includeRanks: true),
+            'last_synced_at' => self::lastSyncedAt($tz),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function adminInsights(Request $request): array
     {
         $tz = config('app.timezone', 'Asia/Kolkata');
         $filters = self::parseFilters($request, includeMarketer: true, includeMatch: true);
         $query = self::filteredQuery($filters);
-        $analyticsQuery = self::filteredQuery($filters);
 
         $unmatchedCount = (clone $query)
             ->where('matched_via', MetaAdSpendDaily::MATCHED_VIA_UNMATCHED)
@@ -44,7 +80,6 @@ class MetaAdSpendQuery
         return [
             'filters' => $filters,
             'filter_options' => self::filterOptions(null),
-            'analytics' => self::buildAnalytics($analyticsQuery, includeMarketerBreakdown: true),
             'rows' => $rows,
             'unmatched_count' => $unmatchedCount,
             'last_synced_at' => self::lastSyncedAt($tz),
@@ -52,38 +87,47 @@ class MetaAdSpendQuery
     }
 
     /**
-     * Last 7 days spend overview for the Meta Accounts tab.
-     *
      * @return array<string, mixed>
      */
-    public static function accountsOverviewAnalytics(): array
+    public static function marketerOverview(Request $request, int $userId): array
     {
         $tz = config('app.timezone', 'Asia/Kolkata');
-        $from = now($tz)->subDays(6)->startOfDay()->toDateString();
-        $to = now($tz)->toDateString();
+        $filters = self::parseFilters($request, includeMarketer: false, includeMatch: false);
+        $analyticsQuery = self::filteredQuery($filters, $userId);
 
-        $query = MetaAdSpendDaily::query()
-            ->whereDate('spend_date', '>=', $from)
-            ->whereDate('spend_date', '<=', $to);
-
-        return self::buildAnalytics($query, includeMarketerBreakdown: true);
+        return [
+            'filters' => $filters,
+            'filter_options' => self::filterOptions($userId),
+            'analytics' => self::buildAnalytics($analyticsQuery, includeMarketerBreakdown: false, includeRanks: false),
+            'last_synced_at' => self::lastSyncedAt($tz),
+        ];
     }
 
     /**
-     * @return array{
-     *     filters: array<string, string>,
-     *     filter_options: array<string, mixed>,
-     *     analytics: array<string, mixed>,
-     *     rows: LengthAwarePaginator,
-     *     last_synced_at: ?string
-     * }
+     * @return array<string, mixed>
      */
-    public static function marketerIndex(Request $request, int $userId): array
+    public static function marketerAnalytics(Request $request, int $userId): array
+    {
+        $tz = config('app.timezone', 'Asia/Kolkata');
+        $filters = self::parseFilters($request, includeMarketer: false, includeMatch: false);
+        $analyticsQuery = self::filteredQuery($filters, $userId);
+
+        return [
+            'filters' => $filters,
+            'filter_options' => self::filterOptions($userId),
+            'analytics' => self::buildAnalytics($analyticsQuery, includeMarketerBreakdown: false, includeRanks: true),
+            'last_synced_at' => self::lastSyncedAt($tz),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public static function marketerInsights(Request $request, int $userId): array
     {
         $tz = config('app.timezone', 'Asia/Kolkata');
         $filters = self::parseFilters($request, includeMarketer: false, includeMatch: false);
         $query = self::filteredQuery($filters, $userId);
-        $analyticsQuery = self::filteredQuery($filters, $userId);
 
         $rows = $query
             ->with(['account:id,label,app_id'])
@@ -96,10 +140,37 @@ class MetaAdSpendQuery
         return [
             'filters' => $filters,
             'filter_options' => self::filterOptions($userId),
-            'analytics' => self::buildAnalytics($analyticsQuery, includeMarketerBreakdown: false),
             'rows' => $rows,
             'last_synced_at' => self::lastSyncedAt($tz),
         ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    public static function filterQueryKeys(bool $includeMarketer = true, bool $includeMatch = true): array
+    {
+        $keys = [
+            'q',
+            'meta_ad_account_id',
+            'app_id',
+            'from_date',
+            'to_date',
+            'campaign',
+            'adset',
+            'theme',
+            'cause',
+        ];
+
+        if ($includeMarketer) {
+            $keys[] = 'user_id';
+        }
+
+        if ($includeMatch) {
+            $keys[] = 'match';
+        }
+
+        return $keys;
     }
 
     /**
@@ -364,8 +435,11 @@ class MetaAdSpendQuery
      *     chart_series: list<array{name: string, data: list<float>}>
      * }
      */
-    private static function buildAnalytics(Builder $query, bool $includeMarketerBreakdown = false): array
-    {
+    private static function buildAnalytics(
+        Builder $query,
+        bool $includeMarketerBreakdown = false,
+        bool $includeRanks = true,
+    ): array {
         $rows = (clone $query)
             ->with(['account:id,label,app_id', 'user:id,name'])
             ->get([
@@ -373,6 +447,10 @@ class MetaAdSpendQuery
                 'user_id',
                 'spend_date',
                 'spend_amount',
+                'impressions',
+                'clicks',
+                'reach',
+                'inline_link_clicks',
                 'campaign_name',
                 'adset_name',
                 'ad_name',
@@ -381,6 +459,11 @@ class MetaAdSpendQuery
             ]);
 
         $totalSpend = (float) $rows->sum('spend_amount');
+        $totalImpressions = (int) $rows->sum('impressions');
+        $totalClicks = (int) $rows->sum('clicks');
+        $totalReach = (int) $rows->sum('reach');
+        $totalLinkClicks = (int) $rows->sum('inline_link_clicks');
+        $rates = MetaAdSpendDaily::computedRates($totalSpend, $totalImpressions, $totalClicks);
 
         $byDay = $rows
             ->groupBy(fn (MetaAdSpendDaily $row) => $row->spend_date?->toDateString() ?? '')
@@ -388,49 +471,77 @@ class MetaAdSpendQuery
             ->map(fn (Collection $group, string $date) => [
                 'date' => $date,
                 'spend' => round((float) $group->sum('spend_amount'), 2),
+                'impressions' => (int) $group->sum('impressions'),
+                'clicks' => (int) $group->sum('clicks'),
+                'reach' => (int) $group->sum('reach'),
+                'inline_link_clicks' => (int) $group->sum('inline_link_clicks'),
             ])
             ->sortKeys()
             ->values()
             ->all();
 
-        $byAccount = self::rankSpend(
-            $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->account?->label
-                ?: ('App '.($row->account?->app_id ?? $row->meta_ad_account_id))),
-            $totalSpend,
-        );
-
-        $byAppId = self::rankSpend(
-            $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->account?->app_id
-                ? 'App '.$row->account->app_id
-                : 'Unknown app'),
-            $totalSpend,
-        );
-
-        $byCampaign = self::rankSpend(
-            $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->campaign_name ?: 'Untitled campaign'),
-            $totalSpend,
-        );
-
-        $byAdset = self::rankSpend(
-            $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->adset_name ?: 'Untitled ad set'),
-            $totalSpend,
-        );
-
-        $byTheme = self::rankSpend(self::groupByPipeSegment($rows, 'theme'), $totalSpend);
-        $byCause = self::rankSpend(self::groupByPipeSegment($rows, 'cause'), $totalSpend);
-
+        $byAccount = [];
+        $byAppId = [];
+        $byCampaign = [];
+        $byAdset = [];
+        $byTheme = [];
+        $byCause = [];
         $byMarketer = [];
-        if ($includeMarketerBreakdown) {
-            $byMarketer = self::rankSpend(
-                $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->user?->name ?: 'Unmatched'),
+        $byAd = [];
+        $byCampaignImpressions = [];
+        $byAdImpressions = [];
+
+        if ($includeRanks) {
+            $byAccount = self::rankSpend(
+                $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->account?->label
+                    ?: ('App '.($row->account?->app_id ?? $row->meta_ad_account_id))),
                 $totalSpend,
             );
-        }
 
-        $byAd = self::rankSpend(
-            $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->ad_name ?: ('Ad '.$row->ad_id)),
-            $totalSpend,
-        );
+            $byAppId = self::rankSpend(
+                $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->account?->app_id
+                    ? 'App '.$row->account->app_id
+                    : 'Unknown app'),
+                $totalSpend,
+            );
+
+            $byCampaign = self::rankSpend(
+                $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->campaign_name ?: 'Untitled campaign'),
+                $totalSpend,
+            );
+
+            $byAdset = self::rankSpend(
+                $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->adset_name ?: 'Untitled ad set'),
+                $totalSpend,
+            );
+
+            $byTheme = self::rankSpend(self::groupByPipeSegment($rows, 'theme'), $totalSpend);
+            $byCause = self::rankSpend(self::groupByPipeSegment($rows, 'cause'), $totalSpend);
+
+            if ($includeMarketerBreakdown) {
+                $byMarketer = self::rankSpend(
+                    $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->user?->name ?: 'Unmatched'),
+                    $totalSpend,
+                );
+            }
+
+            $byAd = self::rankSpend(
+                $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->ad_name ?: ('Ad '.$row->ad_id)),
+                $totalSpend,
+            );
+
+            $byCampaignImpressions = self::rankByMetric(
+                $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->campaign_name ?: 'Untitled campaign'),
+                'impressions',
+                $totalImpressions,
+            );
+
+            $byAdImpressions = self::rankByMetric(
+                $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->ad_name ?: ('Ad '.$row->ad_id)),
+                'impressions',
+                $totalImpressions,
+            );
+        }
 
         $chartLabels = collect($byDay)->map(function (array $day) {
             $date = Carbon::parse($day['date']);
@@ -454,16 +565,41 @@ class MetaAdSpendQuery
             $chartSeries[] = $series;
         }
 
-        $avgDaily = count($byDay) > 0 ? round($totalSpend / count($byDay), 2) : 0.0;
+        $chartEngagementSeries = [
+            [
+                'name' => 'Impressions',
+                'points' => collect($byDay)->map(fn (array $day) => [
+                    'revenue' => (float) $day['impressions'],
+                ])->values()->all(),
+            ],
+            [
+                'name' => 'Clicks',
+                'points' => collect($byDay)->map(fn (array $day) => [
+                    'revenue' => (float) $day['clicks'],
+                ])->values()->all(),
+            ],
+        ];
+
+        $dayCount = count($byDay);
+        $avgDaily = $dayCount > 0 ? round($totalSpend / $dayCount, 2) : 0.0;
+        $avgDailyImpressions = $dayCount > 0 ? (int) round($totalImpressions / $dayCount) : 0;
 
         return [
             'totals' => [
                 'spend' => round($totalSpend, 2),
+                'impressions' => $totalImpressions,
+                'clicks' => $totalClicks,
+                'reach' => $totalReach,
+                'inline_link_clicks' => $totalLinkClicks,
+                'ctr' => $rates['ctr'],
+                'cpc' => $rates['cpc'],
+                'cpm' => $rates['cpm'],
                 'ads' => $rows->pluck('ad_id')->unique()->count(),
                 'campaigns' => $rows->pluck('campaign_name')->filter()->unique()->count(),
                 'accounts' => $rows->pluck('meta_ad_account_id')->unique()->count(),
-                'days' => count($byDay),
+                'days' => $dayCount,
                 'avg_daily_spend' => $avgDaily,
+                'avg_daily_impressions' => $avgDailyImpressions,
             ],
             'by_day' => $byDay,
             'by_account' => $byAccount,
@@ -476,6 +612,9 @@ class MetaAdSpendQuery
             'by_ad' => $byAd,
             'chart_labels' => $chartLabels,
             'chart_series' => $chartSeries,
+            'chart_engagement_series' => $chartEngagementSeries,
+            'by_campaign_impressions' => $byCampaignImpressions,
+            'by_ad_impressions' => $byAdImpressions,
         ];
     }
 
@@ -558,15 +697,48 @@ class MetaAdSpendQuery
         return $groups
             ->map(function (Collection $group, string $name) use ($totalSpend) {
                 $spend = round((float) $group->sum('spend_amount'), 2);
+                $impressions = (int) $group->sum('impressions');
+                $clicks = (int) $group->sum('clicks');
 
                 return [
                     'name' => $name,
                     'spend' => $spend,
+                    'impressions' => $impressions,
+                    'clicks' => $clicks,
                     'count' => $spend,
                     'percentage' => $totalSpend > 0 ? round(($spend / $totalSpend) * 100, 1) : 0.0,
                 ];
             })
             ->sortByDesc('spend')
+            ->take(8)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  Collection<string, Collection<int, MetaAdSpendDaily>>  $groups
+     * @return list<array{name: string, spend: float, impressions: int, clicks: int, count: int, percentage: float}>
+     */
+    private static function rankByMetric(Collection $groups, string $metric, float|int $total): array
+    {
+        return $groups
+            ->map(function (Collection $group, string $name) use ($metric, $total) {
+                $value = match ($metric) {
+                    'impressions' => (int) $group->sum('impressions'),
+                    'clicks' => (int) $group->sum('clicks'),
+                    default => (int) $group->sum($metric),
+                };
+
+                return [
+                    'name' => $name,
+                    'spend' => round((float) $group->sum('spend_amount'), 2),
+                    'impressions' => (int) $group->sum('impressions'),
+                    'clicks' => (int) $group->sum('clicks'),
+                    'count' => $value,
+                    'percentage' => $total > 0 ? round(($value / $total) * 100, 1) : 0.0,
+                ];
+            })
+            ->sortByDesc('count')
             ->take(8)
             ->values()
             ->all();
@@ -588,6 +760,11 @@ class MetaAdSpendQuery
     {
         $segments = MarketerNameMatcher::parsePipeSegments($row->ad_name);
 
+        $impressions = (int) $row->impressions;
+        $clicks = (int) $row->clicks;
+        $spend = (float) $row->spend_amount;
+        $rates = MetaAdSpendDaily::computedRates($spend, $impressions, $clicks);
+
         $payload = [
             'id' => $row->id,
             'spend_date' => $row->spend_date?->toDateString(),
@@ -596,7 +773,14 @@ class MetaAdSpendQuery
             'campaign_name' => $row->campaign_name,
             'adset_name' => $row->adset_name,
             'ad_name' => $row->ad_name,
-            'spend_amount' => (float) $row->spend_amount,
+            'spend_amount' => $spend,
+            'impressions' => $impressions,
+            'clicks' => $clicks,
+            'reach' => (int) $row->reach,
+            'inline_link_clicks' => (int) $row->inline_link_clicks,
+            'ctr' => $rates['ctr'],
+            'cpc' => $rates['cpc'],
+            'cpm' => $rates['cpm'],
             'currency' => $row->currency,
             'matched_via' => $row->matched_via,
             'pipe' => [

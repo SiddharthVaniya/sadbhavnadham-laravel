@@ -54,7 +54,7 @@ it('groups admin navigation into operational sections', function () {
         ->toBe(['This month', 'Today', 'Spending history'])
         ->and($labels)->toContain('Meta')
         ->and(collect($byLabel['Meta']['children'])->pluck('label')->all())
-        ->toBe(['Ads spend', 'Accounts'])
+        ->toBe(['Overview', 'Analytics', 'Ad insights', 'Accounts'])
         ->and($byLabel['Meta']['section'])->toBe('Fundraising');
 });
 

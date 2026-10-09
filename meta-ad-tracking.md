@@ -117,7 +117,7 @@ Daily Meta spend sync matches marketers from the **ad name** (not only `sid`). P
 Ashvini | 09/10 | Sadbhavna | Pitru Amas | Old age
 ```
 
-Admin sidebar → **Meta** (Ads spend / Accounts) stores API credentials, runs **Sync from live Meta**, and filters by that pipe string. Matched spend **overwrites** that day’s row on Marketers → Today. Marketers see their own rows at `/marketer/meta` (Refresh from Meta is rate-limited).
+Admin sidebar → **Meta** (Overview / Analytics / Ad insights / Accounts) stores API credentials, runs **Sync from live Meta**, and filters by that pipe string. Matched spend **overwrites** that day’s row on Marketers → Today. Marketers use `/marketer/meta`, `/marketer/meta/analytics`, and `/marketer/meta/ads` (Refresh from Meta is rate-limited).
 
 Ops detail: [`docs/meta-ads-spend-sync.md`](docs/meta-ads-spend-sync.md). Live SQL: `alter.md` (Meta ad accounts + daily Insights spend).
 

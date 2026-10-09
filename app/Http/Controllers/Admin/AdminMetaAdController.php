@@ -17,12 +17,30 @@ class AdminMetaAdController extends Controller
 {
     public function index(Request $request): Response
     {
-        $payload = MetaAdSpendQuery::adminIndex($request);
+        return $this->overview($request);
+    }
 
-        return Inertia::render('Admin/Meta/Index', [
+    public function overview(Request $request): Response
+    {
+        $payload = MetaAdSpendQuery::adminOverview($request);
+
+        return Inertia::render('Admin/Meta/Overview', $this->adminPageProps($payload));
+    }
+
+    public function analytics(Request $request): Response
+    {
+        $payload = MetaAdSpendQuery::adminAnalytics($request);
+
+        return Inertia::render('Admin/Meta/Analytics', $this->adminPageProps($payload));
+    }
+
+    public function insights(Request $request): Response
+    {
+        $payload = MetaAdSpendQuery::adminInsights($request);
+
+        return Inertia::render('Admin/Meta/Insights', [
             'filters' => $payload['filters'],
             'filterOptions' => $payload['filter_options'],
-            'analytics' => $payload['analytics'],
             'rows' => $payload['rows'],
             'unmatchedCount' => $payload['unmatched_count'],
             'lastSyncedAt' => $payload['last_synced_at'],
@@ -42,11 +60,24 @@ class AdminMetaAdController extends Controller
 
         return Inertia::render('Admin/Meta/Accounts', [
             'accounts' => $accounts,
-            'analytics' => MetaAdSpendQuery::accountsOverviewAnalytics(),
             'lastSyncedAt' => $lastSynced
                 ? Carbon::parse($lastSynced)->timezone(config('app.timezone'))->toDateTimeString()
                 : null,
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     * @return array<string, mixed>
+     */
+    private function adminPageProps(array $payload): array
+    {
+        return [
+            'filters' => $payload['filters'],
+            'filterOptions' => $payload['filter_options'],
+            'analytics' => $payload['analytics'],
+            'lastSyncedAt' => $payload['last_synced_at'],
+        ];
     }
 
     public function storeAccount(Request $request): RedirectResponse
@@ -203,9 +234,18 @@ class AdminMetaAdController extends Controller
                 'q', 'user_id', 'from_date', 'to_date', 'year_month', 'archive',
             ])),
             'accounts' => redirect()->route('admin.meta.accounts'),
-            default => redirect()->route('admin.meta.index', $request->only([
-                'q', 'user_id', 'meta_ad_account_id', 'from_date', 'to_date', 'campaign', 'adset', 'match', 'cause',
-            ])),
+            'analytics' => redirect()->route('admin.meta.analytics', $this->metaFilterParams($request)),
+            'insights' => redirect()->route('admin.meta.insights', $this->metaFilterParams($request)),
+            'meta', 'overview' => redirect()->route('admin.meta.index', $this->metaFilterParams($request)),
+            default => redirect()->route('admin.meta.index', $this->metaFilterParams($request)),
         };
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function metaFilterParams(Request $request): array
+    {
+        return $request->only(MetaAdSpendQuery::filterQueryKeys(includeMarketer: true, includeMatch: true));
     }
 }

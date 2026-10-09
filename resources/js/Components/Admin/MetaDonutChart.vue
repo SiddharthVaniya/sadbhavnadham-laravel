@@ -4,14 +4,27 @@ import { computed } from 'vue';
 const props = defineProps({
     items: { type: Array, default: () => [] },
     emptyMessage: { type: String, default: 'No data to chart.' },
+    valueKey: { type: String, default: 'spend' },
+    valueFormat: { type: String, default: 'money' },
 });
 
 const colors = ['#2563eb', '#ea580c', '#7c3aed', '#059669', '#db2777', '#0f766e', '#ca8a04', '#94a3b8'];
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
+const formatValue = (value) => {
+    if (props.valueFormat === 'number') {
+        return Number(value || 0).toLocaleString('en-IN');
+    }
+
+    return formatMoney(value);
+};
+
 const segments = computed(() => {
-    const total = props.items.reduce((sum, item) => sum + Number(item.spend ?? item.count ?? 0), 0);
+    const total = props.items.reduce(
+        (sum, item) => sum + Number(item[props.valueKey] ?? item.spend ?? item.count ?? 0),
+        0,
+    );
 
     if (total <= 0) {
         return [];
@@ -22,7 +35,7 @@ const segments = computed(() => {
     const circumference = 2 * Math.PI * radius;
 
     return props.items.map((item, index) => {
-        const value = Number(item.spend ?? item.count ?? 0);
+        const value = Number(item[props.valueKey] ?? item.spend ?? item.count ?? 0);
         const fraction = value / total;
         const dash = fraction * circumference;
         const segment = {
@@ -65,7 +78,7 @@ const totalSpend = computed(() => segments.value.reduce((sum, row) => sum + row.
             </svg>
             <div class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
                 <p class="text-xs text-muted-foreground">Total</p>
-                <p class="text-sm font-semibold tabular-nums">{{ formatMoney(totalSpend) }}</p>
+                <p class="text-sm font-semibold tabular-nums">{{ formatValue(totalSpend) }}</p>
             </div>
         </div>
         <ul class="min-w-0 flex-1 space-y-2">
@@ -79,7 +92,7 @@ const totalSpend = computed(() => segments.value.reduce((sum, row) => sum + row.
                 <span class="min-w-0">
                     <span class="block truncate font-medium" :title="seg.name">{{ seg.name }}</span>
                     <span class="text-xs tabular-nums text-muted-foreground">
-                        {{ formatMoney(seg.value) }} · {{ seg.percentage }}%
+                        {{ formatValue(seg.value) }} · {{ seg.percentage }}%
                     </span>
                 </span>
             </li>
