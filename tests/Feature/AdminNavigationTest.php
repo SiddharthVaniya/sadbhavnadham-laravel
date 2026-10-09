@@ -51,7 +51,11 @@ it('groups admin navigation into operational sections', function () {
         ->and($byLabel['WhatsApp accounts']['section'])->toBe('Engagement')
         ->and($byLabel['Users']['section'])->toBe('System')
         ->and(collect($byLabel['Marketers']['children'])->pluck('label')->all())
-        ->toBe(['This month', 'Today', 'Spending history']);
+        ->toBe(['This month', 'Today', 'Spending history'])
+        ->and($labels)->toContain('Meta')
+        ->and(collect($byLabel['Meta']['children'])->pluck('label')->all())
+        ->toBe(['Ads spend', 'Accounts'])
+        ->and($byLabel['Meta']['section'])->toBe('Fundraising');
 });
 
 it('hides navigation items the user cannot access', function () {

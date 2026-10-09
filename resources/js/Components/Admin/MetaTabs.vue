@@ -6,9 +6,8 @@ defineProps({
 });
 
 const tabs = [
-    { key: 'month', href: '/admin/marketers', label: 'This month' },
-    { key: 'today', href: '/admin/marketers/today', label: 'Today' },
-    { key: 'history', href: '/admin/marketers/history', label: 'Spending history' },
+    { key: 'spend', href: '/admin/meta', label: 'Ads spend' },
+    { key: 'accounts', href: '/admin/meta/accounts', label: 'Accounts' },
 ];
 </script>
 

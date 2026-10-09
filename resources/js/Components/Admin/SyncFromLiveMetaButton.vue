@@ -20,7 +20,7 @@ const processing = ref(false);
 const sync = () => {
     processing.value = true;
 
-    router.post('/admin/marketers/meta/sync', {
+    router.post('/admin/meta/sync', {
         redirect: props.redirect,
         from: props.from,
         to: props.to,

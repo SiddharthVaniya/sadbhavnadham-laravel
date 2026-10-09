@@ -19,6 +19,18 @@ class AdminMetaAdController extends Controller
     {
         $payload = MetaAdSpendQuery::adminIndex($request);
 
+        return Inertia::render('Admin/Meta/Index', [
+            'filters' => $payload['filters'],
+            'accountOptions' => $payload['accounts'],
+            'marketers' => $payload['marketers'],
+            'rows' => $payload['rows'],
+            'unmatchedCount' => $payload['unmatched_count'],
+            'lastSyncedAt' => $payload['last_synced_at'],
+        ]);
+    }
+
+    public function accounts(): Response
+    {
         $accounts = MetaAdAccount::query()
             ->orderBy('label')
             ->get()
@@ -26,14 +38,13 @@ class AdminMetaAdController extends Controller
             ->values()
             ->all();
 
-        return Inertia::render('Admin/Marketers/Meta', [
-            'filters' => $payload['filters'],
+        $lastSynced = MetaAdAccount::query()->max('last_synced_at');
+
+        return Inertia::render('Admin/Meta/Accounts', [
             'accounts' => $accounts,
-            'accountOptions' => $payload['accounts'],
-            'marketers' => $payload['marketers'],
-            'rows' => $payload['rows'],
-            'unmatchedCount' => $payload['unmatched_count'],
-            'lastSyncedAt' => $payload['last_synced_at'],
+            'lastSyncedAt' => $lastSynced
+                ? Carbon::parse($lastSynced)->timezone(config('app.timezone'))->toDateTimeString()
+                : null,
         ]);
     }
 
@@ -54,7 +65,7 @@ class AdminMetaAdController extends Controller
         MetaAdAccount::query()->create($data);
 
         return redirect()
-            ->route('admin.marketers.meta')
+            ->route('admin.meta.accounts')
             ->with('status', 'Meta ad account saved.');
     }
 
@@ -91,7 +102,7 @@ class AdminMetaAdController extends Controller
         $metaAdAccount->update($data);
 
         return redirect()
-            ->route('admin.marketers.meta')
+            ->route('admin.meta.accounts')
             ->with('status', 'Meta ad account updated.');
     }
 
@@ -100,7 +111,7 @@ class AdminMetaAdController extends Controller
         $metaAdAccount->delete();
 
         return redirect()
-            ->route('admin.marketers.meta')
+            ->route('admin.meta.accounts')
             ->with('status', 'Meta ad account removed.');
     }
 
@@ -183,7 +194,8 @@ class AdminMetaAdController extends Controller
             'history' => redirect()->route('admin.marketers.history', $request->only([
                 'q', 'user_id', 'from_date', 'to_date', 'year_month', 'archive',
             ])),
-            default => redirect()->route('admin.marketers.meta', $request->only([
+            'accounts' => redirect()->route('admin.meta.accounts'),
+            default => redirect()->route('admin.meta.index', $request->only([
                 'q', 'user_id', 'meta_ad_account_id', 'from_date', 'to_date', 'campaign', 'adset', 'match', 'cause',
             ])),
         };

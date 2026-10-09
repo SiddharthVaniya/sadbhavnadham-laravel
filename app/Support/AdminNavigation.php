@@ -152,6 +152,16 @@ class AdminNavigation
                 ],
             ],
             [
+                'label' => 'Meta',
+                'route' => 'admin.meta.index',
+                'permissions_any' => [AdminPermissions::USER_EDIT, AdminPermissions::MANAGE_USERS],
+                'section' => 'Fundraising',
+                'children' => [
+                    ['label' => 'Ads spend', 'route' => 'admin.meta.index'],
+                    ['label' => 'Accounts', 'route' => 'admin.meta.accounts'],
+                ],
+            ],
+            [
                 'label' => 'Departments',
                 'route' => 'admin.departments.index',
                 'permissions_any' => [AdminPermissions::DEPARTMENT_MANAGE, AdminPermissions::MANAGE_USERS],

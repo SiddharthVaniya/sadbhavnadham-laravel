@@ -14,7 +14,7 @@ Matching uses the same rules as `StaffReferral::partnerFromMetaAdNamePrefix` / `
 
 ## Credentials
 
-Admin → Marketers → **Meta** tab.
+Admin sidebar → **Meta** → **Accounts** (spend browse is **Meta** → **Ads spend**).
 
 | Field | Notes |
 | --- | --- |

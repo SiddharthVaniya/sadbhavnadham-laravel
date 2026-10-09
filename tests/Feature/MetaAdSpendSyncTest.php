@@ -71,7 +71,7 @@ it('creates a meta account without leaking secrets to inertia', function () {
     $admin = metaAdmin();
 
     actingAs($admin)
-        ->post(route('admin.marketers.meta.accounts.store'), [
+        ->post(route('admin.meta.accounts.store'), [
             'label' => 'Account A',
             'app_id' => 'app-1',
             'app_secret' => 'super-secret',
@@ -79,7 +79,7 @@ it('creates a meta account without leaking secrets to inertia', function () {
             'ad_account_id' => 'act_111',
             'is_active' => true,
         ])
-        ->assertRedirect(route('admin.marketers.meta'));
+        ->assertRedirect(route('admin.meta.accounts'));
 
     $account = MetaAdAccount::query()->first();
     expect($account)->not->toBeNull()
@@ -87,10 +87,10 @@ it('creates a meta account without leaking secrets to inertia', function () {
         ->and($account->access_token)->toBe('super-token');
 
     actingAs($admin)
-        ->get(route('admin.marketers.meta'))
+        ->get(route('admin.meta.accounts'))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('Admin/Marketers/Meta')
+            ->component('Admin/Meta/Accounts')
             ->where('accounts.0.label', 'Account A')
             ->where('accounts.0.has_access_token', true)
             ->missing('accounts.0.access_token')
@@ -147,7 +147,7 @@ it('syncs from live meta and overwrites daily spend plus monthly rollup', functi
     RateLimiter::clear('meta-sync:admin:'.$admin->id);
 
     actingAs($admin)
-        ->post(route('admin.marketers.meta.sync'), [
+        ->post(route('admin.meta.sync'), [
             'from' => $today,
             'to' => $today,
             'redirect' => 'today',
@@ -190,7 +190,7 @@ it('does not zero daily spend when meta returns no matched rows for that day', f
     RateLimiter::clear('meta-sync:admin:'.$admin->id);
 
     actingAs($admin)
-        ->post(route('admin.marketers.meta.sync'), [
+        ->post(route('admin.meta.sync'), [
             'from' => now()->toDateString(),
             'to' => now()->toDateString(),
         ])
@@ -215,7 +215,7 @@ it('skips inactive meta accounts during sync', function () {
     RateLimiter::clear('meta-sync:admin:'.$admin->id);
 
     actingAs($admin)
-        ->post(route('admin.marketers.meta.sync'), [
+        ->post(route('admin.meta.sync'), [
             'from' => now()->toDateString(),
             'to' => now()->toDateString(),
         ])
@@ -253,10 +253,10 @@ it('filters meta spend by marketer name inside the ad string', function () {
     ]);
 
     actingAs($admin)
-        ->get(route('admin.marketers.meta', ['q' => 'Ashvini', 'from_date' => $today, 'to_date' => $today]))
+        ->get(route('admin.meta.index', ['q' => 'Ashvini', 'from_date' => $today, 'to_date' => $today]))
         ->assertOk()
         ->assertInertia(fn (Assert $page) => $page
-            ->component('Admin/Marketers/Meta')
+            ->component('Admin/Meta/Index')
             ->has('rows.data', 1)
             ->where('rows.data.0.ad_name', 'Ashvini | 09/10 | Sadbhavna | Theme | Cause'));
 });
@@ -319,7 +319,7 @@ it('blocks marketers from meta credential routes', function () {
     $marketer = metaMarketer();
 
     actingAs($marketer)
-        ->post(route('admin.marketers.meta.accounts.store'), [
+        ->post(route('admin.meta.accounts.store'), [
             'label' => 'Hack',
             'app_id' => 'x',
             'app_secret' => 'y',

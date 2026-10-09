@@ -506,21 +506,28 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::get('marketers/history', [AdminMarketerBudgetController::class, 'history'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
         ->name('marketers.history');
-    Route::get('marketers/meta', [AdminMetaAdController::class, 'index'])
+
+    Route::get('meta', [AdminMetaAdController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
-        ->name('marketers.meta');
-    Route::post('marketers/meta/accounts', [AdminMetaAdController::class, 'storeAccount'])
+        ->name('meta.index');
+    Route::get('meta/accounts', [AdminMetaAdController::class, 'accounts'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
-        ->name('marketers.meta.accounts.store');
-    Route::put('marketers/meta/accounts/{metaAdAccount}', [AdminMetaAdController::class, 'updateAccount'])
+        ->name('meta.accounts');
+    Route::post('meta/accounts', [AdminMetaAdController::class, 'storeAccount'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
-        ->name('marketers.meta.accounts.update');
-    Route::delete('marketers/meta/accounts/{metaAdAccount}', [AdminMetaAdController::class, 'destroyAccount'])
+        ->name('meta.accounts.store');
+    Route::put('meta/accounts/{metaAdAccount}', [AdminMetaAdController::class, 'updateAccount'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
-        ->name('marketers.meta.accounts.destroy');
-    Route::post('marketers/meta/sync', [AdminMetaAdController::class, 'sync'])
+        ->name('meta.accounts.update');
+    Route::delete('meta/accounts/{metaAdAccount}', [AdminMetaAdController::class, 'destroyAccount'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
-        ->name('marketers.meta.sync');
+        ->name('meta.accounts.destroy');
+    Route::post('meta/sync', [AdminMetaAdController::class, 'sync'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('meta.sync');
+
+    // Legacy Marketers → Meta URLs
+    Route::redirect('marketers/meta', '/admin/meta')->name('marketers.meta');
 
     Route::get('settings', [AdminSettingController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::SETTINGS_VIEW))
