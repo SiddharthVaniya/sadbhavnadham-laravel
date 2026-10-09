@@ -21,8 +21,8 @@ class AdminMetaAdController extends Controller
 
         return Inertia::render('Admin/Meta/Index', [
             'filters' => $payload['filters'],
-            'accountOptions' => $payload['accounts'],
-            'marketers' => $payload['marketers'],
+            'filterOptions' => $payload['filter_options'],
+            'analytics' => $payload['analytics'],
             'rows' => $payload['rows'],
             'unmatchedCount' => $payload['unmatched_count'],
             'lastSyncedAt' => $payload['last_synced_at'],

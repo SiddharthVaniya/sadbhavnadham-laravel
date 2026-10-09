@@ -21,6 +21,8 @@ class MarketerMetaController extends Controller
 
         return Inertia::render('Marketer/Meta', [
             'filters' => $payload['filters'],
+            'filterOptions' => $payload['filter_options'],
+            'analytics' => $payload['analytics'],
             'rows' => $payload['rows'],
             'lastSyncedAt' => $payload['last_synced_at'],
         ]);

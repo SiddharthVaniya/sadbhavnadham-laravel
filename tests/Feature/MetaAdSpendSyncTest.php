@@ -225,6 +225,52 @@ it('skips inactive meta accounts during sync', function () {
     Http::assertNothingSent();
 });
 
+it('filters meta spend by app id and campaign dropdowns', function () {
+    $admin = metaAdmin();
+    $marketer = metaMarketer();
+    $account = createMetaAccount(['label' => 'Asense', 'app_id' => 'app-99']);
+    $today = now()->toDateString();
+
+    MetaAdSpendDaily::query()->create([
+        'meta_ad_account_id' => $account->id,
+        'spend_date' => $today,
+        'ad_id' => '1',
+        'ad_name' => 'Ashvini | 09/10 | Sadbhavna | ThemeA | CauseA',
+        'campaign_name' => 'Camp Alpha',
+        'adset_name' => 'Set 1',
+        'spend_amount' => 30,
+        'user_id' => $marketer->id,
+        'matched_via' => 'ad_name_prefix',
+    ]);
+
+    MetaAdSpendDaily::query()->create([
+        'meta_ad_account_id' => $account->id,
+        'spend_date' => $today,
+        'ad_id' => '2',
+        'ad_name' => 'Ashvini | Other',
+        'campaign_name' => 'Camp Beta',
+        'adset_name' => 'Set 2',
+        'spend_amount' => 5,
+        'user_id' => $marketer->id,
+        'matched_via' => 'ad_name_prefix',
+    ]);
+
+    actingAs($admin)
+        ->get(route('admin.meta.index', [
+            'app_id' => 'app-99',
+            'campaign' => 'Camp Alpha',
+            'from_date' => $today,
+            'to_date' => $today,
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Meta/Index')
+            ->has('rows.data', 1)
+            ->where('rows.data.0.campaign_name', 'Camp Alpha')
+            ->where('analytics.totals.spend', 30)
+            ->has('filterOptions.app_ids', 1));
+});
+
 it('filters meta spend by marketer name inside the ad string', function () {
     $admin = metaAdmin();
     $marketer = metaMarketer();
@@ -259,6 +305,8 @@ it('filters meta spend by marketer name inside the ad string', function () {
         ->assertInertia(fn (Assert $page) => $page
             ->component('Admin/Meta/Index')
             ->has('rows.data', 1)
+            ->has('filterOptions.accounts')
+            ->has('analytics.totals')
             ->where('rows.data.0.ad_name', 'Ashvini | 09/10 | Sadbhavna | Theme | Cause'));
 });
 
@@ -294,8 +342,13 @@ it('lets marketers view only their meta rows and refresh with throttle', functio
         ->assertInertia(fn (Assert $page) => $page
             ->component('Marketer/Meta')
             ->has('rows.data', 1)
+            ->has('filterOptions')
+            ->has('analytics.by_day')
+            ->has('analytics.by_account')
+            ->has('analytics.by_campaign')
             ->where('rows.data.0.ad_name', 'Ashvini | Ad')
-            ->missing('accounts'));
+            ->where('analytics.totals.spend', 15)
+            ->missing('filterOptions.marketers.0'));
 
     fakeMetaInsights([]);
     $throttleKey = 'meta-sync:marketer:'.$ashvini->id;

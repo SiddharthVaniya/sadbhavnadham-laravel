@@ -8,14 +8,15 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 class MetaAdSpendQuery
 {
     /**
      * @return array{
      *     filters: array<string, string>,
-     *     accounts: list<array{id: int, label: string}>,
-     *     marketers: list<array{id: int, name: string, code: string}>,
+     *     filter_options: array<string, mixed>,
+     *     analytics: array<string, mixed>,
      *     rows: LengthAwarePaginator,
      *     unmatched_count: int,
      *     last_synced_at: ?string
@@ -24,68 +25,37 @@ class MetaAdSpendQuery
     public static function adminIndex(Request $request): array
     {
         $tz = config('app.timezone', 'Asia/Kolkata');
-        $today = now($tz)->toDateString();
-
-        $filters = [
-            'q' => trim((string) $request->input('q', '')),
-            'user_id' => trim((string) $request->input('user_id', '')),
-            'meta_ad_account_id' => trim((string) $request->input('meta_ad_account_id', '')),
-            'from_date' => trim((string) $request->input('from_date', $today)),
-            'to_date' => trim((string) $request->input('to_date', $today)),
-            'campaign' => trim((string) $request->input('campaign', '')),
-            'adset' => trim((string) $request->input('adset', '')),
-            'match' => trim((string) $request->input('match', 'all')),
-            'cause' => trim((string) $request->input('cause', '')),
-        ];
-
-        if (! in_array($filters['match'], ['all', 'matched', 'unmatched'], true)) {
-            $filters['match'] = 'all';
-        }
-
-        if ($filters['from_date'] === '') {
-            $filters['from_date'] = $today;
-        }
-
-        if ($filters['to_date'] === '') {
-            $filters['to_date'] = $today;
-        }
-
-        $query = self::baseQuery($filters);
+        $filters = self::parseFilters($request, includeMarketer: true, includeMatch: true);
+        $query = self::filteredQuery($filters);
+        $analyticsQuery = self::filteredQuery($filters);
 
         $unmatchedCount = (clone $query)
             ->where('matched_via', MetaAdSpendDaily::MATCHED_VIA_UNMATCHED)
             ->count();
 
         $rows = $query
-            ->with(['user:id,name,referral_code', 'account:id,label'])
+            ->with(['user:id,name,referral_code', 'account:id,label,app_id'])
             ->orderByDesc('spend_date')
             ->orderByDesc('spend_amount')
             ->paginate(AdminInertiaResources::LIST_PER_PAGE)
             ->withQueryString()
             ->through(fn (MetaAdSpendDaily $row) => self::serializeRow($row));
 
-        $lastSynced = MetaAdAccount::query()->max('last_synced_at');
-
         return [
             'filters' => $filters,
-            'accounts' => MetaAdAccount::query()
-                ->orderBy('label')
-                ->get(['id', 'label'])
-                ->map(fn (MetaAdAccount $a) => ['id' => $a->id, 'label' => $a->label])
-                ->values()
-                ->all(),
-            'marketers' => MarketerNameMatcher::marketerOptions()->values()->all(),
+            'filter_options' => self::filterOptions(null),
+            'analytics' => self::buildAnalytics($analyticsQuery),
             'rows' => $rows,
             'unmatched_count' => $unmatchedCount,
-            'last_synced_at' => $lastSynced
-                ? Carbon::parse($lastSynced)->timezone($tz)->toDateTimeString()
-                : null,
+            'last_synced_at' => self::lastSyncedAt($tz),
         ];
     }
 
     /**
      * @return array{
      *     filters: array<string, string>,
+     *     filter_options: array<string, mixed>,
+     *     analytics: array<string, mixed>,
      *     rows: LengthAwarePaginator,
      *     last_synced_at: ?string
      * }
@@ -93,13 +63,57 @@ class MetaAdSpendQuery
     public static function marketerIndex(Request $request, int $userId): array
     {
         $tz = config('app.timezone', 'Asia/Kolkata');
+        $filters = self::parseFilters($request, includeMarketer: false, includeMatch: false);
+        $query = self::filteredQuery($filters, $userId);
+        $analyticsQuery = self::filteredQuery($filters, $userId);
+
+        $rows = $query
+            ->with(['account:id,label,app_id'])
+            ->orderByDesc('spend_date')
+            ->orderByDesc('spend_amount')
+            ->paginate(AdminInertiaResources::LIST_PER_PAGE)
+            ->withQueryString()
+            ->through(fn (MetaAdSpendDaily $row) => self::serializeRow($row, false));
+
+        return [
+            'filters' => $filters,
+            'filter_options' => self::filterOptions($userId),
+            'analytics' => self::buildAnalytics($analyticsQuery),
+            'rows' => $rows,
+            'last_synced_at' => self::lastSyncedAt($tz),
+        ];
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private static function parseFilters(Request $request, bool $includeMarketer, bool $includeMatch): array
+    {
+        $tz = config('app.timezone', 'Asia/Kolkata');
         $today = now($tz)->toDateString();
 
         $filters = [
             'q' => trim((string) $request->input('q', '')),
+            'meta_ad_account_id' => trim((string) $request->input('meta_ad_account_id', '')),
+            'app_id' => trim((string) $request->input('app_id', '')),
             'from_date' => trim((string) $request->input('from_date', $today)),
             'to_date' => trim((string) $request->input('to_date', $today)),
+            'campaign' => trim((string) $request->input('campaign', '')),
+            'adset' => trim((string) $request->input('adset', '')),
+            'theme' => trim((string) $request->input('theme', '')),
+            'cause' => trim((string) $request->input('cause', '')),
         ];
+
+        if ($includeMarketer) {
+            $filters['user_id'] = trim((string) $request->input('user_id', ''));
+        }
+
+        if ($includeMatch) {
+            $filters['match'] = trim((string) $request->input('match', 'all'));
+            if (! in_array($filters['match'], ['all', 'matched', 'unmatched'], true)) {
+                $filters['match'] = 'all';
+            }
+        }
 
         if ($filters['from_date'] === '') {
             $filters['from_date'] = $today;
@@ -109,76 +123,319 @@ class MetaAdSpendQuery
             $filters['to_date'] = $today;
         }
 
-        $query = MetaAdSpendDaily::query()
-            ->where('user_id', $userId)
-            ->whereDate('spend_date', '>=', $filters['from_date'])
-            ->whereDate('spend_date', '<=', $filters['to_date']);
-
-        MarketerNameMatcher::applySmartSearch($query, $filters['q']);
-
-        $rows = $query
-            ->with(['account:id,label'])
-            ->orderByDesc('spend_date')
-            ->orderByDesc('spend_amount')
-            ->paginate(AdminInertiaResources::LIST_PER_PAGE)
-            ->withQueryString()
-            ->through(fn (MetaAdSpendDaily $row) => self::serializeRow($row, false));
-
-        $lastSynced = MetaAdAccount::query()
-            ->where('is_active', true)
-            ->max('last_synced_at');
-
-        return [
-            'filters' => $filters,
-            'rows' => $rows,
-            'last_synced_at' => $lastSynced
-                ? Carbon::parse($lastSynced)->timezone($tz)->toDateTimeString()
-                : null,
-        ];
+        return $filters;
     }
 
     /**
      * @param  array<string, string>  $filters
      * @return Builder<MetaAdSpendDaily>
      */
-    private static function baseQuery(array $filters): Builder
+    private static function filteredQuery(array $filters, ?int $userId = null): Builder
     {
         $query = MetaAdSpendDaily::query()
             ->whereDate('spend_date', '>=', $filters['from_date'])
             ->whereDate('spend_date', '<=', $filters['to_date']);
 
-        MarketerNameMatcher::applySmartSearch($query, $filters['q']);
-        MarketerNameMatcher::applyMarketerFilter($query, $filters['user_id']);
+        if ($userId !== null) {
+            $query->where('user_id', $userId);
+        }
 
-        if ($filters['meta_ad_account_id'] !== '') {
+        MarketerNameMatcher::applySmartSearch($query, $filters['q'] ?? '');
+
+        if (($filters['user_id'] ?? '') !== '') {
+            MarketerNameMatcher::applyMarketerFilter($query, $filters['user_id']);
+        }
+
+        if (($filters['meta_ad_account_id'] ?? '') !== '') {
             $query->where('meta_ad_account_id', (int) $filters['meta_ad_account_id']);
         }
 
-        if ($filters['campaign'] !== '') {
-            $like = '%'.addcslashes($filters['campaign'], '%_\\').'%';
-            $query->where('campaign_name', 'like', $like);
+        if (($filters['app_id'] ?? '') !== '') {
+            $accountIds = MetaAdAccount::query()
+                ->where('app_id', $filters['app_id'])
+                ->pluck('id');
+            $query->whereIn('meta_ad_account_id', $accountIds);
         }
 
-        if ($filters['adset'] !== '') {
-            $like = '%'.addcslashes($filters['adset'], '%_\\').'%';
-            $query->where('adset_name', 'like', $like);
+        if (($filters['campaign'] ?? '') !== '') {
+            $query->where('campaign_name', $filters['campaign']);
         }
 
-        if ($filters['cause'] !== '') {
-            $like = '%'.addcslashes($filters['cause'], '%_\\').'%';
-            $query->where(function (Builder $builder) use ($like): void {
-                $builder->where('ad_name', 'like', $like)
-                    ->orWhere('campaign_name', 'like', $like);
-            });
+        if (($filters['adset'] ?? '') !== '') {
+            $query->where('adset_name', $filters['adset']);
         }
 
-        if ($filters['match'] === 'matched') {
+        if (($filters['theme'] ?? '') !== '') {
+            self::applyPipeSegmentFilter($query, $filters['theme']);
+        }
+
+        if (($filters['cause'] ?? '') !== '') {
+            self::applyPipeSegmentFilter($query, $filters['cause']);
+        }
+
+        if (($filters['match'] ?? 'all') === 'matched') {
             $query->where('matched_via', MetaAdSpendDaily::MATCHED_VIA_AD_NAME_PREFIX);
-        } elseif ($filters['match'] === 'unmatched') {
+        } elseif (($filters['match'] ?? 'all') === 'unmatched') {
             $query->where('matched_via', MetaAdSpendDaily::MATCHED_VIA_UNMATCHED);
         }
 
         return $query;
+    }
+
+    /**
+     * Match a pipe segment (theme/cause) inside ad names like
+     * "Ashvini | 09/10 | Brand | Theme | Cause". Uses LIKE for MySQL + SQLite.
+     *
+     * @param  Builder<MetaAdSpendDaily>  $query
+     */
+    private static function applyPipeSegmentFilter(Builder $query, string $value): void
+    {
+        $escaped = addcslashes($value, '%_\\');
+
+        $query->where(function (Builder $builder) use ($escaped): void {
+            $builder->where('ad_name', 'like', '%| '.$escaped.' |%')
+                ->orWhere('ad_name', 'like', '%| '.$escaped)
+                ->orWhere('ad_name', 'like', $escaped.' |%')
+                ->orWhere('campaign_name', 'like', '%'.$escaped.'%');
+        });
+    }
+
+    /**
+     * @return array{
+     *     accounts: list<array{id: int, label: string, app_id: string}>,
+     *     app_ids: list<array{value: string, label: string}>,
+     *     campaigns: list<string>,
+     *     adsets: list<string>,
+     *     themes: list<string>,
+     *     causes: list<string>,
+     *     marketers: list<array{id: int, name: string, code: string}>
+     * }
+     */
+    private static function filterOptions(?int $userId): array
+    {
+        $spendScope = MetaAdSpendDaily::query();
+        if ($userId !== null) {
+            $spendScope->where('user_id', $userId);
+        }
+
+        $accountIds = (clone $spendScope)->distinct()->pluck('meta_ad_account_id')->filter()->all();
+
+        $accounts = MetaAdAccount::query()
+            ->when($accountIds !== [], fn ($q) => $q->whereIn('id', $accountIds))
+            ->when($accountIds === [] && $userId !== null, fn ($q) => $q->whereRaw('0 = 1'))
+            ->when($userId === null, fn ($q) => $q->orderBy('label'))
+            ->orderBy('label')
+            ->get(['id', 'label', 'app_id'])
+            ->map(fn (MetaAdAccount $a) => [
+                'id' => $a->id,
+                'label' => $a->label,
+                'app_id' => (string) $a->app_id,
+            ])
+            ->values()
+            ->all();
+
+        // Admin: always list all credential accounts for filtering even before sync.
+        if ($userId === null) {
+            $accounts = MetaAdAccount::query()
+                ->orderBy('label')
+                ->get(['id', 'label', 'app_id'])
+                ->map(fn (MetaAdAccount $a) => [
+                    'id' => $a->id,
+                    'label' => $a->label,
+                    'app_id' => (string) $a->app_id,
+                ])
+                ->values()
+                ->all();
+        }
+
+        $appIds = collect($accounts)
+            ->pluck('app_id')
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->map(function (string $appId) use ($accounts) {
+                $names = collect($accounts)
+                    ->where('app_id', $appId)
+                    ->pluck('label')
+                    ->unique()
+                    ->implode(', ');
+
+                return [
+                    'value' => $appId,
+                    'label' => $names !== '' ? "{$names} ({$appId})" : $appId,
+                ];
+            })
+            ->all();
+
+        $campaigns = (clone $spendScope)
+            ->whereNotNull('campaign_name')
+            ->where('campaign_name', '!=', '')
+            ->distinct()
+            ->orderBy('campaign_name')
+            ->pluck('campaign_name')
+            ->values()
+            ->all();
+
+        $adsets = (clone $spendScope)
+            ->whereNotNull('adset_name')
+            ->where('adset_name', '!=', '')
+            ->distinct()
+            ->orderBy('adset_name')
+            ->pluck('adset_name')
+            ->values()
+            ->all();
+
+        $pipe = self::pipeSegmentOptions($spendScope);
+
+        return [
+            'accounts' => $accounts,
+            'app_ids' => $appIds,
+            'campaigns' => $campaigns,
+            'adsets' => $adsets,
+            'themes' => $pipe['themes'],
+            'causes' => $pipe['causes'],
+            'marketers' => $userId === null
+                ? MarketerNameMatcher::marketerOptions()->values()->all()
+                : [],
+        ];
+    }
+
+    /**
+     * @param  Builder<MetaAdSpendDaily>  $spendScope
+     * @return array{themes: list<string>, causes: list<string>}
+     */
+    private static function pipeSegmentOptions(Builder $spendScope): array
+    {
+        $themes = [];
+        $causes = [];
+
+        (clone $spendScope)
+            ->whereNotNull('ad_name')
+            ->where('ad_name', '!=', '')
+            ->distinct()
+            ->limit(2000)
+            ->pluck('ad_name')
+            ->each(function (?string $name) use (&$themes, &$causes): void {
+                $segments = MarketerNameMatcher::parsePipeSegments($name);
+                if ($segments['theme']) {
+                    $themes[$segments['theme']] = true;
+                }
+                if ($segments['cause']) {
+                    $causes[$segments['cause']] = true;
+                }
+            });
+
+        $sort = fn (array $map): array => collect(array_keys($map))->sort()->values()->all();
+
+        return [
+            'themes' => $sort($themes),
+            'causes' => $sort($causes),
+        ];
+    }
+
+    /**
+     * @param  Builder<MetaAdSpendDaily>  $query
+     * @return array{
+     *     totals: array{spend: float, ads: int, campaigns: int, accounts: int, days: int},
+     *     by_day: list<array{date: string, spend: float}>,
+     *     by_account: list<array{name: string, spend: float, percentage: float}>,
+     *     by_campaign: list<array{name: string, spend: float, percentage: float}>,
+     *     by_adset: list<array{name: string, spend: float, percentage: float}>,
+     *     chart_labels: list<string>,
+     *     chart_series: list<array{name: string, data: list<float>}>
+     * }
+     */
+    private static function buildAnalytics(Builder $query): array
+    {
+        $rows = (clone $query)
+            ->with('account:id,label,app_id')
+            ->get(['id', 'spend_date', 'spend_amount', 'campaign_name', 'adset_name', 'ad_id', 'meta_ad_account_id']);
+
+        $totalSpend = (float) $rows->sum('spend_amount');
+
+        $byDay = $rows
+            ->groupBy(fn (MetaAdSpendDaily $row) => $row->spend_date?->toDateString() ?? '')
+            ->filter(fn ($_, $date) => $date !== '')
+            ->map(fn (Collection $group, string $date) => [
+                'date' => $date,
+                'spend' => round((float) $group->sum('spend_amount'), 2),
+            ])
+            ->sortKeys()
+            ->values()
+            ->all();
+
+        $byAccount = self::rankSpend(
+            $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->account?->label
+                ?: ('App '.($row->account?->app_id ?? $row->meta_ad_account_id))),
+            $totalSpend,
+        );
+
+        $byCampaign = self::rankSpend(
+            $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->campaign_name ?: 'Untitled campaign'),
+            $totalSpend,
+        );
+
+        $byAdset = self::rankSpend(
+            $rows->groupBy(fn (MetaAdSpendDaily $row) => $row->adset_name ?: 'Untitled ad set'),
+            $totalSpend,
+        );
+
+        $labels = array_column($byDay, 'date');
+        $dayData = array_column($byDay, 'spend');
+
+        return [
+            'totals' => [
+                'spend' => round($totalSpend, 2),
+                'ads' => $rows->pluck('ad_id')->unique()->count(),
+                'campaigns' => $rows->pluck('campaign_name')->filter()->unique()->count(),
+                'accounts' => $rows->pluck('meta_ad_account_id')->unique()->count(),
+                'days' => count($byDay),
+            ],
+            'by_day' => $byDay,
+            'by_account' => $byAccount,
+            'by_campaign' => $byCampaign,
+            'by_adset' => $byAdset,
+            'chart_labels' => $labels,
+            'chart_series' => [
+                [
+                    'name' => 'Spend',
+                    'data' => $dayData,
+                ],
+            ],
+        ];
+    }
+
+    /**
+     * @param  Collection<string, Collection<int, MetaAdSpendDaily>>  $groups
+     * @return list<array{name: string, spend: float, percentage: float, count: float}>
+     */
+    private static function rankSpend(Collection $groups, float $totalSpend): array
+    {
+        return $groups
+            ->map(function (Collection $group, string $name) use ($totalSpend) {
+                $spend = round((float) $group->sum('spend_amount'), 2);
+
+                return [
+                    'name' => $name,
+                    'spend' => $spend,
+                    'count' => $spend,
+                    'percentage' => $totalSpend > 0 ? round(($spend / $totalSpend) * 100, 1) : 0.0,
+                ];
+            })
+            ->sortByDesc('spend')
+            ->take(8)
+            ->values()
+            ->all();
+    }
+
+    private static function lastSyncedAt(string $tz): ?string
+    {
+        $lastSynced = MetaAdAccount::query()->max('last_synced_at');
+
+        return $lastSynced
+            ? Carbon::parse($lastSynced)->timezone($tz)->toDateTimeString()
+            : null;
     }
 
     /**
@@ -192,6 +449,7 @@ class MetaAdSpendQuery
             'id' => $row->id,
             'spend_date' => $row->spend_date?->toDateString(),
             'account_label' => $row->account?->label,
+            'app_id' => $row->account?->app_id,
             'campaign_name' => $row->campaign_name,
             'adset_name' => $row->adset_name,
             'ad_name' => $row->ad_name,

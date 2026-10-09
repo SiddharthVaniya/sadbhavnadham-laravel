@@ -30,7 +30,7 @@ class MarketerNavigation
                 'route' => 'marketer.visits',
             ],
             [
-                'label' => 'Meta',
+                'label' => 'Meta analytics',
                 'route' => 'marketer.meta',
                 'section' => 'Tracking',
             ],
