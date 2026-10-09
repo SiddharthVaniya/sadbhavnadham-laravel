@@ -22,6 +22,10 @@ class EnsureAdminPortalAccess
         }
 
         if (MarketerPortal::isMarketerOnly($user)) {
+            if (MarketerPortal::canAccessAdminRoute($user, $request->route()?->getName())) {
+                return $next($request);
+            }
+
             return redirect()->route('marketer.dashboard');
         }
 

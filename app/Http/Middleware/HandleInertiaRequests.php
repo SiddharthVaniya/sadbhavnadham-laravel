@@ -21,7 +21,9 @@ class HandleInertiaRequests extends Middleware
     public function share(Request $request): array
     {
         $user = $request->user();
-        $isMarketerPortal = $request->routeIs('marketer.*');
+        $routeName = $request->route()?->getName();
+        $isMarketerPortal = $request->routeIs('marketer.*')
+            || ($user !== null && MarketerPortal::usesMarketerShell($user, $routeName));
 
         return [
             ...parent::share($request),
@@ -40,7 +42,7 @@ class HandleInertiaRequests extends Middleware
                 'permissions' => $user ? $user->getAllPermissions()->pluck('name')->values()->all() : [],
             ],
             'navigation' => $user
-                ? ($isMarketerPortal || ($user && MarketerPortal::isMarketerOnly($user))
+                ? ($isMarketerPortal
                     ? MarketerNavigation::build($user)
                     : AdminNavigation::build($user))
                 : [],

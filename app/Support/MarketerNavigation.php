@@ -11,7 +11,7 @@ class MarketerNavigation
      */
     public static function build(User $user): array
     {
-        return collect([
+        $items = [
             [
                 'label' => 'Performance',
                 'route' => 'marketer.dashboard',
@@ -29,7 +29,17 @@ class MarketerNavigation
                 'label' => 'Clicks',
                 'route' => 'marketer.visits',
             ],
-        ])
+        ];
+
+        if (AdminPermissions::userCan($user, AdminPermissions::PACKAGE_VIEW)) {
+            $items[] = [
+                'label' => 'Packages',
+                'route' => 'admin.packages.index',
+                'section' => 'Catalog',
+            ];
+        }
+
+        return collect($items)
             ->map(function (array $item) {
                 $item['href'] = route($item['route']);
 

@@ -9,7 +9,8 @@ alwaysApply: true
 - **Do not** use `php artisan migrate`, `db:wipe`, `schema:`, or direct `UPDATE`/`INSERT`/`DELETE`/`ALTER` against production or local shared databases on your own.
 - When a DB change is needed, **only**:
   1. Change application code (models, services, etc.) as required.
-  2. Write the SQL (ALTER / UPDATE / INDEX / etc.) into `alter.md` at the project root (create or append a dated section).
-  3. Tell the user to review and run the queries themselves.
+  2. Write the SQL (ALTER / UPDATE / INDEX / INSERT / etc.) into `backend/alter.md` (append a dated section with Preview + Apply + Rollback).
+  3. Tell the user to review and run the queries themselves — never run them for the user.
+- Do **not** create a migration as the primary way to ship a live DB change. Prefer `alter.md` SQL. Migration files are optional for local/test history only and must still not be executed unless the user explicitly asks.
 - Prefer additive, reversible SQL with a short “preview SELECT” before destructive updates.
 - Schema changes for new features still belong in Laravel migrations **files** when the project convention requires them, but **do not execute** those migrations unless the user explicitly requests it; also note the equivalent SQL in `alter.md` when they asked for alter queries.

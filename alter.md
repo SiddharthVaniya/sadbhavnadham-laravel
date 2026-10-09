@@ -2,6 +2,8 @@
 
 Apply these manually after reviewing. Agents must **not** change the database directly.
 
+**Agent rule (always):** Never run `php artisan migrate`, seeders, or live `ALTER` / `UPDATE` / `INSERT` / `DELETE`. For every DB change, append preview + apply + rollback SQL here and wait for a human to run it (phpMyAdmin / MySQL client).
+
 ## Payment-fail WhatsApp campaign (`failed_payment_qr_of_paymet_link`)
 
 Template body variables:
@@ -894,4 +896,76 @@ ALTER TABLE razorpay_qr_codes
     DROP FOREIGN KEY razorpay_qr_codes_partner_user_id_foreign,
     DROP COLUMN partner_code,
     DROP COLUMN partner_user_id;
+```
+
+## 2026-10-09 - Marketer view-only access to Packages
+
+Lets `digital_marketer` open `/admin/packages` (view + copy package links only). No schema change. Code already allows this route for marketers with `view packages`.
+
+### Preview
+
+```sql
+SELECT r.id AS role_id, r.name AS role_name, p.id AS permission_id, p.name AS permission_name
+FROM roles r
+LEFT JOIN role_has_permissions rhp ON rhp.role_id = r.id
+LEFT JOIN permissions p ON p.id = rhp.permission_id
+    AND p.name IN ('view packages', 'copy package links')
+WHERE r.name = 'digital_marketer';
+
+SELECT id, name, guard_name
+FROM permissions
+WHERE name IN ('view packages', 'copy package links');
+```
+
+### Apply (idempotent)
+
+```sql
+INSERT INTO permissions (name, guard_name, created_at, updated_at)
+SELECT 'view packages', 'web', NOW(), NOW()
+FROM DUAL
+WHERE NOT EXISTS (
+    SELECT 1 FROM permissions WHERE name = 'view packages' AND guard_name = 'web'
+);
+
+INSERT INTO permissions (name, guard_name, created_at, updated_at)
+SELECT 'copy package links', 'web', NOW(), NOW()
+FROM DUAL
+WHERE NOT EXISTS (
+    SELECT 1 FROM permissions WHERE name = 'copy package links' AND guard_name = 'web'
+);
+
+INSERT INTO role_has_permissions (permission_id, role_id)
+SELECT p.id, r.id
+FROM permissions p
+CROSS JOIN roles r
+WHERE r.name = 'digital_marketer'
+  AND p.name IN ('view packages', 'copy package links')
+  AND p.guard_name = 'web'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM role_has_permissions rhp
+      WHERE rhp.permission_id = p.id
+        AND rhp.role_id = r.id
+  );
+```
+
+### After apply
+
+Clear Spatie permission cache on the app server (code deploy / artisan, not SQL):
+
+```bash
+php artisan permission:cache-reset
+# or
+php artisan cache:clear
+```
+
+### Rollback
+
+```sql
+DELETE rhp
+FROM role_has_permissions rhp
+INNER JOIN roles r ON r.id = rhp.role_id
+INNER JOIN permissions p ON p.id = rhp.permission_id
+WHERE r.name = 'digital_marketer'
+  AND p.name IN ('view packages', 'copy package links');
 ```

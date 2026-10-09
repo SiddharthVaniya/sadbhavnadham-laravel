@@ -16,9 +16,9 @@ uses(RefreshDatabase::class);
 
 function digitalMarketer(array $overrides = []): User
 {
-    Role::firstOrCreate(['name' => 'digital_marketer', 'guard_name' => 'web']);
+    $role = Role::firstOrCreate(['name' => 'digital_marketer', 'guard_name' => 'web']);
 
-    foreach ([
+    $permissions = [
         AdminPermissions::CAUSE_VIEW,
         AdminPermissions::CAUSE_COPY_LINKS,
         AdminPermissions::CAMPAIGN_VIEW,
@@ -26,9 +26,13 @@ function digitalMarketer(array $overrides = []): User
         AdminPermissions::PACKAGE_VIEW,
         AdminPermissions::PACKAGE_COPY_LINKS,
         AdminPermissions::REFERRAL_VIEW,
-    ] as $permission) {
+    ];
+
+    foreach ($permissions as $permission) {
         Permission::firstOrCreate(['name' => $permission]);
     }
+
+    $role->syncPermissions($permissions);
 
     $user = User::factory()->withReferralCode($overrides['referral_code'] ?? 'ashvini')->create([
         'name' => $overrides['name'] ?? 'Ashvini',
@@ -84,6 +88,35 @@ it('keeps a logged-in digital marketer off the admin panel', function () {
 
     actingAs($user)
         ->get(route('admin.dashboard'))
+        ->assertRedirect(route('marketer.dashboard'));
+});
+
+it('lets a digital marketer open packages with view-only access', function () {
+    $user = digitalMarketer();
+
+    actingAs($user)
+        ->get(route('admin.packages.index'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Admin/Packages/Index')
+            ->where('portal.label', 'Marketer')
+            ->where('portal.home', '/marketer')
+            ->where('abilities.can_view', true)
+            ->where('abilities.can_create', false)
+            ->where('abilities.can_edit', false)
+            ->where('abilities.can_delete', false)
+            ->where('navigation', fn ($navigation) => collect($navigation)
+                ->contains(fn ($item) => ($item['route'] ?? null) === 'admin.packages.index')));
+
+    $cause = \App\Models\Cause::factory()->create();
+    $package = \App\Models\CausePackage::factory()->create(['cause_id' => $cause->id]);
+
+    actingAs($user)
+        ->get(route('admin.causes.packages.edit', [$cause, $package]))
+        ->assertRedirect(route('marketer.dashboard'));
+
+    actingAs($user)
+        ->delete(route('admin.causes.packages.destroy', [$cause, $package]))
         ->assertRedirect(route('marketer.dashboard'));
 });
 

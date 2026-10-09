@@ -27,6 +27,8 @@ Agents, CI, and humans must **never**:
 
 If a database change is required, write SQL into `alter.md` and wait for a human to run it.
 
+**Agents: always give ALTER / UPDATE / INSERT SQL in `alter.md`. Never migrate or change the DB directly.**
+
 ## Allowed CI/CD on live (`scripts/deploy.sh`)
 
 1. `git fetch` + `git reset --hard` to GitHub `main` (tracked files only; `.env` stays)
