@@ -25,6 +25,7 @@ class User extends Authenticatable
         'name',
         'email',
         'referral_code',
+        'meta_ad_aliases',
         'donation_target',
         'department_id',
         'password',

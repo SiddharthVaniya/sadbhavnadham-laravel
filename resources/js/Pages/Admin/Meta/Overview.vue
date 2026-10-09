@@ -30,7 +30,7 @@ const applyFilters = (form) => {
 
         <PageHeader
             title="Meta overview"
-            subtitle="KPIs and daily spend / engagement trends for the filtered range."
+            subtitle="KPIs from synced ad-level Insights. Match Ads Manager: same dates, all ad accounts synced, and ad-name spelling (Ashwini vs Ashvini)."
         >
             <template #actions>
                 <SyncFromLiveMetaButton

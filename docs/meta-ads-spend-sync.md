@@ -10,7 +10,9 @@ Keep the marketer’s first name (or full name) before `|` in the Meta **ad name
 Ashvini | 09/10 | Sadbhavna | Pitru Amas | Old age
 ```
 
-Matching uses `MarketerNameMatcher`: first pipe prefix (legacy), then **full ad + campaign + ad set text** — marketer **full name**, **first name** (whole word), or **referral code** anywhere in the string. Ambiguous ties (e.g. two Ashvinis) stay unmatched. Unmatched rows do not change daily budgets.
+Matching uses `MarketerNameMatcher`: first pipe prefix (legacy, including close spellings like **Ashwini** vs **Ashvini**), then **full ad + campaign + ad set text** — marketer **full name**, **first name** (whole word), **referral code**, or **`users.meta_ad_aliases`** anywhere in the string. Ambiguous ties (e.g. two Ashvinis) stay unmatched. Unmatched rows do not change daily budgets.
+
+Totals in admin Meta are the **sum of synced ad-level daily rows** (all delivery statuses). Ads Manager may differ if filters differ (e.g. “Ad delivery: Active” only) or if not every ad account is synced. **Reach** in admin is summed per ad/day; Ads Manager deduplicates reach across ads.
 
 ## Credentials
 

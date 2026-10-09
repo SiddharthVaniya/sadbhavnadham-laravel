@@ -124,25 +124,23 @@ class StaffReferral
         $matches = User::query()
             ->whereNotNull('referral_code')
             ->where('referral_code', '!=', '')
-            ->get(['id', 'name', 'referral_code'])
+            ->get(['id', 'name', 'referral_code', 'meta_ad_aliases'])
             ->filter(function (User $user) use ($prefix): bool {
-                $name = trim((string) $user->name);
-
-                if ($name === '') {
-                    return false;
+                foreach (MarketerNameMatcher::metaTextTermsForUser($user) as $term) {
+                    if (strcasecmp($term, $prefix) === 0) {
+                        return true;
+                    }
                 }
 
-                if (strcasecmp($name, $prefix) === 0) {
-                    return true;
-                }
-
-                $firstName = trim(explode(' ', $name, 2)[0]);
-
-                return $firstName !== '' && strcasecmp($firstName, $prefix) === 0;
+                return false;
             })
             ->values();
 
-        return $matches->count() === 1 ? $matches->first() : null;
+        if ($matches->count() === 1) {
+            return $matches->first();
+        }
+
+        return MarketerNameMatcher::fuzzyPartnerFromAdPrefix($prefix);
     }
 
     /**

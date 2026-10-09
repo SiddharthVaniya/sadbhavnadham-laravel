@@ -29,6 +29,113 @@ class MarketerNameMatcher
     }
 
     /**
+     * Terms used to match Meta ad / campaign / ad set text to a marketer (filters + attribution).
+     *
+     * @return list<string>
+     */
+    public static function metaTextTermsForUser(User $user): array
+    {
+        $name = trim((string) $user->name);
+        $firstName = $name !== '' ? trim(explode(' ', $name, 2)[0]) : '';
+        $code = trim((string) $user->referral_code);
+        $aliases = self::parseMetaAdAliases($user->meta_ad_aliases ?? null);
+
+        $terms = array_merge(
+            array_filter([$name, $firstName, $code], fn (string $t) => $t !== '' && mb_strlen($t) >= 2),
+            $aliases,
+        );
+
+        foreach ([$name, $firstName] as $base) {
+            if ($base === '' || mb_strlen($base) < 4) {
+                continue;
+            }
+
+            foreach (self::orthographicVariants($base) as $variant) {
+                $terms[] = $variant;
+            }
+        }
+
+        $unique = [];
+
+        foreach ($terms as $term) {
+            $term = trim($term);
+
+            if ($term === '' || mb_strlen($term) < 2) {
+                continue;
+            }
+
+            $key = mb_strtolower($term);
+            $unique[$key] = $term;
+        }
+
+        return array_values($unique);
+    }
+
+    /**
+     * When the ad-name prefix is close to one marketer first name (e.g. Ashwini vs Ashvini).
+     */
+    public static function fuzzyPartnerFromAdPrefix(string $prefix): ?User
+    {
+        $prefix = trim($prefix);
+
+        if ($prefix === '' || mb_strlen($prefix) < 5) {
+            return null;
+        }
+
+        $prefixLower = mb_strtolower($prefix);
+
+        $matches = self::marketersWithReferralCode()
+            ->filter(function (User $user) use ($prefixLower): bool {
+                $firstName = trim(explode(' ', trim((string) $user->name), 2)[0]);
+
+                if ($firstName === '' || mb_strlen($firstName) < 5) {
+                    return false;
+                }
+
+                return levenshtein($prefixLower, mb_strtolower($firstName)) <= 1;
+            })
+            ->values();
+
+        return $matches->count() === 1 ? $matches->first() : null;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function parseMetaAdAliases(?string $raw): array
+    {
+        if ($raw === null || trim($raw) === '') {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            'trim',
+            preg_split('/[,;|]+/', $raw) ?: [],
+        ), fn (string $part) => $part !== '' && mb_strlen($part) >= 2));
+    }
+
+    /**
+     * Common Ads Manager spellings (w/v swap) for Indian first names.
+     *
+     * @return list<string>
+     */
+    private static function orthographicVariants(string $value): array
+    {
+        $variants = [];
+        $lower = mb_strtolower($value);
+
+        if (str_contains($lower, 'w')) {
+            $variants[] = str_ireplace('w', 'v', $value);
+        }
+
+        if (str_contains($lower, 'v')) {
+            $variants[] = str_ireplace('v', 'w', $value);
+        }
+
+        return array_values(array_unique(array_filter($variants, fn (string $v) => $v !== $value)));
+    }
+
+    /**
      * @return Collection<int, User>
      */
     private static function marketersWithReferralCode(): Collection
@@ -40,7 +147,7 @@ class MarketerNameMatcher
         self::$marketerCache = User::query()
             ->whereNotNull('referral_code')
             ->where('referral_code', '!=', '')
-            ->get(['id', 'name', 'referral_code']);
+            ->get(['id', 'name', 'referral_code', 'meta_ad_aliases']);
 
         return self::$marketerCache;
     }
@@ -210,26 +317,26 @@ class MarketerNameMatcher
     private static function scorePartnerInHaystack(User $user, string $haystack): array
     {
         $hits = [];
-        $name = trim((string) $user->name);
         $code = strtolower(trim((string) $user->referral_code));
-        $firstName = $name !== '' ? trim(explode(' ', $name, 2)[0]) : '';
 
-        if ($name !== '' && mb_strlen($name) >= 2) {
-            $nameLower = mb_strtolower($name);
+        foreach (self::metaTextTermsForUser($user) as $term) {
+            if ($term === $code) {
+                continue;
+            }
 
-            if (mb_strpos($haystack, $nameLower) !== false) {
+            $termLower = mb_strtolower($term);
+
+            if (mb_strlen($term) >= 4 && mb_strpos($haystack, $termLower) !== false) {
                 $hits[] = [
-                    'score' => 200 + mb_strlen($name),
+                    'score' => 200 + mb_strlen($term),
+                    'via' => self::MATCHED_VIA_NAME_IN_TEXT,
+                ];
+            } elseif (mb_strlen($term) >= 3 && self::containsWholeWord($haystack, $term)) {
+                $hits[] = [
+                    'score' => 120 + mb_strlen($term),
                     'via' => self::MATCHED_VIA_NAME_IN_TEXT,
                 ];
             }
-        }
-
-        if ($firstName !== '' && mb_strlen($firstName) >= 3 && self::containsWholeWord($haystack, $firstName)) {
-            $hits[] = [
-                'score' => 120 + mb_strlen($firstName),
-                'via' => self::MATCHED_VIA_NAME_IN_TEXT,
-            ];
         }
 
         if ($code !== '' && mb_strlen($code) >= 3 && self::containsWholeWord($haystack, $code)) {
@@ -309,15 +416,7 @@ class MarketerNameMatcher
      */
     public static function applyPartnerTextMatch(Builder $query, User $partner): void
     {
-        $name = trim((string) $partner->name);
-        $firstName = $name !== '' ? trim(explode(' ', $name, 2)[0]) : '';
-        $code = trim((string) $partner->referral_code);
-
-        $terms = array_values(array_filter(array_unique([
-            $name,
-            $firstName,
-            $code,
-        ]), fn (string $term) => $term !== '' && mb_strlen($term) >= 2));
+        $terms = self::metaTextTermsForUser($partner);
 
         if ($terms === []) {
             $query->whereRaw('0 = 1');

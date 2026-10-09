@@ -1045,6 +1045,15 @@ ALTER TABLE meta_ad_spend_daily
 
 Then run **Sync from live Meta** to backfill impressions/clicks/reach on historical rows.
 
+**Meta ad name aliases (marketer spelling in Ads Manager, e.g. Ashwini vs Ashvini):**
+
+```sql
+ALTER TABLE users
+    ADD COLUMN meta_ad_aliases VARCHAR(255) NULL DEFAULT NULL AFTER referral_code;
+```
+
+Example: `UPDATE users SET meta_ad_aliases = 'Ashwini' WHERE id = 12;` then run Meta sync + re-attribute (sync does this automatically).
+
 ### Rollback
 
 ```sql

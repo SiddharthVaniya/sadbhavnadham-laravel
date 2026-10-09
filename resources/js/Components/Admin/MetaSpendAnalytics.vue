@@ -60,7 +60,7 @@ const byAdImpressions = computed(() => props.analytics?.by_ad_impressions ?? [])
             <MarketerStatCard label="Clicks" :value="formatInt(totals.clicks)" hint="All clicks (Insights)">
                 <template #icon><MousePointerClick class="h-4 w-4" /></template>
             </MarketerStatCard>
-            <MarketerStatCard label="Reach" :value="formatInt(totals.reach)" hint="Sum of daily reach (ad-level)">
+            <MarketerStatCard label="Reach" :value="formatInt(totals.reach)" hint="Sum of ad-level daily reach (Ads Manager deduplicates across ads)">
                 <template #icon><Users class="h-4 w-4" /></template>
             </MarketerStatCard>
             <MarketerStatCard label="CTR" :value="formatPercent(totals.ctr)" hint="Clicks ÷ impressions">
