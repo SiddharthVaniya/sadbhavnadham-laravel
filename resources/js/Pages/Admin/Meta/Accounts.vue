@@ -3,7 +3,6 @@ import { ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
-import MetaTabs from '@/Components/Admin/MetaTabs.vue';
 import SyncFromLiveMetaButton from '@/Components/Admin/SyncFromLiveMetaButton.vue';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
@@ -106,8 +105,6 @@ const removeAccount = (account) => {
                 />
             </template>
         </PageHeader>
-
-        <MetaTabs current="accounts" />
 
         <p v-if="lastSyncedAt" class="mb-4 text-sm text-muted-foreground">
             Last synced: {{ lastSyncedAt }}

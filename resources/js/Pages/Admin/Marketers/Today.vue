@@ -4,7 +4,6 @@ import { Head, router, useForm } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import FormDatePicker from '@/Components/Admin/FormDatePicker.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
-import MarketerBudgetTabs from '@/Components/Admin/MarketerBudgetTabs.vue';
 import SyncFromLiveMetaButton from '@/Components/Admin/SyncFromLiveMetaButton.vue';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
@@ -135,8 +134,6 @@ const openDate = (value) => {
                 </Button>
             </template>
         </PageHeader>
-
-        <MarketerBudgetTabs current="today" />
 
         <div class="mb-4 flex flex-wrap items-end gap-3">
             <div class="w-full max-w-xs">

@@ -39,14 +39,6 @@ const isActive = (routeName) => {
     return currentRoute.value?.startsWith(prefix) ?? false;
 };
 
-const isItemOrChildActive = (item) => {
-    if (isActive(item.route)) {
-        return true;
-    }
-
-    return item.children?.some((child) => currentRoute.value === child.route) ?? false;
-};
-
 const logout = () => {
     router.post('/admin/logout');
 };
@@ -159,17 +151,17 @@ watch(currentRoute, () => {
                     </Link>
 
                     <div
-                        v-if="item.children?.length && isItemOrChildActive(item)"
+                        v-if="item.children?.length"
                         class="mb-1 ml-2 space-y-0.5 border-l border-sidebar-border pl-3"
                     >
                         <Link
                             v-for="child in item.children"
                             :key="child.label"
                             :href="child.href"
-                            class="block rounded-md px-2.5 py-1.5 text-[12px] font-medium"
-                            :class="currentRoute === child.route
-                                ? 'text-sidebar-foreground'
-                                : 'text-muted-foreground hover:text-sidebar-foreground'"
+                            class="block rounded-md px-2.5 py-1.5 text-[12px] font-medium transition"
+                            :class="isActive(child.route)
+                                ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                                : 'text-muted-foreground hover:bg-sidebar-accent/60 hover:text-sidebar-foreground'"
                             @click="closeSidebar"
                         >
                             {{ child.label }}

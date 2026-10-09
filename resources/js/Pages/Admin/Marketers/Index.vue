@@ -14,7 +14,6 @@ import {
     TableRow,
 } from '@/Components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/ui/card';
-import MarketerBudgetTabs from '@/Components/Admin/MarketerBudgetTabs.vue';
 import SyncFromLiveMetaButton from '@/Components/Admin/SyncFromLiveMetaButton.vue';
 
 const props = defineProps({
@@ -118,8 +117,6 @@ const save = () => {
                 </Button>
             </template>
         </PageHeader>
-
-        <MarketerBudgetTabs current="month" />
 
         <div class="mb-4 flex flex-wrap gap-2 text-sm">
             <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">

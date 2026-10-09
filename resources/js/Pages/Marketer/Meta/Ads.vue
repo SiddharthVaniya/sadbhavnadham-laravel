@@ -3,7 +3,6 @@ import { computed, ref } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
-import MetaTabs from '@/Components/Marketer/MetaTabs.vue';
 import MetaSpendFilters from '@/Components/Admin/MetaSpendFilters.vue';
 import MetaInsightsTable from '@/Components/Admin/MetaInsightsTable.vue';
 import Pagination from '@/Components/Admin/Pagination.vue';
@@ -54,8 +53,6 @@ const refresh = () => {
                 </Button>
             </template>
         </PageHeader>
-
-        <MetaTabs current="ads" :filters="filters" />
 
         <p v-if="lastSyncedAt" class="mb-4 text-sm text-muted-foreground">
             Last synced: {{ lastSyncedAt }}

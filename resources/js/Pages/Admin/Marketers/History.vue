@@ -3,7 +3,6 @@ import { computed, reactive } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
-import MarketerBudgetTabs from '@/Components/Admin/MarketerBudgetTabs.vue';
 import Pagination from '@/Components/Admin/Pagination.vue';
 import SyncFromLiveMetaButton from '@/Components/Admin/SyncFromLiveMetaButton.vue';
 import { Button } from '@/Components/ui/button';
@@ -106,8 +105,6 @@ const syncRange = computed(() => {
                 />
             </template>
         </PageHeader>
-
-        <MarketerBudgetTabs current="history" />
 
         <Card class="mb-4 shadow-none">
             <CardHeader class="pb-2">

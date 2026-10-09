@@ -145,6 +145,7 @@ class AdminNavigation
                 'label' => 'Marketers',
                 'route' => 'admin.marketers.index',
                 'permissions_any' => [AdminPermissions::USER_EDIT, AdminPermissions::MANAGE_USERS],
+                'section' => 'Fundraising',
                 'children' => [
                     ['label' => 'This month', 'route' => 'admin.marketers.index'],
                     ['label' => 'Today', 'route' => 'admin.marketers.today'],

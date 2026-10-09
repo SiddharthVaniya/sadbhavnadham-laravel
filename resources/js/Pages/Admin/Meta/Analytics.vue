@@ -2,7 +2,6 @@
 import { Head, router } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
-import MetaTabs from '@/Components/Admin/MetaTabs.vue';
 import MetaSpendFilters from '@/Components/Admin/MetaSpendFilters.vue';
 import MetaSpendAnalytics from '@/Components/Admin/MetaSpendAnalytics.vue';
 import SyncFromLiveMetaButton from '@/Components/Admin/SyncFromLiveMetaButton.vue';
@@ -42,8 +41,6 @@ const applyFilters = (form) => {
                 />
             </template>
         </PageHeader>
-
-        <MetaTabs current="analytics" :filters="filters" />
 
         <p v-if="lastSyncedAt" class="mb-4 text-sm text-muted-foreground">
             Last synced: {{ lastSyncedAt }}
