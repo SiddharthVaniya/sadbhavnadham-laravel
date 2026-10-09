@@ -14,8 +14,10 @@ use App\Models\CausePackage;
 use App\Models\DonationOrder;
 use App\Models\DonationSubscription;
 use App\Models\Donor;
+use App\Models\RazorpayQrCode;
 use App\Services\Danamojo\DanamojoDonationImporter;
 use App\Services\LinkTrackingService;
+use App\Services\PaymentLinkQrService;
 use App\Services\PostalCodeLookupService;
 use App\Services\RazorpaySubscriptionService;
 use App\Support\Branding;
@@ -23,6 +25,7 @@ use App\Support\DonatePublicCache;
 use App\Support\DonationThankYouData;
 use App\Support\DonorOtpService;
 use App\Support\PublicMediaUrl;
+use App\Support\StaffReferral;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -180,6 +183,46 @@ class DonateApiController extends Controller
                 ],
             ];
         }));
+    }
+
+    /**
+     * Resolve a marketer's `sid` (referral code) to their Direct Pay QR image.
+     *
+     * Returns `{ found: false }` whenever the code is unknown, reserved, or has
+     * no active partner QR mapped, so the public footer can keep rendering the
+     * generic donation QR untouched.
+     */
+    public function partnerQr(Request $request, PaymentLinkQrService $qrImages): JsonResponse
+    {
+        $code = StaffReferral::normalize((string) $request->query('sid', ''));
+        $payload = ['found' => false, 'code' => $code, 'name' => null, 'qr_url' => null];
+
+        if ($code === null || StaffReferral::isReserved($code)) {
+            return $this->cachedJson($payload);
+        }
+
+        $qr = RazorpayQrCode::query()
+            ->where('partner_code', $code)
+            ->where('status', RazorpayQrCode::STATUS_ACTIVE)
+            ->latest('id')
+            ->first();
+
+        $link = $qr?->image_url;
+        if (! $qr || ! is_string($link) || trim($link) === '') {
+            return $this->cachedJson($payload);
+        }
+
+        $path = $qrImages->squareQrPublicUrl(trim($link), $code);
+        if ($path === null) {
+            return $this->cachedJson($payload);
+        }
+
+        return $this->cachedJson([
+            'found' => true,
+            'code' => $code,
+            'name' => $qr->name,
+            'qr_url' => PublicMediaUrl::fromStoredPath($path),
+        ]);
     }
 
     public function panRequirement(CheckPanRequirementRequest $request): JsonResponse

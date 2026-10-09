@@ -59,7 +59,7 @@ it('stores the razorpay failure and shows a short label on the donations list', 
                 $row = collect($rows)->firstWhere('uuid', $order->order_uuid);
 
                 return is_array($row)
-                    && ($row['failure_label'] ?? null) === 'Customer · Invalid card'
+                    && ($row['failure_label'] ?? null) === 'Donor · Invalid card'
                     && str_contains((string) ($row['failure_detail'] ?? ''), 'invalid card');
             }));
 
@@ -68,6 +68,6 @@ it('stores the razorpay failure and shows a short label on the donations list', 
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('Admin/Donations/Show')
-            ->where('donation.failure_label', 'Customer · Invalid card')
+            ->where('donation.failure_label', 'Donor · Invalid card')
             ->where('donation.failure_detail', 'Payment failed because of invalid card details'));
 });
