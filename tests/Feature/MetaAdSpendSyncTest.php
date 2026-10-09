@@ -83,8 +83,9 @@ it('creates a meta account without leaking secrets to inertia', function () {
 
     $account = MetaAdAccount::query()->first();
     expect($account)->not->toBeNull()
-        ->and($account->ad_account_id)->toBe('111')
-        ->and($account->access_token)->toBe('super-token');
+        ->and($account->ad_account_id)->toBe('act_111')
+        ->and($account->access_token)->toBe('super-token')
+        ->and($account->app_secret)->toBe('super-secret');
 
     actingAs($admin)
         ->get(route('admin.meta.accounts'))

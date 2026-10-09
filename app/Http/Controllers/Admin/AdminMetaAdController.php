@@ -53,16 +53,21 @@ class AdminMetaAdController extends Controller
         $data = $request->validate([
             'label' => ['required', 'string', 'max:255'],
             'app_id' => ['required', 'string', 'max:255'],
-            'app_secret' => ['required', 'string'],
-            'access_token' => ['required', 'string'],
+            'app_secret' => ['required', 'string', 'max:65535'],
+            'access_token' => ['required', 'string', 'max:65535'],
             'ad_account_id' => ['required', 'string', 'max:255'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
-        $data['is_active'] = $request->boolean('is_active', true);
-        $data['ad_account_id'] = $this->normalizeAdAccountId($data['ad_account_id']);
-
-        MetaAdAccount::query()->create($data);
+        MetaAdAccount::query()->create([
+            'label' => trim($data['label']),
+            'app_id' => trim($data['app_id']),
+            // Store secrets/tokens exactly as pasted (trim outer whitespace only).
+            'app_secret' => trim($data['app_secret']),
+            'access_token' => trim($data['access_token']),
+            'ad_account_id' => trim($data['ad_account_id']),
+            'is_active' => $request->boolean('is_active', true),
+        ]);
 
         return redirect()
             ->route('admin.meta.accounts')
@@ -74,32 +79,45 @@ class AdminMetaAdController extends Controller
         $data = $request->validate([
             'label' => ['required', 'string', 'max:255'],
             'app_id' => ['required', 'string', 'max:255'],
-            'app_secret' => ['nullable', 'string'],
-            'access_token' => ['nullable', 'string'],
+            'app_secret' => ['nullable', 'string', 'max:65535'],
+            'access_token' => ['nullable', 'string', 'max:65535'],
             'ad_account_id' => ['required', 'string', 'max:255'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
-        $data['is_active'] = $request->boolean('is_active', $metaAdAccount->is_active);
-        $data['ad_account_id'] = $this->normalizeAdAccountId($data['ad_account_id']);
+        $payload = [
+            'label' => trim($data['label']),
+            'app_id' => trim($data['app_id']),
+            'ad_account_id' => trim($data['ad_account_id']),
+            'is_active' => $request->boolean('is_active', $metaAdAccount->is_active),
+        ];
 
-        if (! filled($data['app_secret'] ?? null) || $data['app_secret'] === '********') {
-            unset($data['app_secret']);
+        $appSecret = trim((string) ($data['app_secret'] ?? ''));
+        $accessToken = trim((string) ($data['access_token'] ?? ''));
+
+        // Blank / masked placeholder keeps the existing encrypted value unchanged.
+        if ($appSecret !== '' && $appSecret !== '********') {
+            $payload['app_secret'] = $appSecret;
         }
 
-        if (! filled($data['access_token'] ?? null) || $data['access_token'] === '********') {
-            unset($data['access_token']);
+        if ($accessToken !== '' && $accessToken !== '********') {
+            $payload['access_token'] = $accessToken;
         }
 
-        if (! isset($data['app_secret']) && ! $metaAdAccount->hasAppSecret()) {
+        if (! isset($payload['app_secret']) && ! $metaAdAccount->hasAppSecret()) {
             return back()->withErrors(['app_secret' => 'App secret is required.'])->withInput();
         }
 
-        if (! isset($data['access_token']) && ! $metaAdAccount->hasAccessToken()) {
+        if (! isset($payload['access_token']) && ! $metaAdAccount->hasAccessToken()) {
             return back()->withErrors(['access_token' => 'Access token is required.'])->withInput();
         }
 
-        $metaAdAccount->update($data);
+        if (isset($payload['app_secret']) || isset($payload['access_token'])) {
+            $payload['last_sync_status'] = null;
+            $payload['last_sync_error'] = null;
+        }
+
+        $metaAdAccount->update($payload);
 
         return redirect()
             ->route('admin.meta.accounts')
@@ -171,17 +189,6 @@ class AdminMetaAdController extends Controller
             $result['accounts_failed'] > 0 && $result['accounts_synced'] === 0 ? 'error' : 'status',
             $message,
         );
-    }
-
-    private function normalizeAdAccountId(string $id): string
-    {
-        $id = trim($id);
-
-        if (str_starts_with(strtolower($id), 'act_')) {
-            return substr($id, 4);
-        }
-
-        return $id;
     }
 
     private function redirectAfterSync(?string $redirect, Request $request): RedirectResponse

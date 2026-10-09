@@ -7,6 +7,7 @@ import MetaTabs from '@/Components/Admin/MetaTabs.vue';
 import SyncFromLiveMetaButton from '@/Components/Admin/SyncFromLiveMetaButton.vue';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
+import { Textarea } from '@/Components/ui/textarea';
 import {
     Table,
     TableBody,
@@ -44,12 +45,17 @@ const editForm = useForm({
 const saveAccount = () => {
     accountForm.post('/admin/meta/accounts', {
         preserveScroll: true,
-        onSuccess: () => accountForm.reset(),
+        onSuccess: () => {
+            accountForm.reset();
+            accountForm.is_active = true;
+            accountForm.clearErrors();
+        },
     });
 };
 
 const startEdit = (account) => {
     editingId.value = account.id;
+    editForm.clearErrors();
     editForm.label = account.label;
     editForm.app_id = account.app_id;
     editForm.app_secret = '';
@@ -61,6 +67,7 @@ const startEdit = (account) => {
 const cancelEdit = () => {
     editingId.value = null;
     editForm.reset();
+    editForm.clearErrors();
 };
 
 const saveEdit = () => {
@@ -69,6 +76,7 @@ const saveEdit = () => {
         onSuccess: () => {
             editingId.value = null;
             editForm.reset();
+            editForm.clearErrors();
         },
     });
 };
@@ -109,21 +117,69 @@ const removeAccount = (account) => {
             <CardHeader class="pb-2">
                 <CardTitle class="text-base">Credentials</CardTitle>
                 <CardDescription>
-                    Token needs ads_read and access to the ad account. Leave secret fields blank when editing to keep current values.
+                    Paste full App Secret and Access Token (long values). Saved exactly as entered. Leave secret fields blank when editing to keep current values.
                 </CardDescription>
             </CardHeader>
             <CardContent class="space-y-4">
-                <form class="grid gap-3 md:grid-cols-2 xl:grid-cols-3" @submit.prevent="saveAccount">
-                    <Input v-model="accountForm.label" placeholder="Label" required />
-                    <Input v-model="accountForm.app_id" placeholder="META_APP_ID" required />
-                    <Input v-model="accountForm.app_secret" type="password" placeholder="META_APP_SECRET" required autocomplete="off" />
-                    <Input v-model="accountForm.access_token" type="password" placeholder="META_ACCESS_TOKEN" required autocomplete="off" />
-                    <Input v-model="accountForm.ad_account_id" placeholder="Ad account id (act_… or digits)" required />
-                    <label class="flex items-center gap-2 text-sm">
+                <form class="grid gap-3 md:grid-cols-2" @submit.prevent="saveAccount">
+                    <div class="space-y-1.5">
+                        <label class="text-sm font-medium" for="meta-label">Label</label>
+                        <Input id="meta-label" v-model="accountForm.label" placeholder="e.g. Asense" required autocomplete="off" />
+                        <p v-if="accountForm.errors.label" class="text-sm text-destructive">{{ accountForm.errors.label }}</p>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="text-sm font-medium" for="meta-app-id">META_APP_ID</label>
+                        <Input id="meta-app-id" v-model="accountForm.app_id" placeholder="App ID" required autocomplete="off" />
+                        <p v-if="accountForm.errors.app_id" class="text-sm text-destructive">{{ accountForm.errors.app_id }}</p>
+                    </div>
+
+                    <div class="space-y-1.5 md:col-span-2">
+                        <label class="text-sm font-medium" for="meta-app-secret">META_APP_SECRET</label>
+                        <Textarea
+                            id="meta-app-secret"
+                            v-model="accountForm.app_secret"
+                            class="min-h-24 font-mono text-sm"
+                            placeholder="Paste full App Secret"
+                            required
+                            autocomplete="off"
+                            spellcheck="false"
+                        />
+                        <p v-if="accountForm.errors.app_secret" class="text-sm text-destructive">{{ accountForm.errors.app_secret }}</p>
+                    </div>
+
+                    <div class="space-y-1.5 md:col-span-2">
+                        <label class="text-sm font-medium" for="meta-access-token">META_ACCESS_TOKEN</label>
+                        <Textarea
+                            id="meta-access-token"
+                            v-model="accountForm.access_token"
+                            class="min-h-32 font-mono text-sm"
+                            placeholder="Paste full Access Token (long)"
+                            required
+                            autocomplete="off"
+                            spellcheck="false"
+                        />
+                        <p v-if="accountForm.errors.access_token" class="text-sm text-destructive">{{ accountForm.errors.access_token }}</p>
+                    </div>
+
+                    <div class="space-y-1.5">
+                        <label class="text-sm font-medium" for="meta-ad-account-id">META_AD_ACCOUNT_ID</label>
+                        <Input
+                            id="meta-ad-account-id"
+                            v-model="accountForm.ad_account_id"
+                            placeholder="act_… or digits"
+                            required
+                            autocomplete="off"
+                        />
+                        <p v-if="accountForm.errors.ad_account_id" class="text-sm text-destructive">{{ accountForm.errors.ad_account_id }}</p>
+                    </div>
+
+                    <label class="flex items-center gap-2 self-end pb-2 text-sm">
                         <input v-model="accountForm.is_active" type="checkbox" class="rounded border" />
                         Active
                     </label>
-                    <div class="md:col-span-2 xl:col-span-3">
+
+                    <div class="md:col-span-2">
                         <Button type="submit" :disabled="accountForm.processing">
                             {{ accountForm.processing ? 'Saving…' : 'Add account' }}
                         </Button>
@@ -143,17 +199,46 @@ const removeAccount = (account) => {
                     <TableBody>
                         <TableRow v-for="account in accounts" :key="account.id">
                             <TableCell v-if="editingId === account.id" colspan="5" class="bg-muted/20">
-                                <form class="grid gap-2 md:grid-cols-3" @submit.prevent="saveEdit">
-                                    <Input v-model="editForm.label" required />
-                                    <Input v-model="editForm.app_id" required />
-                                    <Input v-model="editForm.ad_account_id" required />
-                                    <Input v-model="editForm.app_secret" type="password" placeholder="App secret (leave blank to keep)" autocomplete="off" />
-                                    <Input v-model="editForm.access_token" type="password" placeholder="Access token (leave blank to keep)" autocomplete="off" />
-                                    <label class="flex items-center gap-2 text-sm">
+                                <form class="grid gap-3 md:grid-cols-2" @submit.prevent="saveEdit">
+                                    <div class="space-y-1.5">
+                                        <label class="text-sm font-medium">Label</label>
+                                        <Input v-model="editForm.label" required autocomplete="off" />
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="text-sm font-medium">META_APP_ID</label>
+                                        <Input v-model="editForm.app_id" required autocomplete="off" />
+                                    </div>
+                                    <div class="space-y-1.5 md:col-span-2">
+                                        <label class="text-sm font-medium">META_APP_SECRET</label>
+                                        <Textarea
+                                            v-model="editForm.app_secret"
+                                            class="min-h-24 font-mono text-sm"
+                                            placeholder="Leave blank to keep saved secret"
+                                            autocomplete="off"
+                                            spellcheck="false"
+                                        />
+                                        <p v-if="editForm.errors.app_secret" class="text-sm text-destructive">{{ editForm.errors.app_secret }}</p>
+                                    </div>
+                                    <div class="space-y-1.5 md:col-span-2">
+                                        <label class="text-sm font-medium">META_ACCESS_TOKEN</label>
+                                        <Textarea
+                                            v-model="editForm.access_token"
+                                            class="min-h-32 font-mono text-sm"
+                                            placeholder="Leave blank to keep saved token — paste a new full token to replace"
+                                            autocomplete="off"
+                                            spellcheck="false"
+                                        />
+                                        <p v-if="editForm.errors.access_token" class="text-sm text-destructive">{{ editForm.errors.access_token }}</p>
+                                    </div>
+                                    <div class="space-y-1.5">
+                                        <label class="text-sm font-medium">META_AD_ACCOUNT_ID</label>
+                                        <Input v-model="editForm.ad_account_id" required autocomplete="off" />
+                                    </div>
+                                    <label class="flex items-center gap-2 self-end pb-2 text-sm">
                                         <input v-model="editForm.is_active" type="checkbox" class="rounded border" />
                                         Active
                                     </label>
-                                    <div class="flex gap-2 md:col-span-3">
+                                    <div class="flex gap-2 md:col-span-2">
                                         <Button type="submit" size="sm" :disabled="editForm.processing">Save</Button>
                                         <Button type="button" size="sm" variant="outline" @click="cancelEdit">Cancel</Button>
                                     </div>
@@ -169,7 +254,7 @@ const removeAccount = (account) => {
                                     <span :class="account.is_active ? 'text-emerald-700' : 'text-muted-foreground'">
                                         {{ account.is_active ? 'Active' : 'Inactive' }}
                                     </span>
-                                    <p v-if="account.last_sync_status === 'error'" class="text-xs text-destructive">{{ account.last_sync_error }}</p>
+                                    <p v-if="account.last_sync_status === 'error'" class="max-w-md text-xs text-destructive">{{ account.last_sync_error }}</p>
                                 </TableCell>
                                 <TableCell class="text-sm tabular-nums">
                                     {{ account.last_synced_at || '—' }}
