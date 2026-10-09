@@ -192,7 +192,7 @@ class MetaAdSpendQuery
         }
 
         if (($filters['match'] ?? 'all') === 'matched') {
-            $query->where('matched_via', MetaAdSpendDaily::MATCHED_VIA_AD_NAME_PREFIX);
+            $query->where('matched_via', '!=', MetaAdSpendDaily::MATCHED_VIA_UNMATCHED);
         } elseif (($filters['match'] ?? 'all') === 'unmatched') {
             $query->where('matched_via', MetaAdSpendDaily::MATCHED_VIA_UNMATCHED);
         }

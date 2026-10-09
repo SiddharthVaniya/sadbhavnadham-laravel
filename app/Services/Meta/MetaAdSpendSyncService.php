@@ -89,6 +89,9 @@ class MetaAdSpendSyncService
             }
         }
 
+        MarketerNameMatcher::reattributeSnapshotRows($since, $until);
+        MarketerNameMatcher::clearMarketerCache();
+
         $result['marketers_updated'] = $this->overwriteDailySpendFromSnapshots($since, $until, $tz);
 
         return $result;
@@ -119,7 +122,11 @@ class MetaAdSpendSyncService
 
         DB::transaction(function () use ($account, $insights, &$count): void {
             foreach ($insights as $row) {
-                $attribution = MarketerNameMatcher::resolveAttribution($row['ad_name'] ?? null);
+                $attribution = MarketerNameMatcher::resolveAttribution(
+                    $row['ad_name'] ?? null,
+                    $row['campaign_name'] ?? null,
+                    $row['adset_name'] ?? null,
+                );
 
                 MetaAdSpendDaily::query()->updateOrCreate(
                     [

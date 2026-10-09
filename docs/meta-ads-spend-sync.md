@@ -10,7 +10,7 @@ Keep the marketer’s first name (or full name) before `|` in the Meta **ad name
 Ashvini | 09/10 | Sadbhavna | Pitru Amas | Old age
 ```
 
-Matching uses the same rules as `StaffReferral::partnerFromMetaAdNamePrefix` / `MarketerNameMatcher`. Unmatched ads stay in `meta_ad_spend_daily` with `matched_via = unmatched` and do not change daily budgets.
+Matching uses `MarketerNameMatcher`: first pipe prefix (legacy), then **full ad + campaign + ad set text** — marketer **full name**, **first name** (whole word), or **referral code** anywhere in the string. Ambiguous ties (e.g. two Ashvinis) stay unmatched. Unmatched rows do not change daily budgets.
 
 ## Credentials
 

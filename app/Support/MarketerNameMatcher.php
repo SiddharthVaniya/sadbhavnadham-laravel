@@ -7,11 +7,44 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 /**
- * Match marketers inside Meta ad / campaign pipe-separated names
- * (e.g. "Ashvini | 09/10 | Sadbhavna | Pitru Amas | Old age").
+ * Match marketers inside Meta ad / campaign strings — anywhere in the text,
+ * not only the first pipe segment (e.g. "Theme | Ashvini | Cause").
  */
 class MarketerNameMatcher
 {
+    public const MATCHED_VIA_AD_NAME_PREFIX = 'ad_name_prefix';
+
+    public const MATCHED_VIA_NAME_IN_TEXT = 'name_in_text';
+
+    public const MATCHED_VIA_REFERRAL_CODE = 'referral_code';
+
+    public const MATCHED_VIA_UNMATCHED = 'unmatched';
+
+    /** @var Collection<int, User>|null */
+    private static ?Collection $marketerCache = null;
+
+    public static function clearMarketerCache(): void
+    {
+        self::$marketerCache = null;
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    private static function marketersWithReferralCode(): Collection
+    {
+        if (self::$marketerCache !== null) {
+            return self::$marketerCache;
+        }
+
+        self::$marketerCache = User::query()
+            ->whereNotNull('referral_code')
+            ->where('referral_code', '!=', '')
+            ->get(['id', 'name', 'referral_code']);
+
+        return self::$marketerCache;
+    }
+
     /**
      * @return array{
      *     marketer: ?string,
@@ -46,27 +79,180 @@ class MarketerNameMatcher
 
     public static function partnerFromAdName(?string $name): ?User
     {
-        return StaffReferral::partnerFromMetaAdNamePrefix($name);
+        return self::partnerFromMetaStrings($name, null, null);
+    }
+
+    /**
+     * Combined searchable text from ad / campaign / ad set (lowercase).
+     */
+    public static function normalizeSearchBlob(
+        ?string $adName,
+        ?string $campaignName = null,
+        ?string $adsetName = null,
+    ): string {
+        $parts = array_filter([
+            trim((string) $adName),
+            trim((string) $campaignName),
+            trim((string) $adsetName),
+        ], fn (string $part) => $part !== '');
+
+        return mb_strtolower(implode(' | ', $parts));
+    }
+
+    /**
+     * Resolve marketer from full Meta strings (name or referral code anywhere in text).
+     */
+    public static function partnerFromMetaStrings(
+        ?string $adName,
+        ?string $campaignName = null,
+        ?string $adsetName = null,
+    ): ?User {
+        $haystack = self::normalizeSearchBlob($adName, $campaignName, $adsetName);
+
+        if ($haystack === '') {
+            return null;
+        }
+
+        $prefixPartner = StaffReferral::partnerFromMetaAdNamePrefix($adName);
+        if ($prefixPartner) {
+            return $prefixPartner;
+        }
+
+        $winner = self::bestPartnerMatch($haystack);
+
+        return $winner['user'] ?? null;
     }
 
     /**
      * @return array{user_id: ?int, matched_via: string}
      */
-    public static function resolveAttribution(?string $adName): array
-    {
-        $partner = self::partnerFromAdName($adName);
+    public static function resolveAttribution(
+        ?string $adName,
+        ?string $campaignName = null,
+        ?string $adsetName = null,
+    ): array {
+        $haystack = self::normalizeSearchBlob($adName, $campaignName, $adsetName);
 
-        if ($partner) {
+        if ($haystack === '') {
             return [
-                'user_id' => $partner->id,
-                'matched_via' => 'ad_name_prefix',
+                'user_id' => null,
+                'matched_via' => self::MATCHED_VIA_UNMATCHED,
+            ];
+        }
+
+        $prefixPartner = StaffReferral::partnerFromMetaAdNamePrefix($adName);
+        if ($prefixPartner) {
+            return [
+                'user_id' => $prefixPartner->id,
+                'matched_via' => self::MATCHED_VIA_AD_NAME_PREFIX,
+            ];
+        }
+
+        $winner = self::bestPartnerMatch($haystack);
+
+        if ($winner['user'] === null) {
+            return [
+                'user_id' => null,
+                'matched_via' => self::MATCHED_VIA_UNMATCHED,
             ];
         }
 
         return [
-            'user_id' => null,
-            'matched_via' => 'unmatched',
+            'user_id' => $winner['user']->id,
+            'matched_via' => $winner['via'],
         ];
+    }
+
+    /**
+     * @return array{user: ?User, via: string, score: int}
+     */
+    private static function bestPartnerMatch(string $haystack): array
+    {
+        /** @var array<int, array{user: User, score: int, via: string}> $byUserId */
+        $byUserId = [];
+
+        foreach (self::marketersWithReferralCode() as $user) {
+            foreach (self::scorePartnerInHaystack($user, $haystack) as $hit) {
+                $existing = $byUserId[$user->id] ?? null;
+
+                if ($existing === null || $hit['score'] > $existing['score']) {
+                    $byUserId[$user->id] = [
+                        'user' => $user,
+                        'score' => $hit['score'],
+                        'via' => $hit['via'],
+                    ];
+                }
+            }
+        }
+
+        if ($byUserId === []) {
+            return ['user' => null, 'via' => self::MATCHED_VIA_UNMATCHED, 'score' => 0];
+        }
+
+        $sorted = collect($byUserId)->sortByDesc('score')->values();
+        $top = $sorted->first();
+        $second = $sorted->get(1);
+
+        if ($second !== null && $second['score'] === $top['score']) {
+            return ['user' => null, 'via' => self::MATCHED_VIA_UNMATCHED, 'score' => 0];
+        }
+
+        return [
+            'user' => $top['user'],
+            'via' => $top['via'],
+            'score' => $top['score'],
+        ];
+    }
+
+    /**
+     * @return list<array{score: int, via: string}>
+     */
+    private static function scorePartnerInHaystack(User $user, string $haystack): array
+    {
+        $hits = [];
+        $name = trim((string) $user->name);
+        $code = strtolower(trim((string) $user->referral_code));
+        $firstName = $name !== '' ? trim(explode(' ', $name, 2)[0]) : '';
+
+        if ($name !== '' && mb_strlen($name) >= 2) {
+            $nameLower = mb_strtolower($name);
+
+            if (mb_strpos($haystack, $nameLower) !== false) {
+                $hits[] = [
+                    'score' => 200 + mb_strlen($name),
+                    'via' => self::MATCHED_VIA_NAME_IN_TEXT,
+                ];
+            }
+        }
+
+        if ($firstName !== '' && mb_strlen($firstName) >= 3 && self::containsWholeWord($haystack, $firstName)) {
+            $hits[] = [
+                'score' => 120 + mb_strlen($firstName),
+                'via' => self::MATCHED_VIA_NAME_IN_TEXT,
+            ];
+        }
+
+        if ($code !== '' && mb_strlen($code) >= 3 && self::containsWholeWord($haystack, $code)) {
+            $hits[] = [
+                'score' => 100 + mb_strlen($code),
+                'via' => self::MATCHED_VIA_REFERRAL_CODE,
+            ];
+        }
+
+        return $hits;
+    }
+
+    private static function containsWholeWord(string $haystack, string $word): bool
+    {
+        $word = mb_strtolower(trim($word));
+
+        if ($word === '' || mb_strlen($word) < 2) {
+            return false;
+        }
+
+        $escaped = preg_quote($word, '/');
+
+        return preg_match('/(?<![a-z0-9])'.$escaped.'(?![a-z0-9])/iu', $haystack) === 1;
     }
 
     /**
@@ -92,7 +278,7 @@ class MarketerNameMatcher
     }
 
     /**
-     * Filter rows for a marketer by resolved user_id or "{FirstName} |" prefix on ad_name.
+     * Filter rows for a marketer: stored user_id OR name/code appears anywhere in Meta strings.
      *
      * @param  Builder<\App\Models\MetaAdSpendDaily>  $query
      */
@@ -113,9 +299,83 @@ class MarketerNameMatcher
         $query->where(function (Builder $builder) use ($user): void {
             $builder->where('user_id', $user->id)
                 ->orWhere(function (Builder $inner) use ($user): void {
-                    StaffReferral::whereUtmContentMatchesPartnerAd($inner, $user, 'ad_name');
+                    self::applyPartnerTextMatch($inner, $user);
                 });
         });
+    }
+
+    /**
+     * @param  Builder<\App\Models\MetaAdSpendDaily>  $query
+     */
+    public static function applyPartnerTextMatch(Builder $query, User $partner): void
+    {
+        $name = trim((string) $partner->name);
+        $firstName = $name !== '' ? trim(explode(' ', $name, 2)[0]) : '';
+        $code = trim((string) $partner->referral_code);
+
+        $terms = array_values(array_filter(array_unique([
+            $name,
+            $firstName,
+            $code,
+        ]), fn (string $term) => $term !== '' && mb_strlen($term) >= 2));
+
+        if ($terms === []) {
+            $query->whereRaw('0 = 1');
+
+            return;
+        }
+
+        $query->where(function (Builder $builder) use ($terms): void {
+            foreach ($terms as $term) {
+                $like = '%'.addcslashes($term, '%_\\').'%';
+                $builder->orWhere(function (Builder $columns) use ($like): void {
+                    $columns->where('ad_name', 'like', $like)
+                        ->orWhere('campaign_name', 'like', $like)
+                        ->orWhere('adset_name', 'like', $like);
+                });
+            }
+        });
+    }
+
+    /**
+     * Re-resolve user_id / matched_via on existing snapshot rows (after matcher improvements).
+     *
+     * @return int Rows updated
+     */
+    public static function reattributeSnapshotRows(?string $fromDate = null, ?string $toDate = null): int
+    {
+        $query = \App\Models\MetaAdSpendDaily::query();
+
+        if ($fromDate !== null) {
+            $query->whereDate('spend_date', '>=', $fromDate);
+        }
+
+        if ($toDate !== null) {
+            $query->whereDate('spend_date', '<=', $toDate);
+        }
+
+        $updated = 0;
+
+        $query->orderBy('id')->chunkById(500, function (Collection $rows) use (&$updated): void {
+            foreach ($rows as $row) {
+                $attribution = self::resolveAttribution(
+                    $row->ad_name,
+                    $row->campaign_name,
+                    $row->adset_name,
+                );
+
+                if ((int) $row->user_id !== (int) ($attribution['user_id'] ?? 0)
+                    || $row->matched_via !== $attribution['matched_via']) {
+                    $row->forceFill([
+                        'user_id' => $attribution['user_id'],
+                        'matched_via' => $attribution['matched_via'],
+                    ])->save();
+                    $updated++;
+                }
+            }
+        });
+
+        return $updated;
     }
 
     /**

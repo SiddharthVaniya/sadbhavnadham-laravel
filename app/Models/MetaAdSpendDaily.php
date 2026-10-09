@@ -9,6 +9,10 @@ class MetaAdSpendDaily extends Model
 {
     public const MATCHED_VIA_AD_NAME_PREFIX = 'ad_name_prefix';
 
+    public const MATCHED_VIA_NAME_IN_TEXT = 'name_in_text';
+
+    public const MATCHED_VIA_REFERRAL_CODE = 'referral_code';
+
     public const MATCHED_VIA_UNMATCHED = 'unmatched';
 
     protected $table = 'meta_ad_spend_daily';
