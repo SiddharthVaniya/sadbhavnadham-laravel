@@ -14,6 +14,7 @@ use App\Http\Controllers\Admin\AdminDonationTelecallerNoteController;
 use App\Http\Controllers\Admin\AdminDonorController;
 use App\Http\Controllers\Admin\AdminDonorCrmController;
 use App\Http\Controllers\Admin\AdminMarketerBudgetController;
+use App\Http\Controllers\Admin\AdminMetaAdController;
 use App\Http\Controllers\Admin\AdminPartnerReportsController;
 use App\Http\Controllers\Admin\AdminRazorpayQrCodeController;
 use App\Http\Controllers\Admin\AdminReportsController;
@@ -38,6 +39,7 @@ use App\Http\Controllers\GoogleOAuthController;
 use App\Http\Controllers\Marketer\MarketerCampaignController;
 use App\Http\Controllers\Marketer\MarketerDashboardController;
 use App\Http\Controllers\Marketer\MarketerDonationController;
+use App\Http\Controllers\Marketer\MarketerMetaController;
 use App\Http\Controllers\Marketer\MarketerVisitController;
 use App\Http\Controllers\ReceiptDemoController;
 use App\Http\Controllers\RobotsController;
@@ -108,6 +110,8 @@ Route::prefix('marketer')->name('marketer.')->middleware(['auth', 'marketer.port
     Route::get('/campaigns/export', [MarketerCampaignController::class, 'export'])->name('campaigns.export');
     Route::get('/visits', [MarketerVisitController::class, 'index'])->name('visits');
     Route::get('/visits/export', [MarketerVisitController::class, 'export'])->name('visits.export');
+    Route::get('/meta', [MarketerMetaController::class, 'index'])->name('meta');
+    Route::post('/meta/refresh', [MarketerMetaController::class, 'refresh'])->name('meta.refresh');
 });
 
 Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->group(function () {
@@ -502,6 +506,21 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::get('marketers/history', [AdminMarketerBudgetController::class, 'history'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
         ->name('marketers.history');
+    Route::get('marketers/meta', [AdminMetaAdController::class, 'index'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('marketers.meta');
+    Route::post('marketers/meta/accounts', [AdminMetaAdController::class, 'storeAccount'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('marketers.meta.accounts.store');
+    Route::put('marketers/meta/accounts/{metaAdAccount}', [AdminMetaAdController::class, 'updateAccount'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('marketers.meta.accounts.update');
+    Route::delete('marketers/meta/accounts/{metaAdAccount}', [AdminMetaAdController::class, 'destroyAccount'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('marketers.meta.accounts.destroy');
+    Route::post('marketers/meta/sync', [AdminMetaAdController::class, 'sync'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('marketers.meta.sync');
 
     Route::get('settings', [AdminSettingController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::SETTINGS_VIEW))

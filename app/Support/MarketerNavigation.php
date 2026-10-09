@@ -29,6 +29,11 @@ class MarketerNavigation
                 'label' => 'Clicks',
                 'route' => 'marketer.visits',
             ],
+            [
+                'label' => 'Meta',
+                'route' => 'marketer.meta',
+                'section' => 'Tracking',
+            ],
         ];
 
         if (AdminPermissions::userCan($user, AdminPermissions::PACKAGE_VIEW)) {

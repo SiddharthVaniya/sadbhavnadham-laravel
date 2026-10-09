@@ -1,10 +1,11 @@
 <script setup>
-import { reactive } from 'vue';
+import { computed, reactive } from 'vue';
 import { Head, router } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
 import MarketerBudgetTabs from '@/Components/Admin/MarketerBudgetTabs.vue';
 import Pagination from '@/Components/Admin/Pagination.vue';
+import SyncFromLiveMetaButton from '@/Components/Admin/SyncFromLiveMetaButton.vue';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
 import {
@@ -57,6 +58,34 @@ const reset = () => {
     form.archive = 'all';
     apply();
 };
+
+const isoDate = (date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+
+    return `${y}-${m}-${d}`;
+};
+
+const syncRange = computed(() => {
+    if (form.from_date && form.to_date) {
+        return { from: form.from_date, to: form.to_date };
+    }
+
+    if (form.from_date) {
+        return { from: form.from_date, to: form.from_date };
+    }
+
+    if (form.to_date) {
+        return { from: form.to_date, to: form.to_date };
+    }
+
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - 6);
+
+    return { from: isoDate(from), to: isoDate(to) };
+});
 </script>
 
 <template>
@@ -67,7 +96,16 @@ const reset = () => {
         <PageHeader
             title="Spending history"
             subtitle="Every saved day, with that month’s target, spending limit, spend, and remaining limit."
-        />
+        >
+            <template #actions>
+                <SyncFromLiveMetaButton
+                    redirect="history"
+                    :from="syncRange.from"
+                    :to="syncRange.to"
+                    :extra="{ ...form }"
+                />
+            </template>
+        </PageHeader>
 
         <MarketerBudgetTabs current="history" />
 

@@ -15,11 +15,23 @@ import {
 } from '@/Components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/ui/card';
 import MarketerBudgetTabs from '@/Components/Admin/MarketerBudgetTabs.vue';
+import SyncFromLiveMetaButton from '@/Components/Admin/SyncFromLiveMetaButton.vue';
 
 const props = defineProps({
     yearMonth: { type: String, required: true },
     yearMonthLabel: { type: String, required: true },
     marketers: { type: Array, default: () => [] },
+});
+
+const monthFrom = computed(() => `${props.yearMonth}-01`);
+const monthTo = computed(() => {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    const today = `${y}-${m}-${d}`;
+
+    return props.yearMonth === `${y}-${m}` ? today : today;
 });
 
 const rows = reactive(
@@ -96,6 +108,11 @@ const save = () => {
             :subtitle="`Set this month’s target and spending limit. Spend is the total of daily spend · ${yearMonthLabel}`"
         >
             <template #actions>
+                <SyncFromLiveMetaButton
+                    redirect="month"
+                    :from="monthFrom"
+                    :to="monthTo"
+                />
                 <Button type="button" :disabled="form.processing || ! rows.length" @click="save">
                     {{ form.processing ? 'Saving…' : 'Save changes' }}
                 </Button>

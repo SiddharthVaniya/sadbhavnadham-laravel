@@ -969,3 +969,69 @@ INNER JOIN permissions p ON p.id = rhp.permission_id
 WHERE r.name = 'digital_marketer'
   AND p.name IN ('view packages', 'copy package links');
 ```
+
+## 2026-10-09 - Meta ad accounts + daily Insights spend
+
+Stores multiple Meta Marketing API credentials (encrypted at rest by the app) and per-ad daily spend snapshots used to overwrite `marketer_daily_budgets.spend_amount`. Do not run Laravel migrate on live — apply this SQL.
+
+### Preview
+
+```sql
+SHOW TABLES LIKE 'meta_ad_accounts';
+SHOW TABLES LIKE 'meta_ad_spend_daily';
+SHOW COLUMNS FROM meta_ad_accounts;
+SHOW COLUMNS FROM meta_ad_spend_daily;
+```
+
+### Apply (idempotent)
+
+```sql
+CREATE TABLE IF NOT EXISTS meta_ad_accounts (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    label VARCHAR(255) NOT NULL,
+    app_id VARCHAR(255) NOT NULL,
+    app_secret TEXT NOT NULL,
+    access_token TEXT NOT NULL,
+    ad_account_id VARCHAR(255) NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    last_synced_at TIMESTAMP NULL DEFAULT NULL,
+    last_sync_status VARCHAR(32) NULL DEFAULT NULL,
+    last_sync_error TEXT NULL,
+    created_at TIMESTAMP NULL DEFAULT NULL,
+    updated_at TIMESTAMP NULL DEFAULT NULL,
+    INDEX meta_ad_accounts_is_active_ad_account_id_index (is_active, ad_account_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS meta_ad_spend_daily (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    meta_ad_account_id BIGINT UNSIGNED NOT NULL,
+    spend_date DATE NOT NULL,
+    campaign_id VARCHAR(255) NULL DEFAULT NULL,
+    campaign_name VARCHAR(255) NULL DEFAULT NULL,
+    adset_id VARCHAR(255) NULL DEFAULT NULL,
+    adset_name VARCHAR(255) NULL DEFAULT NULL,
+    ad_id VARCHAR(255) NOT NULL,
+    ad_name VARCHAR(255) NULL DEFAULT NULL,
+    spend_amount DECIMAL(14, 2) NOT NULL DEFAULT 0.00,
+    currency VARCHAR(16) NULL DEFAULT NULL,
+    user_id BIGINT UNSIGNED NULL DEFAULT NULL,
+    matched_via VARCHAR(32) NOT NULL DEFAULT 'unmatched',
+    created_at TIMESTAMP NULL DEFAULT NULL,
+    updated_at TIMESTAMP NULL DEFAULT NULL,
+    UNIQUE KEY meta_ad_spend_daily_acct_date_ad_unique (meta_ad_account_id, spend_date, ad_id),
+    INDEX meta_ad_spend_daily_spend_date_user_id_index (spend_date, user_id),
+    INDEX meta_ad_spend_daily_campaign_name_index (campaign_name),
+    INDEX meta_ad_spend_daily_ad_name_index (ad_name),
+    CONSTRAINT meta_ad_spend_daily_meta_ad_account_id_foreign
+        FOREIGN KEY (meta_ad_account_id) REFERENCES meta_ad_accounts (id) ON DELETE CASCADE,
+    CONSTRAINT meta_ad_spend_daily_user_id_foreign
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+### Rollback
+
+```sql
+DROP TABLE IF EXISTS meta_ad_spend_daily;
+DROP TABLE IF EXISTS meta_ad_accounts;
+```

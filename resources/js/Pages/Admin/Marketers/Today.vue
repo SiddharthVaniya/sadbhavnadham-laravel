@@ -5,6 +5,7 @@ import AdminLayout from '@/Layouts/AdminLayout.vue';
 import FormDatePicker from '@/Components/Admin/FormDatePicker.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
 import MarketerBudgetTabs from '@/Components/Admin/MarketerBudgetTabs.vue';
+import SyncFromLiveMetaButton from '@/Components/Admin/SyncFromLiveMetaButton.vue';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
 import {
@@ -52,6 +53,17 @@ const form = useForm({
 });
 
 const isToday = computed(() => props.spendDate === props.maxDate);
+
+const syncFrom = computed(() => {
+    const parts = props.spendDate.split('-').map(Number);
+    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+    date.setDate(date.getDate() - 1);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+
+    return `${y}-${m}-${d}`;
+});
 
 const monthSpend = (row) => {
     const savedMonth = Number(row.month_spend_amount) || 0;
@@ -112,6 +124,12 @@ const openDate = (value) => {
             :subtitle="`Record spend for ${spendDateLabel}. Remaining limit uses the ${yearMonthLabel} monthly spending limit.`"
         >
             <template #actions>
+                <SyncFromLiveMetaButton
+                    redirect="today"
+                    :from="syncFrom"
+                    :to="spendDate"
+                    :date="spendDate"
+                />
                 <Button type="button" :disabled="form.processing || ! rows.length" @click="save">
                     {{ form.processing ? 'Saving…' : (isToday ? 'Save today' : `Save ${spendDateLabel}`) }}
                 </Button>

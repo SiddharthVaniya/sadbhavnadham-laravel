@@ -29,6 +29,8 @@ If a database change is required, write SQL into `alter.md` and wait for a human
 
 **Agents: always give ALTER / UPDATE / INSERT SQL in `alter.md`. Never migrate or change the DB directly.**
 
+Meta ads spend sync (credentials + Insights → daily budgets): see `docs/meta-ads-spend-sync.md` and the Meta section in `alter.md`.
+
 ## Allowed CI/CD on live (`scripts/deploy.sh`)
 
 1. `git fetch` + `git reset --hard` to GitHub `main` (tracked files only; `.env` stays)

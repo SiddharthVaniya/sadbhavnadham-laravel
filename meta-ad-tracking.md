@@ -109,14 +109,27 @@ Staff share links (not Meta) use the same `sid` with `utm_source=staff`. Those a
 
 If `sid` is missing, tracking still tries a leftover `pid` and staff `utm_content`.
 
+## Ad name format (spend matching)
+
+Daily Meta spend sync matches marketers from the **ad name** (not only `sid`). Put the marketer’s first name before a pipe:
+
+```text
+Ashvini | 09/10 | Sadbhavna | Pitru Amas | Old age
+```
+
+Admin → Marketers → **Meta** stores API credentials, runs **Sync from live Meta**, and filters by that pipe string. Matched spend **overwrites** that day’s row on Marketers → Today. Marketers see their own rows at `/marketer/meta` (Refresh from Meta is rate-limited).
+
+Ops detail: [`docs/meta-ads-spend-sync.md`](docs/meta-ads-spend-sync.md). Live SQL: `alter.md` (Meta ad accounts + daily Insights spend).
+
 ## Checklist for a new Meta campaign
 
 1. Open `/marketer` and copy **Meta URL parameters**.
 2. In Ads Manager, website URL = the cause or campaign landing page (no tracking query yet).
 3. Paste the copied string into **URL parameters**.
 4. Confirm `sid=` is your code, not `{{adset.id}}`.
-5. Optionally add `&amt=` and `&ptype=` for that creative.
-6. Publish. Clicks from every campaign with that `sid` show on your panel.
+5. Name the ad with `FirstName | …` so spend sync can attribute it.
+6. Optionally add `&amt=` and `&ptype=` for that creative.
+7. Publish. Clicks from every campaign with that `sid` show on your panel.
 
 ## Share URL vs Meta parameters
 
