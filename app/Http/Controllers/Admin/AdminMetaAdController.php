@@ -42,6 +42,7 @@ class AdminMetaAdController extends Controller
 
         return Inertia::render('Admin/Meta/Accounts', [
             'accounts' => $accounts,
+            'analytics' => MetaAdSpendQuery::accountsOverviewAnalytics(),
             'lastSyncedAt' => $lastSynced
                 ? Carbon::parse($lastSynced)->timezone(config('app.timezone'))->toDateTimeString()
                 : null,

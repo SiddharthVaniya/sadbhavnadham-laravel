@@ -71,8 +71,6 @@ const refresh = () => {
             Last synced: {{ lastSyncedAt }}
         </p>
 
-        <MetaSpendAnalytics :analytics="analytics" />
-
         <Card class="mb-4 shadow-none">
             <CardHeader class="pb-2">
                 <CardTitle class="text-base">Filters</CardTitle>
@@ -89,6 +87,8 @@ const refresh = () => {
                 />
             </CardContent>
         </Card>
+
+        <MetaSpendAnalytics :analytics="analytics" />
 
         <Card class="shadow-none">
             <CardHeader class="pb-2">

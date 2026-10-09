@@ -67,8 +67,6 @@ const spendRows = computed(() => props.rows?.data ?? []);
             <span v-if="unmatchedCount" class="ml-2 text-amber-700">· {{ unmatchedCount }} unmatched in this filter</span>
         </p>
 
-        <MetaSpendAnalytics :analytics="analytics" />
-
         <Card class="mb-4 shadow-none">
             <CardHeader class="pb-2">
                 <CardTitle class="text-base">Filters</CardTitle>
@@ -87,6 +85,8 @@ const spendRows = computed(() => props.rows?.data ?? []);
                 />
             </CardContent>
         </Card>
+
+        <MetaSpendAnalytics :analytics="analytics" show-marketer-charts />
 
         <Card class="shadow-none">
             <CardHeader class="pb-2">
