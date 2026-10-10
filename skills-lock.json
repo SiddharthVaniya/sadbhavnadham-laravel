@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "meta-marketing-api": {
+      "source": "ilexpoon/meta-marketing-api-skill",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "c7e0a9fbbb387434ee865fd213ada3b3863a5b602d31d3c53ce4b0b55a9d8021"
+    }
+  }
+}
