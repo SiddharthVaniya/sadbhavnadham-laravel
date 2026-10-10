@@ -55,6 +55,7 @@ Filters are shared across Overview, Analytics, and Ad insights (query string pre
 - Free text across campaign / ad set / ad names
 - Marketer (resolved `user_id` or `{FirstName} |` prefix)
 - Meta account, date range (default today Kolkata), campaign, ad set, cause keyword, matched/unmatched
+- **Ad delivery** — All ads, **Active** (Meta `effective_status` = `ACTIVE`, same idea as Ads Manager “Ad delivery: Active”), or **Not active**
 
 ## Out of scope
 

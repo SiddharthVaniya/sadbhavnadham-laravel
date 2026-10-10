@@ -24,6 +24,7 @@ const form = reactive({
     theme: props.filters.theme ?? '',
     cause: props.filters.cause ?? '',
     match: props.filters.match ?? 'all',
+    delivery: props.filters.delivery ?? 'all',
 });
 
 watch(
@@ -40,6 +41,7 @@ watch(
         form.theme = next.theme ?? '';
         form.cause = next.cause ?? '';
         form.match = next.match ?? 'all';
+        form.delivery = next.delivery ?? 'all';
     },
     { deep: true },
 );
@@ -60,6 +62,7 @@ const reset = () => {
     form.theme = '';
     form.cause = '';
     form.match = 'all';
+    form.delivery = 'all';
     emit('reset', { ...form });
 };
 </script>
@@ -149,6 +152,15 @@ const reset = () => {
                 <option value="all">Matched + unmatched</option>
                 <option value="matched">Matched only</option>
                 <option value="unmatched">Unmatched only</option>
+            </select>
+        </div>
+
+        <div class="space-y-1">
+            <label class="text-xs font-medium text-muted-foreground">Ad delivery</label>
+            <select v-model="form.delivery" :class="selectClass">
+                <option value="all">All ads</option>
+                <option value="active">Active (like Ads Manager)</option>
+                <option value="not_active">Not active</option>
             </select>
         </div>
 

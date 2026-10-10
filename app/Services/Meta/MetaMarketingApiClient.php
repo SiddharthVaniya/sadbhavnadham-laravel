@@ -133,6 +133,93 @@ class MetaMarketingApiClient
         return $rows;
     }
 
+    /**
+     * Current Meta effective_status per ad id (matches Ads Manager delivery filter).
+     *
+     * @param  list<string>  $adIds
+     * @return array<string, string>
+     */
+    public function fetchAdEffectiveStatuses(MetaAdAccount $account, array $adIds): array
+    {
+        $token = (string) $account->access_token;
+
+        if ($token === '') {
+            throw new RuntimeException('Meta access token is missing.');
+        }
+
+        $adIds = array_values(array_unique(array_filter(array_map(
+            fn (mixed $id) => trim((string) $id),
+            $adIds,
+        ), fn (string $id) => $id !== '')));
+
+        if ($adIds === []) {
+            return [];
+        }
+
+        $baseUrl = sprintf(
+            'https://graph.facebook.com/%s/%s/ads',
+            self::GRAPH_VERSION,
+            $account->graphActId(),
+        );
+
+        $statuses = [];
+
+        foreach (array_chunk($adIds, 50) as $chunk) {
+            $filtering = json_encode([
+                [
+                    'field' => 'id',
+                    'operator' => 'IN',
+                    'value' => $chunk,
+                ],
+            ], JSON_THROW_ON_ERROR);
+
+            $params = [
+                'fields' => 'id,effective_status',
+                'filtering' => $filtering,
+                'limit' => 500,
+                'access_token' => $token,
+            ];
+
+            $nextUrl = $baseUrl.'?'.http_build_query($params);
+
+            while ($nextUrl) {
+                try {
+                    $response = Http::timeout(60)->acceptJson()->get($nextUrl);
+                    $response->throw();
+                } catch (RequestException $e) {
+                    $body = $e->response?->json();
+                    $message = is_array($body)
+                        ? (string) data_get($body, 'error.message', $e->getMessage())
+                        : $e->getMessage();
+
+                    throw new RuntimeException('Meta Ads API error: '.$message, 0, $e);
+                }
+
+                $payload = $response->json();
+                $data = is_array($payload) ? ($payload['data'] ?? []) : [];
+
+                foreach ($data as $item) {
+                    if (! is_array($item)) {
+                        continue;
+                    }
+
+                    $adId = trim((string) ($item['id'] ?? ''));
+                    $status = $this->nullableString($item['effective_status'] ?? null);
+
+                    if ($adId !== '' && $status !== null) {
+                        $statuses[$adId] = strtoupper($status);
+                    }
+                }
+
+                $nextUrl = is_array($payload)
+                    ? (isset($payload['paging']['next']) ? (string) $payload['paging']['next'] : null)
+                    : null;
+            }
+        }
+
+        return $statuses;
+    }
+
     private function nullableString(mixed $value): ?string
     {
         if ($value === null) {

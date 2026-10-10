@@ -15,6 +15,8 @@ class MetaAdSpendDaily extends Model
 
     public const MATCHED_VIA_UNMATCHED = 'unmatched';
 
+    public const DELIVERY_STATUS_ACTIVE = 'ACTIVE';
+
     protected $table = 'meta_ad_spend_daily';
 
     protected $fillable = [
@@ -26,6 +28,7 @@ class MetaAdSpendDaily extends Model
         'adset_name',
         'ad_id',
         'ad_name',
+        'ad_effective_status',
         'spend_amount',
         'impressions',
         'clicks',

@@ -53,14 +53,32 @@ function createMetaAccount(array $overrides = []): MetaAdAccount
     ], $overrides));
 }
 
-function fakeMetaInsights(array $rows): void
+function fakeMetaInsights(array $rows, array $ads = []): void
 {
-    Http::fake([
-        'graph.facebook.com/*' => Http::response([
-            'data' => $rows,
-            'paging' => [],
-        ], 200),
-    ]);
+    if ($ads === []) {
+        $ads = collect($rows)
+            ->map(fn (array $row) => [
+                'id' => (string) ($row['ad_id'] ?? ''),
+                'effective_status' => 'ACTIVE',
+            ])
+            ->filter(fn (array $ad) => $ad['id'] !== '')
+            ->values()
+            ->all();
+    }
+
+    Http::fake(function (\Illuminate\Http\Client\Request $request) use ($rows, $ads) {
+        $url = $request->url();
+
+        if (str_contains($url, '/insights')) {
+            return Http::response(['data' => $rows, 'paging' => []], 200);
+        }
+
+        if (str_contains($url, '/ads')) {
+            return Http::response(['data' => $ads, 'paging' => []], 200);
+        }
+
+        return Http::response(['data' => []], 200);
+    });
 }
 
 beforeEach(function () {
@@ -238,6 +256,50 @@ it('skips inactive meta accounts during sync', function () {
         ->assertRedirect();
 
     Http::assertNothingSent();
+});
+
+it('filters meta spend by ad delivery status', function () {
+    $admin = metaAdmin();
+    $account = createMetaAccount();
+    $today = now()->toDateString();
+
+    MetaAdSpendDaily::query()->create([
+        'meta_ad_account_id' => $account->id,
+        'spend_date' => $today,
+        'ad_id' => 'active-1',
+        'ad_name' => 'Active ad',
+        'ad_effective_status' => 'ACTIVE',
+        'spend_amount' => 100,
+        'matched_via' => 'unmatched',
+    ]);
+
+    MetaAdSpendDaily::query()->create([
+        'meta_ad_account_id' => $account->id,
+        'spend_date' => $today,
+        'ad_id' => 'paused-1',
+        'ad_name' => 'Paused ad',
+        'ad_effective_status' => 'PAUSED',
+        'spend_amount' => 50,
+        'matched_via' => 'unmatched',
+    ]);
+
+    $baseQuery = ['from_date' => $today, 'to_date' => $today];
+
+    actingAs($admin)
+        ->get(route('admin.meta.analytics', array_merge($baseQuery, ['delivery' => 'active'])))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Meta/Analytics')
+            ->where('analytics.totals.spend', 100)
+            ->where('analytics.totals.ads', 1));
+
+    actingAs($admin)
+        ->get(route('admin.meta.analytics', array_merge($baseQuery, ['delivery' => 'not_active'])))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Meta/Analytics')
+            ->where('analytics.totals.spend', 50)
+            ->where('analytics.totals.ads', 1));
 });
 
 it('filters meta spend by app id and campaign dropdowns', function () {

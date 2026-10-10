@@ -64,7 +64,13 @@ class MetaAdSpendSyncService
         foreach ($accounts as $account) {
             try {
                 $insights = $this->client->fetchAdInsights($account, $since, $until);
-                $result['rows_upserted'] += $this->upsertInsights($account, $insights);
+                $adIds = array_values(array_unique(array_filter(array_map(
+                    fn (array $row) => (string) ($row['ad_id'] ?? ''),
+                    $insights,
+                ), fn (string $id) => $id !== '')));
+                $deliveryStatuses = $this->client->fetchAdEffectiveStatuses($account, $adIds);
+                $result['rows_upserted'] += $this->upsertInsights($account, $insights, $deliveryStatuses);
+                $this->refreshDeliveryStatusOnHistoricalRows($account, $deliveryStatuses);
                 $result['accounts_synced']++;
 
                 $account->forceFill([
@@ -115,12 +121,13 @@ class MetaAdSpendSyncService
 
     /**
      * @param  list<array<string, mixed>>  $insights
+     * @param  array<string, string>  $deliveryStatuses
      */
-    private function upsertInsights(MetaAdAccount $account, array $insights): int
+    private function upsertInsights(MetaAdAccount $account, array $insights, array $deliveryStatuses = []): int
     {
         $count = 0;
 
-        DB::transaction(function () use ($account, $insights, &$count): void {
+        DB::transaction(function () use ($account, $insights, $deliveryStatuses, &$count): void {
             foreach ($insights as $row) {
                 $attribution = MarketerNameMatcher::resolveAttribution(
                     $row['ad_name'] ?? null,
@@ -140,6 +147,7 @@ class MetaAdSpendSyncService
                         'adset_id' => $row['adset_id'],
                         'adset_name' => $row['adset_name'],
                         'ad_name' => $row['ad_name'],
+                        'ad_effective_status' => $deliveryStatuses[$row['ad_id']] ?? null,
                         'spend_amount' => $row['spend_amount'],
                         'impressions' => (int) ($row['impressions'] ?? 0),
                         'clicks' => (int) ($row['clicks'] ?? 0),
@@ -156,6 +164,19 @@ class MetaAdSpendSyncService
         });
 
         return $count;
+    }
+
+    /**
+     * @param  array<string, string>  $deliveryStatuses
+     */
+    private function refreshDeliveryStatusOnHistoricalRows(MetaAdAccount $account, array $deliveryStatuses): void
+    {
+        foreach ($deliveryStatuses as $adId => $status) {
+            MetaAdSpendDaily::query()
+                ->where('meta_ad_account_id', $account->id)
+                ->where('ad_id', $adId)
+                ->update(['ad_effective_status' => $status]);
+        }
     }
 
     /**

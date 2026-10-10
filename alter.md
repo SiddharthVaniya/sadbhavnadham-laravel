@@ -1054,6 +1054,32 @@ ALTER TABLE users
 
 Example: `UPDATE users SET meta_ad_aliases = 'Ashwini' WHERE id = 12;` then run Meta sync + re-attribute (sync does this automatically).
 
+## 2026-10-10 - Meta ad delivery status (Active / Not active filter)
+
+**Preview:**
+
+```sql
+SHOW COLUMNS FROM meta_ad_spend_daily LIKE 'ad_effective_status';
+```
+
+**Apply:**
+
+```sql
+ALTER TABLE meta_ad_spend_daily
+    ADD COLUMN ad_effective_status VARCHAR(32) NULL DEFAULT NULL AFTER ad_name,
+    ADD INDEX meta_ad_spend_daily_ad_effective_status_index (ad_effective_status);
+```
+
+Then run **Sync from live Meta** for your date range so `ad_effective_status` is filled from Meta Ads API.
+
+**Rollback:**
+
+```sql
+ALTER TABLE meta_ad_spend_daily
+    DROP INDEX meta_ad_spend_daily_ad_effective_status_index,
+    DROP COLUMN ad_effective_status;
+```
+
 ### Rollback
 
 ```sql

@@ -10,6 +10,7 @@ const ADMIN_FILTER_KEYS = [
     'theme',
     'cause',
     'match',
+    'delivery',
 ];
 
 const MARKETER_FILTER_KEYS = [
@@ -22,6 +23,7 @@ const MARKETER_FILTER_KEYS = [
     'adset',
     'theme',
     'cause',
+    'delivery',
 ];
 
 export function metaFilterQueryString(filters, keys = ADMIN_FILTER_KEYS) {

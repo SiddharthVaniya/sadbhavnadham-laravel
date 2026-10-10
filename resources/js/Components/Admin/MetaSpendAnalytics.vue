@@ -78,7 +78,7 @@ const byAdImpressions = computed(() => props.analytics?.by_ad_impressions ?? [])
             <MarketerStatCard label="Avg / day" :value="formatMoney(totals.avg_daily_spend)" hint="Average daily spend">
                 <template #icon><CalendarDays class="h-4 w-4" /></template>
             </MarketerStatCard>
-            <MarketerStatCard label="Ads" :value="String(totals.ads || 0)" hint="Distinct ads">
+            <MarketerStatCard label="Ads" :value="String(totals.ads || 0)" hint="Distinct ads in filtered delivery">
                 <template #icon><LayoutGrid class="h-4 w-4" /></template>
             </MarketerStatCard>
             <MarketerStatCard label="Campaigns" :value="String(totals.campaigns || 0)" hint="Distinct campaigns">

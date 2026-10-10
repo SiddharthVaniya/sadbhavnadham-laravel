@@ -160,6 +160,7 @@ class MetaAdSpendQuery
             'adset',
             'theme',
             'cause',
+            'delivery',
         ];
 
         if ($includeMarketer) {
@@ -191,6 +192,7 @@ class MetaAdSpendQuery
             'adset' => trim((string) $request->input('adset', '')),
             'theme' => trim((string) $request->input('theme', '')),
             'cause' => trim((string) $request->input('cause', '')),
+            'delivery' => trim((string) $request->input('delivery', 'all')),
         ];
 
         if ($includeMarketer) {
@@ -210,6 +212,10 @@ class MetaAdSpendQuery
 
         if ($filters['to_date'] === '') {
             $filters['to_date'] = $today;
+        }
+
+        if (! in_array($filters['delivery'], ['all', 'active', 'not_active'], true)) {
+            $filters['delivery'] = 'all';
         }
 
         return $filters;
@@ -268,7 +274,22 @@ class MetaAdSpendQuery
             $query->where('matched_via', MetaAdSpendDaily::MATCHED_VIA_UNMATCHED);
         }
 
+        self::applyDeliveryFilter($query, $filters['delivery'] ?? 'all');
+
         return $query;
+    }
+
+    /**
+     * @param  Builder<MetaAdSpendDaily>  $query
+     */
+    private static function applyDeliveryFilter(Builder $query, string $delivery): void
+    {
+        if ($delivery === 'active') {
+            $query->where('ad_effective_status', MetaAdSpendDaily::DELIVERY_STATUS_ACTIVE);
+        } elseif ($delivery === 'not_active') {
+            $query->whereNotNull('ad_effective_status')
+                ->where('ad_effective_status', '!=', MetaAdSpendDaily::DELIVERY_STATUS_ACTIVE);
+        }
     }
 
     /**
@@ -773,6 +794,8 @@ class MetaAdSpendQuery
             'campaign_name' => $row->campaign_name,
             'adset_name' => $row->adset_name,
             'ad_name' => $row->ad_name,
+            'ad_effective_status' => $row->ad_effective_status,
+            'delivery_active' => strtoupper((string) $row->ad_effective_status) === MetaAdSpendDaily::DELIVERY_STATUS_ACTIVE,
             'spend_amount' => $spend,
             'impressions' => $impressions,
             'clicks' => $clicks,

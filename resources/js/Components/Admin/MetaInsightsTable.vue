@@ -11,7 +11,7 @@ import {
 defineProps({
     rows: { type: Array, default: () => [] },
     showMarketer: { type: Boolean, default: false },
-    emptyColspan: { type: Number, default: 12 },
+    emptyColspan: { type: Number, default: 13 },
 });
 
 const formatMoney = (amount) =>
@@ -37,6 +37,7 @@ const formatRate = (value) =>
                     <TableHead class="min-w-[140px]">Campaign</TableHead>
                     <TableHead class="min-w-[120px]">Ad set</TableHead>
                     <TableHead class="min-w-[120px]">App</TableHead>
+                    <TableHead class="whitespace-nowrap">Delivery</TableHead>
                     <TableHead class="text-right whitespace-nowrap">Impr.</TableHead>
                     <TableHead class="text-right whitespace-nowrap">Clicks</TableHead>
                     <TableHead class="text-right whitespace-nowrap">Reach</TableHead>
@@ -72,6 +73,21 @@ const formatRate = (value) =>
                     <TableCell class="text-sm">
                         <p>{{ row.account_label }}</p>
                         <p class="font-mono text-xs text-muted-foreground">{{ row.app_id }}</p>
+                    </TableCell>
+                    <TableCell class="whitespace-nowrap text-sm">
+                        <span
+                            v-if="row.delivery_active"
+                            class="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800"
+                        >
+                            Active
+                        </span>
+                        <span
+                            v-else-if="row.ad_effective_status"
+                            class="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+                        >
+                            {{ row.ad_effective_status }}
+                        </span>
+                        <span v-else class="text-xs text-muted-foreground">—</span>
                     </TableCell>
                     <TableCell class="text-right tabular-nums">{{ formatInt(row.impressions) }}</TableCell>
                     <TableCell class="text-right tabular-nums">{{ formatInt(row.clicks) }}</TableCell>
