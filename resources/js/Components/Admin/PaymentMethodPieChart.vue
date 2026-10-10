@@ -36,7 +36,7 @@ const pieBackground = computed(() => {
         return stop;
     });
 
-    return `conic-gradient(${stops.join(', ')})`;
+    return `conic-gradient(from -90deg, ${stops.join(', ')})`;
 });
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;

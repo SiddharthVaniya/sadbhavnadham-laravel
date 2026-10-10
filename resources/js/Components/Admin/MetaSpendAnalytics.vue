@@ -120,7 +120,7 @@ const byAdImpressions = computed(() => props.analytics?.by_ad_impressions ?? [])
             <Card class="shadow-none">
                 <CardHeader class="pb-2">
                     <CardTitle class="text-base">Spend share by app</CardTitle>
-                    <CardDescription>Donut by Meta App ID</CardDescription>
+                    <CardDescription>Pie chart by Meta App ID</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <MetaDonutChart :items="byAppId" empty-message="No app spend yet." />
