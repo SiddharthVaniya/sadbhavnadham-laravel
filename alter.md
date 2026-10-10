@@ -1056,21 +1056,27 @@ Example: `UPDATE users SET meta_ad_aliases = 'Ashwini' WHERE id = 12;` then run 
 
 ## 2026-10-10 - Meta Conversions API (pixels + event logs)
 
+Admin **Meta → Pixels (CAPI)**: env pixel config, event log table (time, pixel, event, sid/marketer, order). Marketer filters use existing `donation_orders.partner_code` / `partner_user_id` — no extra CAPI columns.
+
+Pixel IDs and tokens live in **`.env`** (`META_CAPI_PIXEL_*`; see `.env.example`, `docs/meta-conversions-api.md`). After `.env` changes: `php artisan config:clear && php artisan config:cache`. Queue workers must run for async CAPI jobs.
+
 **Preview:**
 
 ```sql
 SHOW TABLES LIKE 'meta_pixels';
 SHOW TABLES LIKE 'meta_capi_event_logs';
+SHOW COLUMNS FROM meta_pixels LIKE 'access_token';
+SHOW INDEX FROM meta_capi_event_logs WHERE Key_name = 'meta_capi_event_logs_sent_at_index';
 ```
 
-**Apply:**
+**Apply (new database — skip if tables already exist):**
 
 ```sql
 CREATE TABLE IF NOT EXISTS meta_pixels (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
     label VARCHAR(255) NOT NULL,
     pixel_id VARCHAR(32) NOT NULL,
-    access_token TEXT NOT NULL,
+    access_token TEXT NULL DEFAULT NULL,
     is_active TINYINT(1) NOT NULL DEFAULT 1,
     send_purchase TINYINT(1) NOT NULL DEFAULT 1,
     send_initiate_checkout TINYINT(1) NOT NULL DEFAULT 1,
@@ -1099,6 +1105,7 @@ CREATE TABLE IF NOT EXISTS meta_capi_event_logs (
     updated_at TIMESTAMP NULL DEFAULT NULL,
     UNIQUE KEY meta_capi_event_logs_pixel_event_unique (meta_pixel_id, event_id),
     INDEX meta_capi_event_logs_donation_order_id_event_name_index (donation_order_id, event_name),
+    INDEX meta_capi_event_logs_sent_at_index (sent_at),
     CONSTRAINT meta_capi_event_logs_meta_pixel_id_foreign
         FOREIGN KEY (meta_pixel_id) REFERENCES meta_pixels (id) ON DELETE CASCADE,
     CONSTRAINT meta_capi_event_logs_donation_order_id_foreign
@@ -1106,24 +1113,7 @@ CREATE TABLE IF NOT EXISTS meta_capi_event_logs (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 ```
 
-Configure pixel IDs and tokens in **`.env`** (`META_CAPI_PIXEL_*`; see `.env.example` and `docs/meta-conversions-api.md`). Admin **Pixels (CAPI)** shows env pixels and logs. Queue workers must be running for async jobs.
-
-**Rollback:**
-
-```sql
-DROP TABLE IF EXISTS meta_capi_event_logs;
-DROP TABLE IF EXISTS meta_pixels;
-```
-
-## 2026-10-10 - Meta CAPI: nullable `meta_pixels.access_token` (env-only tokens)
-
-**Preview:**
-
-```sql
-SHOW COLUMNS FROM meta_pixels LIKE 'access_token';
-```
-
-**Apply:**
+**Apply (existing `meta_pixels` — env-only tokens, if `access_token` is still NOT NULL):**
 
 ```sql
 ALTER TABLE meta_pixels
@@ -1132,7 +1122,21 @@ ALTER TABLE meta_pixels
 UPDATE meta_pixels SET access_token = NULL WHERE access_token IS NOT NULL;
 ```
 
+**Apply (existing `meta_capi_event_logs` — date filter index, only if preview shows no `sent_at` index):**
+
+```sql
+ALTER TABLE meta_capi_event_logs
+    ADD INDEX meta_capi_event_logs_sent_at_index (sent_at);
+```
+
 **Rollback:**
+
+```sql
+DROP TABLE IF EXISTS meta_capi_event_logs;
+DROP TABLE IF EXISTS meta_pixels;
+```
+
+**Rollback (nullable token only):**
 
 ```sql
 ALTER TABLE meta_pixels

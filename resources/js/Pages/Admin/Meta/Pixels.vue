@@ -3,6 +3,8 @@ import { ref } from 'vue';
 import { Head, router, useForm } from '@inertiajs/vue3';
 import AdminLayout from '@/Layouts/AdminLayout.vue';
 import PageHeader from '@/Components/Admin/PageHeader.vue';
+import MetaCapiEventFilters from '@/Components/Admin/MetaCapiEventFilters.vue';
+import Pagination from '@/Components/Admin/Pagination.vue';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
 import {
@@ -15,13 +17,23 @@ import {
 } from '@/Components/ui/table';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/Components/ui/card';
 
-defineProps({
+const props = defineProps({
     envPixels: { type: Array, default: () => [] },
     allowDatabasePixels: { type: Boolean, default: false },
     capiEnabled: { type: Boolean, default: true },
     pixels: { type: Array, default: () => [] },
-    recentLogs: { type: Array, default: () => [] },
+    filters: { type: Object, default: () => ({}) },
+    filterOptions: { type: Object, default: () => ({}) },
+    eventLogs: { type: Object, default: () => ({ data: [] }) },
 });
+
+const applyEventFilters = (form) => {
+    router.get('/admin/meta/pixels', { ...form }, {
+        preserveState: true,
+        preserveScroll: true,
+        replace: true,
+    });
+};
 
 const pixelForm = useForm({
     label: '',
@@ -299,38 +311,66 @@ const removePixel = (pixel) => {
 
         <Card class="shadow-none">
             <CardHeader class="pb-2">
-                <CardTitle class="text-base">Recent CAPI deliveries</CardTitle>
-                <CardDescription>Last 25 server events (all pixels).</CardDescription>
+                <CardTitle class="text-base">CAPI event log</CardTitle>
+                <CardDescription>
+                    Server-side Purchase and InitiateCheckout deliveries. Filter by pixel, event, marketer sid, and date.
+                </CardDescription>
             </CardHeader>
-            <CardContent class="overflow-x-auto">
+            <CardContent class="mb-4">
+                <MetaCapiEventFilters
+                    :filters="props.filters"
+                    :options="props.filterOptions"
+                    @apply="applyEventFilters"
+                    @reset="applyEventFilters"
+                />
+            </CardContent>
+            <CardContent class="overflow-x-auto border-t pt-4">
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead>When</TableHead>
+                            <TableHead>Time</TableHead>
                             <TableHead>Pixel</TableHead>
                             <TableHead>Event</TableHead>
+                            <TableHead>SID (marketer)</TableHead>
                             <TableHead>Order</TableHead>
                             <TableHead>Status</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="log in recentLogs" :key="log.id">
+                        <TableRow v-for="log in eventLogs.data || []" :key="log.id">
                             <TableCell class="whitespace-nowrap text-sm">{{ log.sent_at || '—' }}</TableCell>
-                            <TableCell class="text-sm">{{ log.pixel_label }} ({{ log.pixel_id }})</TableCell>
+                            <TableCell class="text-sm">
+                                <span class="font-medium">{{ log.pixel_label }}</span>
+                                <span class="block font-mono text-xs text-muted-foreground">{{ log.pixel_id }}</span>
+                            </TableCell>
                             <TableCell class="text-sm">{{ log.event_name }}</TableCell>
+                            <TableCell class="text-sm">
+                                <template v-if="log.sid">
+                                    <span class="font-mono text-xs">{{ log.sid }}</span>
+                                    <span v-if="log.partner_name" class="block text-muted-foreground">{{ log.partner_name }}</span>
+                                </template>
+                                <span v-else class="text-muted-foreground">—</span>
+                            </TableCell>
                             <TableCell class="font-mono text-xs">{{ log.order_uuid || '—' }}</TableCell>
                             <TableCell class="text-sm">
                                 <span :class="log.status === 'success' ? 'text-emerald-700' : 'text-rose-700'">
                                     {{ log.status }}
                                 </span>
+                                <span v-if="log.http_status" class="block text-xs text-muted-foreground">HTTP {{ log.http_status }}</span>
                                 <span v-if="log.error_message" class="block text-xs text-muted-foreground">{{ log.error_message }}</span>
                             </TableCell>
                         </TableRow>
-                        <TableRow v-if="!recentLogs.length">
-                            <TableCell colspan="5" class="text-center text-muted-foreground">No CAPI events yet.</TableCell>
+                        <TableRow v-if="!(eventLogs.data || []).length">
+                            <TableCell colspan="6" class="text-center text-muted-foreground">No CAPI events match these filters.</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>
+                <Pagination
+                    v-if="eventLogs?.links"
+                    class="mt-4"
+                    :links="eventLogs.links"
+                    :meta="eventLogs.meta"
+                />
             </CardContent>
         </Card>
     </AdminLayout>

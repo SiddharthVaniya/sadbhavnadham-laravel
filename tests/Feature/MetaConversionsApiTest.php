@@ -5,10 +5,12 @@ use App\Models\DonationItem;
 use App\Models\DonationOrder;
 use App\Models\MetaCapiEventLog;
 use App\Models\MetaPixel;
+use App\Models\User;
 use App\Services\Meta\MetaConversionsApiService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Inertia\Testing\AssertableInertia as Assert;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
@@ -117,6 +119,84 @@ it('sends purchase events to meta capi using env pixel credentials', function ()
     $pixel = MetaPixel::query()->where('pixel_id', '111222333')->first();
     expect($pixel)->not->toBeNull()
         ->and($pixel->hasAccessToken())->toBeFalse();
+});
+
+it('filters capi event logs by pixel event and marketer sid', function () {
+    $admin = capiAdmin();
+    $marketer = User::factory()->create(['name' => 'Ash Test', 'referral_code' => 'ashcapi']);
+    $otherMarketer = User::factory()->create(['name' => 'Other', 'referral_code' => 'othercapi']);
+
+    $pixelA = MetaPixel::factory()->create(['label' => 'Pixel A', 'pixel_id' => '900000000000001']);
+    $pixelB = MetaPixel::factory()->create(['label' => 'Pixel B', 'pixel_id' => '900000000000002']);
+
+    $orderAsh = DonationOrder::query()->create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'order_filter_ash',
+        'donor_name' => 'Donor',
+        'donor_email' => 'donor@example.com',
+        'donor_phone' => '919876543210',
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'total_amount' => 100,
+        'currency' => 'INR',
+        'partner_user_id' => $marketer->id,
+        'partner_code' => 'ashcapi',
+    ]);
+
+    $orderOther = DonationOrder::query()->create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'order_filter_other',
+        'donor_name' => 'Donor 2',
+        'donor_email' => 'donor2@example.com',
+        'donor_phone' => '919876543211',
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'total_amount' => 200,
+        'currency' => 'INR',
+        'partner_user_id' => $otherMarketer->id,
+        'partner_code' => 'othercapi',
+    ]);
+
+    MetaCapiEventLog::query()->create([
+        'meta_pixel_id' => $pixelA->id,
+        'donation_order_id' => $orderAsh->id,
+        'event_name' => 'Purchase',
+        'event_id' => 'purchase_ash',
+        'status' => MetaCapiEventLog::STATUS_SUCCESS,
+        'sent_at' => now(),
+    ]);
+
+    MetaCapiEventLog::query()->create([
+        'meta_pixel_id' => $pixelA->id,
+        'donation_order_id' => $orderOther->id,
+        'event_name' => 'InitiateCheckout',
+        'event_id' => 'checkout_other',
+        'status' => MetaCapiEventLog::STATUS_SUCCESS,
+        'sent_at' => now(),
+    ]);
+
+    MetaCapiEventLog::query()->create([
+        'meta_pixel_id' => $pixelB->id,
+        'donation_order_id' => $orderAsh->id,
+        'event_name' => 'Purchase',
+        'event_id' => 'purchase_ash_b',
+        'status' => MetaCapiEventLog::STATUS_ERROR,
+        'sent_at' => now(),
+    ]);
+
+    actingAs($admin)
+        ->get(route('admin.meta.pixels', [
+            'meta_pixel_id' => $pixelA->id,
+            'event_name' => 'Purchase',
+            'partner_user_id' => $marketer->id,
+        ]))
+        ->assertOk()
+        ->assertInertia(fn (Assert $page) => $page
+            ->component('Admin/Meta/Pixels')
+            ->has('eventLogs.data', 1)
+            ->where('eventLogs.data.0.event_name', 'Purchase')
+            ->where('eventLogs.data.0.sid', 'ashcapi')
+            ->where('eventLogs.data.0.partner_name', 'Ash Test'));
 });
 
 it('queues capi purchase job when an order is completed as paid', function () {

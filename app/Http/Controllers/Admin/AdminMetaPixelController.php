@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\MetaCapiEventLog;
 use App\Models\MetaPixel;
+use App\Support\AdminInertiaResources;
+use App\Support\Meta\MetaCapiEventLogQuery;
 use App\Support\Meta\MetaCapiPixelRegistry;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -13,8 +15,9 @@ use Inertia\Response;
 
 class AdminMetaPixelController extends Controller
 {
-    public function index(MetaCapiPixelRegistry $registry): Response
+    public function index(Request $request, MetaCapiPixelRegistry $registry): Response
     {
+        $filters = MetaCapiEventLogQuery::filtersFromRequest($request);
         $envPixelIds = collect($registry->envPixelsForAdmin())->pluck('pixel_id')->all();
 
         $pixels = MetaPixel::query()
@@ -27,31 +30,28 @@ class AdminMetaPixelController extends Controller
             ->values()
             ->all();
 
-        $recentLogs = MetaCapiEventLog::query()
-            ->with(['pixel:id,label,pixel_id', 'donationOrder:id,order_uuid'])
+        $eventLogs = MetaCapiEventLogQuery::apply(
+            MetaCapiEventLog::query()
+                ->with([
+                    'pixel:id,label,pixel_id',
+                    'donationOrder:id,order_uuid,partner_user_id,partner_code',
+                    'donationOrder.partner:id,name,referral_code',
+                ]),
+            $filters,
+        )
             ->orderByDesc('id')
-            ->limit(25)
-            ->get()
-            ->map(fn (MetaCapiEventLog $log) => [
-                'id' => $log->id,
-                'pixel_label' => $log->pixel?->label,
-                'pixel_id' => $log->pixel?->pixel_id,
-                'event_name' => $log->event_name,
-                'event_id' => $log->event_id,
-                'status' => $log->status,
-                'http_status' => $log->http_status,
-                'error_message' => $log->error_message,
-                'order_uuid' => $log->donationOrder?->order_uuid,
-                'sent_at' => $log->sent_at?->timezone(config('app.timezone'))->toDateTimeString(),
-            ])
-            ->all();
+            ->paginate(AdminInertiaResources::LIST_PER_PAGE)
+            ->withQueryString()
+            ->through(fn (MetaCapiEventLog $log) => MetaCapiEventLogQuery::serializeLog($log));
 
         return Inertia::render('Admin/Meta/Pixels', [
             'envPixels' => $registry->envPixelsForAdmin(),
             'allowDatabasePixels' => (bool) config('meta_capi.allow_database_pixels', false),
             'capiEnabled' => (bool) config('meta_capi.enabled', true),
             'pixels' => $pixels,
-            'recentLogs' => $recentLogs,
+            'filters' => $filters,
+            'filterOptions' => MetaCapiEventLogQuery::filterOptions(),
+            'eventLogs' => $eventLogs,
         ]);
     }
 
