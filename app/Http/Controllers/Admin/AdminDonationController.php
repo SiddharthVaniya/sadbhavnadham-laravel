@@ -239,10 +239,7 @@ class AdminDonationController extends Controller
     public function export(Request $request): StreamedResponse
     {
         $duration = $this->donationOrderListQuery->resolveDuration($request);
-
-        [$sort, $dir] = $this->donationOrderListQuery->resolveSort($request);
-        $exportQuery = $this->donationOrderListQuery->filtered($request, $duration);
-        $this->donationOrderListQuery->applySort($exportQuery, $sort, $dir);
+        $exportQuery = $this->donationOrderListQuery->exportQuery($request, $duration);
         $causeTitleFilter = $request->filled('cause_title')
             ? trim((string) $request->input('cause_title'))
             : null;
@@ -254,7 +251,10 @@ class AdminDonationController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function () use ($exportQuery, $causeTitleFilter): void {
+        $qualifiedKey = (new DonationOrder)->getQualifiedKeyName();
+        $keyName = (new DonationOrder)->getKeyName();
+
+        $callback = function () use ($exportQuery, $causeTitleFilter, $qualifiedKey, $keyName): void {
             $file = fopen('php://output', 'w');
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
@@ -274,7 +274,7 @@ class AdminDonationController extends Controller
                 'Paid At',
             ]);
 
-            $exportQuery->chunkById(200, function ($orders) use ($file, $causeTitleFilter): void {
+            $exportQuery->chunkById(500, function ($orders) use ($file, $causeTitleFilter): void {
                 foreach ($orders as $order) {
                     foreach (AdminInertiaData::donationTableRows($order, $causeTitleFilter) as $row) {
                         fputcsv($file, [
@@ -294,7 +294,7 @@ class AdminDonationController extends Controller
                         ]);
                     }
                 }
-            });
+            }, $qualifiedKey, $keyName);
 
             fclose($file);
         };

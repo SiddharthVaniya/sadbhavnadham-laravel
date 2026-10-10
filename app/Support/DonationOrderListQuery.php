@@ -101,6 +101,18 @@ class DonationOrderListQuery
     }
 
     /**
+     * Same filters as the donations index, prepared for CSV streaming.
+     *
+     * List sort clauses must not be applied: Laravel's chunkById/forPageAfterId
+     * only removes ORDER BY for the exact chunk column, so leftover sorts
+     * (created_at, cause subqueries, etc.) skip or duplicate rows across chunks.
+     */
+    public function exportQuery(Request $request, string $duration = 'all'): Builder
+    {
+        return $this->filtered($request, $duration)->reorder();
+    }
+
+    /**
      * @return array{0: string, 1: string}
      */
     public function resolveSort(Request $request): array
