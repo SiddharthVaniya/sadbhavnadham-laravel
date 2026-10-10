@@ -49,7 +49,9 @@ const applyFilters = (form) => {
         <Card class="mb-4 shadow-none">
             <CardHeader class="pb-2">
                 <CardTitle class="text-base">Filters</CardTitle>
-                <CardDescription>Same filters as Overview and Ad insights.</CardDescription>
+                <CardDescription>
+                    Set From/To dates, then use <strong>Sync date range from Meta</strong> to pull Insights for that range (no need to apply filters first).
+                </CardDescription>
             </CardHeader>
             <CardContent>
                 <MetaSpendFilters
@@ -57,6 +59,8 @@ const applyFilters = (form) => {
                     :options="filterOptions"
                     show-marketer
                     show-match
+                    show-sync-range
+                    sync-redirect="analytics"
                     @apply="applyFilters"
                     @reset="applyFilters"
                 />

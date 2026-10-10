@@ -238,6 +238,28 @@ it('does not zero daily spend when meta returns no matched rows for that day', f
     expect((float) $daily->spend_amount)->toBe(420.0);
 });
 
+it('redirects meta analytics sync back with the selected date range', function () {
+    $admin = metaAdmin();
+    createMetaAccount();
+
+    Http::fake([
+        'graph.facebook.com/*' => Http::response(['data' => []], 200),
+    ]);
+
+    RateLimiter::clear('meta-sync:admin:'.$admin->id);
+
+    actingAs($admin)
+        ->post(route('admin.meta.sync'), [
+            'from' => '2026-10-01',
+            'to' => '2026-10-10',
+            'redirect' => 'analytics',
+        ])
+        ->assertRedirect(route('admin.meta.analytics', [
+            'from_date' => '2026-10-01',
+            'to_date' => '2026-10-10',
+        ]));
+});
+
 it('skips inactive meta accounts during sync', function () {
     $admin = metaAdmin();
     createMetaAccount(['is_active' => false, 'label' => 'Off']);

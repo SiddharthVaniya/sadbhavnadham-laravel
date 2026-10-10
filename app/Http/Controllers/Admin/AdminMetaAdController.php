@@ -246,6 +246,19 @@ class AdminMetaAdController extends Controller
      */
     private function metaFilterParams(Request $request): array
     {
-        return $request->only(MetaAdSpendQuery::filterQueryKeys(includeMarketer: true, includeMatch: true));
+        $params = $request->only(MetaAdSpendQuery::filterQueryKeys(includeMarketer: true, includeMatch: true));
+
+        if (! filled($params['from_date'] ?? null) && $request->filled('from')) {
+            $params['from_date'] = $request->input('from');
+        }
+
+        if (! filled($params['to_date'] ?? null) && $request->filled('to')) {
+            $params['to_date'] = $request->input('to');
+        }
+
+        return array_filter(
+            $params,
+            fn (mixed $value): bool => $value !== null && $value !== '',
+        );
     }
 }

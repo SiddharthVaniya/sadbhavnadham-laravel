@@ -62,6 +62,8 @@ const applyFilters = (form) => {
                     :options="filterOptions"
                     show-marketer
                     show-match
+                    show-sync-range
+                    sync-redirect="insights"
                     @apply="applyFilters"
                     @reset="applyFilters"
                 />

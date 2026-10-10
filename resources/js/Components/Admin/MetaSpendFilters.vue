@@ -1,5 +1,6 @@
 <script setup>
-import { reactive, watch } from 'vue';
+import { computed, reactive, watch } from 'vue';
+import SyncFromLiveMetaButton from '@/Components/Admin/SyncFromLiveMetaButton.vue';
 import { Button } from '@/Components/ui/button';
 import { Input } from '@/Components/ui/input';
 
@@ -8,6 +9,8 @@ const props = defineProps({
     options: { type: Object, required: true },
     showMarketer: { type: Boolean, default: false },
     showMatch: { type: Boolean, default: false },
+    showSyncRange: { type: Boolean, default: false },
+    syncRedirect: { type: String, default: 'overview' },
 });
 
 const emit = defineEmits(['apply', 'reset']);
@@ -49,6 +52,23 @@ watch(
 const selectClass = 'h-9 w-full rounded-md border border-input bg-background px-3 text-sm';
 
 const apply = () => emit('apply', { ...form });
+
+const syncRangeReady = computed(() => Boolean(form.from_date && form.to_date));
+
+const syncFilterParams = computed(() => ({
+    from_date: form.from_date,
+    to_date: form.to_date,
+    q: form.q,
+    user_id: form.user_id,
+    meta_ad_account_id: form.meta_ad_account_id,
+    app_id: form.app_id,
+    campaign: form.campaign,
+    adset: form.adset,
+    theme: form.theme,
+    cause: form.cause,
+    match: form.match,
+    delivery: form.delivery,
+}));
 
 const reset = () => {
     form.q = '';
@@ -164,9 +184,20 @@ const reset = () => {
             </select>
         </div>
 
-        <div class="flex items-end gap-2 md:col-span-2">
+        <div class="flex flex-wrap items-end gap-2 md:col-span-3 xl:col-span-4">
             <Button type="submit">Apply filters</Button>
             <Button type="button" variant="outline" @click="reset">Reset</Button>
+            <SyncFromLiveMetaButton
+                v-if="showSyncRange"
+                :redirect="syncRedirect"
+                :from="form.from_date || null"
+                :to="form.to_date || null"
+                :meta-ad-account-id="form.meta_ad_account_id || null"
+                :extra="syncFilterParams"
+                variant="outline"
+                :label="syncRangeReady ? 'Sync date range from Meta' : 'Set from & to dates to sync'"
+                :disabled="!syncRangeReady"
+            />
         </div>
     </form>
 </template>
