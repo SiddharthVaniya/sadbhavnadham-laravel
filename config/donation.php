@@ -32,6 +32,12 @@ return [
     'pan_threshold_inr' => (int) env('DONATION_PAN_THRESHOLD_INR', 100000),
 
     /**
+     * Short TTL (seconds) for org-wide admin dashboard stats and monthly trend.
+     * Set to 0 to disable caching.
+     */
+    'admin_dashboard_cache_ttl' => (int) env('DONATION_ADMIN_DASHBOARD_CACHE_TTL', 90),
+
+    /**
      * Daily Excel donation report recipients (comma-separated in .env).
      * Sent at 01:00 for yesterday's donations. First address is To; rest are Cc.
      *

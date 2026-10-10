@@ -44,13 +44,14 @@ class AdminDashboardController extends Controller
         $monthKey = $request->input('month');
         $monthRange = AdminDashboardData::monthRange($monthKey);
         $birthdays = AdminDashboardData::birthdays();
+        $monthlyTrend = AdminDashboardData::monthlyTrend();
         $recentPage = max(1, (int) $request->input('recent_page', 1));
         $birthdayPage = max(1, (int) $request->input('birthday_page', 1));
         $todayBirthdayPage = max(1, (int) $request->input('today_birthday_page', 1));
 
         return Inertia::render('Admin/Dashboard', [
             'stats' => AdminDashboardData::stats(),
-            'monthlyTrend' => AdminDashboardData::monthlyTrend(),
+            'monthlyTrend' => $monthlyTrend,
             'recentDonations' => AdminDashboardData::recentDonationsPaginated($recentPage, $request->except('recent_page')),
             'topDonors' => AdminDashboardData::topDonors(),
             'topCauses' => AdminDashboardData::topCausesForRange($monthRange['start'], $monthRange['end']),
@@ -62,7 +63,7 @@ class AdminDashboardController extends Controller
                 ? AdminDashboardData::monthlyPartnerReferrals()
                 : null,
             'monthFilter' => [
-                'options' => AdminDashboardData::monthOptions(),
+                'options' => AdminDashboardData::monthOptions($monthlyTrend),
                 'selectedKey' => $monthRange['key'],
                 'selectedLabel' => $monthRange['label'],
             ],

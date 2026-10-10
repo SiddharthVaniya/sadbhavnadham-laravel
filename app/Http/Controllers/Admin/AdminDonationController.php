@@ -12,18 +12,17 @@ use App\Models\CausePackage;
 use App\Models\DonationItem;
 use App\Models\DonationOrder;
 use App\Models\Donor;
+use App\Models\User;
 use App\Services\AnalyticsService;
 use App\Services\DonationAttributionService;
 use App\Services\DonationPaymentService;
 use App\Services\PostalCodeLookupService;
 use App\Services\RazorpayRefundService;
-use App\Models\User;
 use App\Support\AdminInertiaData;
-use App\Support\AdminStaffReferralsData;
 use App\Support\AdminInertiaResources;
+use App\Support\DonationOrderListQuery;
 use App\Support\DonationVisibility;
 use App\Support\PanRequirementService;
-use App\Support\PeriodRange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -39,12 +38,13 @@ class AdminDonationController extends Controller
     public function __construct(
         private DonationPaymentService $donationPaymentService,
         private AnalyticsService $analytics,
+        private DonationOrderListQuery $donationOrderListQuery,
     ) {}
 
     public function index(Request $request): Response
     {
-        $duration = $this->resolveDonationsListDuration($request);
-        $query = $this->filteredDonationsQuery($request, $duration);
+        $duration = $this->donationOrderListQuery->resolveDuration($request);
+        $query = $this->donationOrderListQuery->filtered($request, $duration);
 
         $overviewBase = clone $query;
 
@@ -107,8 +107,8 @@ class AdminDonationController extends Controller
             $request->filled('partner_user_id'),
         ])->filter()->count();
 
-        [$sort, $dir] = $this->resolveDonationsListSort($request);
-        $this->applyDonationsListSort($query, $sort, $dir);
+        [$sort, $dir] = $this->donationOrderListQuery->resolveSort($request);
+        $this->donationOrderListQuery->applySort($query, $sort, $dir);
 
         $donations = $query
             ->paginate(25)
@@ -149,8 +149,6 @@ class AdminDonationController extends Controller
             ->limit(150)
             ->pluck('utm_content')
             ->values();
-
-        $this->donationPaymentService->rememberMissingFailures($donations->items());
 
         return Inertia::render('Admin/Donations/Index', [
             'donations' => AdminInertiaData::paginatedDonations(
@@ -230,6 +228,8 @@ class AdminDonationController extends Controller
                 'utm_campaign' => $request->input('utm_campaign'),
                 'utm_content' => $request->input('utm_content'),
                 'partner_user_id' => $request->input('partner_user_id'),
+                'min_amount' => $request->input('min_amount'),
+                'max_amount' => $request->input('max_amount'),
                 'sort' => $sort,
                 'dir' => $dir,
             ],
@@ -238,12 +238,11 @@ class AdminDonationController extends Controller
 
     public function export(Request $request): StreamedResponse
     {
-        $duration = $this->resolveDonationsListDuration($request);
+        $duration = $this->donationOrderListQuery->resolveDuration($request);
 
-        [$sort, $dir] = $this->resolveDonationsListSort($request);
-        $exportQuery = $this->filteredDonationsQuery($request, $duration);
-        $this->applyDonationsListSort($exportQuery, $sort, $dir);
-        $orders = $exportQuery->get();
+        [$sort, $dir] = $this->donationOrderListQuery->resolveSort($request);
+        $exportQuery = $this->donationOrderListQuery->filtered($request, $duration);
+        $this->donationOrderListQuery->applySort($exportQuery, $sort, $dir);
         $causeTitleFilter = $request->filled('cause_title')
             ? trim((string) $request->input('cause_title'))
             : null;
@@ -255,7 +254,7 @@ class AdminDonationController extends Controller
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
         ];
 
-        $callback = function () use ($orders, $causeTitleFilter): void {
+        $callback = function () use ($exportQuery, $causeTitleFilter): void {
             $file = fopen('php://output', 'w');
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
 
@@ -275,25 +274,27 @@ class AdminDonationController extends Controller
                 'Paid At',
             ]);
 
-            foreach ($orders as $order) {
-                foreach (AdminInertiaData::donationTableRows($order, $causeTitleFilter) as $row) {
-                    fputcsv($file, [
-                        $row['uuid'],
-                        $row['payment_id'],
-                        $row['donor_name'],
-                        $row['donor_email'],
-                        $row['donor_phone'],
-                        $row['cause'] === '—' ? '' : $row['cause'],
-                        $row['cause_title'] === '—' ? '' : $row['cause_title'],
-                        $row['total_amount'],
-                        $row['status'],
-                        $order->payment_provider,
-                        $order->hasReceipt() ? $order->receiptNumberFormatted() : '',
-                        $order->created_at?->format('Y-m-d H:i:s'),
-                        $order->paid_at?->format('Y-m-d H:i:s'),
-                    ]);
+            $exportQuery->chunkById(200, function ($orders) use ($file, $causeTitleFilter): void {
+                foreach ($orders as $order) {
+                    foreach (AdminInertiaData::donationTableRows($order, $causeTitleFilter) as $row) {
+                        fputcsv($file, [
+                            $row['uuid'],
+                            $row['payment_id'],
+                            $row['donor_name'],
+                            $row['donor_email'],
+                            $row['donor_phone'],
+                            $row['cause'] === '—' ? '' : $row['cause'],
+                            $row['cause_title'] === '—' ? '' : $row['cause_title'],
+                            $row['total_amount'],
+                            $row['status'],
+                            $order->payment_provider,
+                            $order->hasReceipt() ? $order->receiptNumberFormatted() : '',
+                            $order->created_at?->format('Y-m-d H:i:s'),
+                            $order->paid_at?->format('Y-m-d H:i:s'),
+                        ]);
+                    }
                 }
-            }
+            });
 
             fclose($file);
         };
@@ -953,7 +954,11 @@ class AdminDonationController extends Controller
 
         DonationVisibility::apply($query, $request->user());
 
-        $this->applyCreatedAtDateRange($query, $request->input('from_date'), $request->input('to_date'));
+        $this->donationOrderListQuery->applyCreatedAtDateRange(
+            $query,
+            $request->input('from_date'),
+            $request->input('to_date')
+        );
 
         if ($request->filled('search')) {
             $search = $request->search;
@@ -1003,170 +1008,6 @@ class AdminDonationController extends Controller
         ]);
     }
 
-    private function filteredDonationsQuery(Request $request, string $duration = 'all'): Builder
-    {
-        $query = DonationOrder::query()->with(['items.causeModel', 'items.package', 'subscription', 'partner']);
-
-        DonationVisibility::apply($query, $request->user());
-
-        // Search must look across all donations unless the user picks an explicit custom range.
-        if ($duration === 'custom') {
-            $this->applyCreatedAtDateRange($query, $request->input('from_date'), $request->input('to_date'));
-        } else {
-            $this->applyDurationFilter($query, $duration);
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('provider')) {
-            $this->applyProviderFilter($query, (string) $request->provider);
-        }
-
-        if ($request->filled('cause_id')) {
-            $causeId = (int) $request->input('cause_id');
-            $query->whereHas('items', fn (Builder $itemQuery) => $itemQuery->where('cause_id', $causeId));
-        }
-
-        if ($request->filled('package_id')) {
-            $packageId = (int) $request->input('package_id');
-            $query->whereHas('items', fn (Builder $itemQuery) => $itemQuery->where('cause_package_id', $packageId));
-        }
-
-        if ($request->filled('cause_title')) {
-            $this->applyCauseTitleFilter($query, trim((string) $request->input('cause_title')));
-        }
-
-        if ($request->filled('source')) {
-            DonationAttributionService::applyTrafficSourceFilter($query, (string) $request->input('source'));
-        }
-
-        if ($request->filled('platform')) {
-            DonationAttributionService::applyPlatformFilter($query, (string) $request->input('platform'));
-        }
-
-        if ($request->filled('utm_campaign')) {
-            $query->where('utm_campaign', (string) $request->input('utm_campaign'));
-        }
-
-        if ($request->filled('utm_content')) {
-            $query->where('utm_content', (string) $request->input('utm_content'));
-        }
-
-        if ($request->filled('partner_user_id')) {
-            $partner = User::query()->find((int) $request->input('partner_user_id'));
-
-            if ($partner) {
-                AdminStaffReferralsData::applyPartnerAttributionFilter($query, $partner);
-            } else {
-                $query->whereRaw('0 = 1');
-            }
-        }
-
-        if ($this->hasDonationsSearchTerm($request)) {
-            $search = trim((string) $request->input('search'));
-
-            $query->where(function ($subQuery) use ($search) {
-                $subQuery
-                    ->where('donor_name', 'like', "%{$search}%")
-                    ->orWhere('donor_email', 'like', "%{$search}%")
-                    ->orWhere('donor_phone', 'like', "%{$search}%")
-                    ->orWhere('provider_order_id', 'like', "%{$search}%")
-                    ->orWhere('provider_payment_id', 'like', "%{$search}%")
-                    ->orWhere('receipt_number', 'like', "%{$search}%")
-                    ->orWhere('utm_source', 'like', "%{$search}%")
-                    ->orWhere('utm_campaign', 'like', "%{$search}%")
-                    ->orWhere('utm_content', 'like', "%{$search}%");
-            });
-        }
-
-        return $query;
-    }
-
-    /**
-     * @return array{0: string, 1: string}
-     */
-    private function resolveDonationsListSort(Request $request): array
-    {
-        $sort = (string) $request->input('sort', 'created_at_ts');
-        $allowed = [
-            'payment_id',
-            'donor_name',
-            'source',
-            'cause',
-            'cause_title',
-            'total_amount',
-            'status',
-            'city',
-            'created_at_ts',
-            'created_at',
-        ];
-
-        if (! in_array($sort, $allowed, true)) {
-            $sort = 'created_at_ts';
-        }
-
-        $dir = strtolower((string) $request->input('dir', 'desc')) === 'asc' ? 'asc' : 'desc';
-
-        return [$sort, $dir];
-    }
-
-    private function applyDonationsListSort(Builder $query, string $sort, string $dir): void
-    {
-        if ($sort === 'payment_id') {
-            $query->orderByRaw('COALESCE(provider_payment_id, provider_order_id) '.$dir)
-                ->orderBy('id', $dir);
-
-            return;
-        }
-
-        if ($sort === 'cause') {
-            $query->orderBy(
-                DonationItem::query()
-                    ->select('causes.title')
-                    ->leftJoin('causes', 'causes.id', '=', 'donation_items.cause_id')
-                    ->whereColumn('donation_items.donation_order_id', 'donation_orders.id')
-                    ->orderBy('donation_items.id')
-                    ->limit(1),
-                $dir
-            )->orderBy('donation_orders.id', $dir);
-
-            return;
-        }
-
-        if ($sort === 'cause_title') {
-            $query->orderBy(
-                DonationItem::query()
-                    ->selectRaw('COALESCE(cause_packages.title, donation_items.title)')
-                    ->leftJoin('cause_packages', 'cause_packages.id', '=', 'donation_items.cause_package_id')
-                    ->whereColumn('donation_items.donation_order_id', 'donation_orders.id')
-                    ->orderBy('donation_items.id')
-                    ->limit(1),
-                $dir
-            )->orderBy('donation_orders.id', $dir);
-
-            return;
-        }
-
-        if ($sort === 'source') {
-            $query->orderByRaw('COALESCE(utm_source, \'\') '.$dir)
-                ->orderBy('id', $dir);
-
-            return;
-        }
-
-        $column = match ($sort) {
-            'donor_name' => 'donor_name',
-            'total_amount' => 'total_amount',
-            'status' => 'status',
-            'city' => 'city',
-            default => 'created_at',
-        };
-
-        $query->orderBy($column, $dir)->orderBy('id', $dir);
-    }
-
     private function resolveDonationsBackUrl(Request $request): string
     {
         $candidate = $request->query('return');
@@ -1204,151 +1045,4 @@ class AdminDonationController extends Controller
     /**
      * When staff search by donor/phone/etc., default "Today" must not hide older matches.
      */
-    private function resolveDonationsListDuration(Request $request): string
-    {
-        if ($request->filled('from_date') || $request->filled('to_date')) {
-            return 'custom';
-        }
-
-        $duration = (string) $request->input('duration', 'today');
-
-        // A search on the default period looks across all donations; any other chosen period is honoured.
-        if ($this->hasDonationsSearchTerm($request) && in_array($duration, ['today', ''], true)) {
-            return 'all';
-        }
-
-        return $duration;
-    }
-
-    private function hasDonationsSearchTerm(Request $request): bool
-    {
-        return trim((string) $request->input('search', '')) !== '';
-    }
-
-    /**
-     * "Razorpay" covers both checkout and multi-use QR payments so totals
-     * match the Razorpay account; "razorpay_qr" narrows to QR only.
-     */
-    private function applyProviderFilter(Builder $query, string $provider): void
-    {
-        if ($provider === DonationOrder::PROVIDER_RAZORPAY) {
-            $query->whereIn('payment_provider', [
-                DonationOrder::PROVIDER_RAZORPAY,
-                DonationOrder::PROVIDER_RAZORPAY_QR,
-            ]);
-
-            return;
-        }
-
-        $query->where('payment_provider', $provider);
-    }
-
-    private function applyCreatedAtDateRange(Builder $query, mixed $fromDate, mixed $toDate): void
-    {
-        if (! empty($fromDate)) {
-            $start = Carbon::parse((string) $fromDate)->startOfDay();
-            $this->applyActivityDateLowerBound($query, $start);
-        }
-
-        if (! empty($toDate)) {
-            $end = Carbon::parse((string) $toDate)->endOfDay();
-            $this->applyActivityDateUpperBound($query, $end);
-        }
-    }
-
-    private function applyCauseTitleFilter(Builder $query, string $title): void
-    {
-        $title = trim($title);
-        if ($title === '') {
-            return;
-        }
-
-        $variants = collect([
-            $title,
-            trim((string) preg_replace('/\s*\([^)]*\)/', '', $title)),
-        ])
-            ->map(fn (string $value) => trim($value))
-            ->filter()
-            ->unique()
-            ->values();
-
-        $query->whereHas('items', function (Builder $itemQuery) use ($variants) {
-            $itemQuery->where(function (Builder $inner) use ($variants) {
-                foreach ($variants as $index => $variant) {
-                    $like = '%'.addcslashes($variant, '%_\\').'%';
-                    $method = $index === 0 ? 'where' : 'orWhere';
-
-                    $inner->{$method}(function (Builder $match) use ($variant, $like) {
-                        $match
-                            ->whereHas('package', fn (Builder $packageQuery) => $packageQuery
-                                ->where('title', $variant)
-                                ->orWhere('title', 'like', $like))
-                            ->orWhere('title', 'like', $like)
-                            ->orWhere('cause', 'like', $like)
-                            ->orWhereRaw('CAST(meta AS CHAR) LIKE ?', [$like]);
-                    });
-                }
-            });
-        });
-    }
-
-    private function applyDurationFilter(Builder $query, string $duration): void
-    {
-        $now = now();
-
-        if ($duration === 'today') {
-            $this->applyActivityDateRange(
-                $query,
-                $now->copy()->startOfDay(),
-                $now->copy()->endOfDay()
-            );
-
-            return;
-        }
-
-        if ($calendar = PeriodRange::forKey($duration)) {
-            $this->applyActivityDateRange($query, $calendar['start'], $calendar['end']);
-
-            return;
-        }
-
-        if ($duration === 'last_7_days') {
-            $this->applyActivityDateLowerBound($query, $now->copy()->subDays(6)->startOfDay());
-
-            return;
-        }
-
-        if ($duration === 'last_30_days') {
-            $this->applyActivityDateLowerBound($query, $now->copy()->subDays(29)->startOfDay());
-
-            return;
-        }
-
-        if ($duration === 'last_90_days') {
-            $this->applyActivityDateLowerBound($query, $now->copy()->subDays(89)->startOfDay());
-        }
-    }
-
-    private function applyActivityDateRange(Builder $query, Carbon $start, Carbon $end): void
-    {
-        $query->whereActivityBetween($start, $end);
-    }
-
-    private function applyActivityDateLowerBound(Builder $query, Carbon $start): void
-    {
-        $query->whereActivityOnOrAfter($start);
-    }
-
-    private function applyActivityDateUpperBound(Builder $query, Carbon $end): void
-    {
-        $query->where(function (Builder $activityQuery) use ($end): void {
-            $activityQuery
-                ->where('paid_at', '<=', $end)
-                ->orWhere(function (Builder $unpaidQuery) use ($end): void {
-                    $unpaidQuery
-                        ->whereNull('paid_at')
-                        ->where('created_at', '<=', $end);
-                });
-        });
-    }
 }

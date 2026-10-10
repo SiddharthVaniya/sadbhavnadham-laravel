@@ -9,6 +9,8 @@ use App\Models\Donor;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class AdminDashboardData
@@ -19,34 +21,61 @@ class AdminDashboardData
 
     public static function stats(): array
     {
+        $ttl = self::cacheTtl();
+
+        if ($ttl <= 0 || app()->runningUnitTests()) {
+            return self::computeStats();
+        }
+
+        return Cache::remember('admin.dashboard.stats', $ttl, fn () => self::computeStats());
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function computeStats(): array
+    {
         $todayStart = now()->startOfDay();
         $todayEnd = now()->endOfDay();
         $monthStart = now()->startOfMonth();
         $monthEnd = now()->endOfMonth();
 
-        $causeCount = Cause::query()->count();
-        $activeCauseCount = Cause::query()->where('is_active', true)->count();
-        $packageCount = CausePackage::query()->count();
-        $activePackageCount = CausePackage::query()->where('is_active', true)->count();
+        $causeCounts = Cause::query()
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw('SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active')
+            ->first();
+        $packageCounts = CausePackage::query()
+            ->selectRaw('COUNT(*) as total')
+            ->selectRaw('SUM(CASE WHEN is_active = 1 THEN 1 ELSE 0 END) as active')
+            ->first();
 
-        $paidQuery = DonationOrder::query()->where('status', DonationOrder::STATUS_PAID);
+        $causeCount = (int) ($causeCounts->total ?? 0);
+        $activeCauseCount = (int) ($causeCounts->active ?? 0);
+        $packageCount = (int) ($packageCounts->total ?? 0);
+        $activePackageCount = (int) ($packageCounts->active ?? 0);
 
-        $totalDonations = (clone $paidQuery)->count();
-        $totalDonationAmount = (float) (clone $paidQuery)->sum('total_amount');
-
-        $todayDonations = (clone $paidQuery)
-            ->whereBetween('paid_at', [$todayStart, $todayEnd])
-            ->count();
-        $todayAmount = (float) (clone $paidQuery)
-            ->whereBetween('paid_at', [$todayStart, $todayEnd])
-            ->sum('total_amount');
-
-        $thisMonthDonations = (clone $paidQuery)
-            ->whereBetween('paid_at', [$monthStart, $monthEnd])
-            ->count();
-        $thisMonthAmount = (float) (clone $paidQuery)
-            ->whereBetween('paid_at', [$monthStart, $monthEnd])
-            ->sum('total_amount');
+        $paidAgg = DonationOrder::query()
+            ->where('status', DonationOrder::STATUS_PAID)
+            ->selectRaw('COUNT(*) as total_donations')
+            ->selectRaw('COALESCE(SUM(total_amount), 0) as total_amount')
+            ->selectRaw('COALESCE(AVG(total_amount), 0) as average_amount')
+            ->selectRaw(
+                'SUM(CASE WHEN paid_at BETWEEN ? AND ? THEN 1 ELSE 0 END) as today_donations',
+                [$todayStart, $todayEnd]
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN paid_at BETWEEN ? AND ? THEN total_amount ELSE 0 END), 0) as today_amount',
+                [$todayStart, $todayEnd]
+            )
+            ->selectRaw(
+                'SUM(CASE WHEN paid_at BETWEEN ? AND ? THEN 1 ELSE 0 END) as month_donations',
+                [$monthStart, $monthEnd]
+            )
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN paid_at BETWEEN ? AND ? THEN total_amount ELSE 0 END), 0) as month_amount',
+                [$monthStart, $monthEnd]
+            )
+            ->first();
 
         $statusCounts = DonationOrder::query()
             ->select('status', DB::raw('COUNT(*) as count'))
@@ -70,14 +99,14 @@ class AdminDashboardData
             'causeHealthPercent' => $causeCount > 0 ? (int) round(($activeCauseCount / $causeCount) * 100) : 0,
             'packageHealthPercent' => $packageCount > 0 ? (int) round(($activePackageCount / $packageCount) * 100) : 0,
             'donorCount' => Donor::query()->count(),
-            'totalDonations' => $totalDonations,
-            'totalDonationAmount' => $totalDonationAmount,
-            'todayDonations' => $todayDonations,
-            'todayAmount' => $todayAmount,
-            'thisMonthDonations' => $thisMonthDonations,
-            'thisMonthAmount' => $thisMonthAmount,
+            'totalDonations' => (int) ($paidAgg->total_donations ?? 0),
+            'totalDonationAmount' => (float) ($paidAgg->total_amount ?? 0),
+            'todayDonations' => (int) ($paidAgg->today_donations ?? 0),
+            'todayAmount' => (float) ($paidAgg->today_amount ?? 0),
+            'thisMonthDonations' => (int) ($paidAgg->month_donations ?? 0),
+            'thisMonthAmount' => (float) ($paidAgg->month_amount ?? 0),
             'totalDonationItems' => \App\Models\DonationItem::query()->count(),
-            'averageDonationAmount' => (float) ((clone $paidQuery)->average('total_amount') ?? 0),
+            'averageDonationAmount' => (float) ($paidAgg->average_amount ?? 0),
             'totalAttempts' => $statusTotal,
             'statusCounts' => [
                 'paid' => $paidCount,
@@ -99,6 +128,20 @@ class AdminDashboardData
     }
 
     public static function monthlyTrend(): array
+    {
+        $ttl = self::cacheTtl();
+
+        if ($ttl <= 0 || app()->runningUnitTests()) {
+            return self::computeMonthlyTrend();
+        }
+
+        return Cache::remember('admin.dashboard.monthly_trend', $ttl, fn () => self::computeMonthlyTrend());
+    }
+
+    /**
+     * @return list<array{key: string, label: string, year: int, month: int, donations: int, amount: float}>
+     */
+    private static function computeMonthlyTrend(): array
     {
         $start = now()->subMonths(11)->startOfMonth();
 
@@ -147,6 +190,11 @@ class AdminDashboardData
         }
 
         return $months->values()->all();
+    }
+
+    private static function cacheTtl(): int
+    {
+        return max(0, (int) config('donation.admin_dashboard_cache_ttl', 90));
     }
 
     public static function recentDonationsPaginated(int $page = 1, array $query = []): array
@@ -321,9 +369,13 @@ class AdminDashboardData
         ];
     }
 
-    public static function monthOptions(): array
+    /**
+     * @param  list<array{key: string, label: string}>|null  $trend
+     * @return list<array{key: string, label: string}>
+     */
+    public static function monthOptions(?array $trend = null): array
     {
-        return collect(self::monthlyTrend())
+        return collect($trend ?? self::monthlyTrend())
             ->map(fn (array $row) => [
                 'key' => $row['key'],
                 'label' => $row['label'],
@@ -517,25 +569,22 @@ class AdminDashboardData
             ? MarketerMonthlyBudgetService::mapForUsers($users->pluck('id')->all(), $budgetReference)
             : [];
 
+        $statsByUserId = self::partnerStatsByUserId($users, $start, $end);
+
         $partners = $users
-            ->map(function (User $user) use ($start, $end, $hrefParams, $includeBudgets, $budgetMap) {
-                $statsQuery = DonationOrder::query()
-                    ->where('status', DonationOrder::STATUS_PAID)
-                    ->whereBetween('paid_at', [$start, $end]);
-
-                AdminStaffReferralsData::applyPartnerAttributionFilter($statsQuery, $user);
-
+            ->map(function (User $user) use ($hrefParams, $includeBudgets, $budgetMap, $statsByUserId) {
                 $code = (string) $user->referral_code;
                 $budget = $includeBudgets
                     ? ($budgetMap[$user->id] ?? ['target_amount' => null, 'spend_amount' => 0.0])
                     : ['target_amount' => null, 'spend_amount' => 0.0];
+                $stats = $statsByUserId[$user->id] ?? ['paid_orders' => 0, 'revenue' => 0.0];
 
                 return [
                     'user_id' => $user->id,
                     'name' => $user->name,
                     'code' => $code,
-                    'paid_orders' => (int) (clone $statsQuery)->count(),
-                    'revenue' => (float) (clone $statsQuery)->sum('total_amount'),
+                    'paid_orders' => (int) $stats['paid_orders'],
+                    'revenue' => (float) $stats['revenue'],
                     'target_amount' => $budget['target_amount'],
                     'spend_amount' => (float) $budget['spend_amount'],
                     'referrals_href' => route('admin.referrals.index', array_merge($hrefParams, [
@@ -549,7 +598,7 @@ class AdminDashboardData
 
         // Legacy name matching can match one order to more than one partner, so the
         // period total is counted over distinct orders instead of summing partner rows.
-        $totals = self::distinctPartnerOrderTotals($start, $end);
+        $totals = self::distinctPartnerOrderTotals($start, $end, $users);
 
         $totalTarget = array_sum(array_map(
             static fn (array $row): float => (float) ($row['target_amount'] ?? 0),
@@ -575,13 +624,90 @@ class AdminDashboardData
     }
 
     /**
+     * Batch per-partner paid counts for a date range (exact partner_user_id + legacy UTM match).
+     *
+     * @param  Collection<int, User>  $users
+     * @return array<int, array{paid_orders: int, revenue: float}>
+     */
+    private static function partnerStatsByUserId(Collection $users, Carbon $start, Carbon $end): array
+    {
+        if ($users->isEmpty()) {
+            return [];
+        }
+
+        $stats = [];
+        foreach ($users as $user) {
+            $stats[$user->id] = ['paid_orders' => 0, 'revenue' => 0.0];
+        }
+
+        $exactRows = DonationOrder::query()
+            ->where('status', DonationOrder::STATUS_PAID)
+            ->whereBetween('paid_at', [$start, $end])
+            ->whereIn('partner_user_id', $users->pluck('id'))
+            ->groupBy('partner_user_id')
+            ->selectRaw('partner_user_id, COUNT(*) as paid_orders, COALESCE(SUM(total_amount), 0) as revenue')
+            ->get();
+
+        foreach ($exactRows as $row) {
+            $userId = (int) $row->partner_user_id;
+            $stats[$userId] = [
+                'paid_orders' => (int) $row->paid_orders,
+                'revenue' => (float) $row->revenue,
+            ];
+        }
+
+        $legacyOrders = DonationOrder::query()
+            ->where('status', DonationOrder::STATUS_PAID)
+            ->whereBetween('paid_at', [$start, $end])
+            ->whereNull('partner_user_id')
+            ->get(['id', 'total_amount', 'utm_content', 'utm_campaign', 'partner_user_id']);
+
+        foreach ($legacyOrders as $order) {
+            foreach ($users as $user) {
+                if (! self::legacyOrderMatchesPartner($order, $user)) {
+                    continue;
+                }
+
+                $stats[$user->id]['paid_orders']++;
+                $stats[$user->id]['revenue'] += (float) $order->total_amount;
+            }
+        }
+
+        return $stats;
+    }
+
+    private static function legacyOrderMatchesPartner(DonationOrder $order, User $partner): bool
+    {
+        if (filled($order->partner_user_id)) {
+            return (int) $order->partner_user_id === (int) $partner->id;
+        }
+
+        $code = StaffReferral::normalize($partner->referral_code);
+        $name = trim($partner->name);
+        $utmContent = (string) ($order->utm_content ?? '');
+        $utmCampaign = (string) ($order->utm_campaign ?? '');
+
+        if ($code !== null && $utmContent === $code) {
+            return true;
+        }
+
+        if ($name === '') {
+            return false;
+        }
+
+        return stripos($utmContent, $name) !== false
+            || stripos($utmCampaign, $name) !== false;
+    }
+
+    /**
      * Paid orders attributable to any registered partner, counted once per order.
      *
+     * @param  Collection<int, User>|null  $partners
      * @return array{orders: int, revenue: float}
      */
-    private static function distinctPartnerOrderTotals(Carbon $start, Carbon $end): array
+    private static function distinctPartnerOrderTotals(Carbon $start, Carbon $end, ?Collection $partners = null): array
     {
-        $partners = User::query()
+        $partners ??= User::query()
             ->whereNotNull('referral_code')
             ->where('referral_code', '!=', '')
             ->get(['id', 'name', 'referral_code']);
@@ -601,9 +727,13 @@ class AdminDashboardData
                 }
             });
 
+        $row = (clone $query)
+            ->selectRaw('COUNT(*) as orders, COALESCE(SUM(total_amount), 0) as revenue')
+            ->first();
+
         return [
-            'orders' => (int) (clone $query)->count(),
-            'revenue' => (float) (clone $query)->sum('total_amount'),
+            'orders' => (int) ($row->orders ?? 0),
+            'revenue' => (float) ($row->revenue ?? 0),
         ];
     }
 }

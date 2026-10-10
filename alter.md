@@ -1198,3 +1198,39 @@ ALTER TABLE meta_ad_spend_daily
 DROP TABLE IF EXISTS meta_ad_spend_daily;
 DROP TABLE IF EXISTS meta_ad_accounts;
 ```
+
+## 2026-10-10 - Donation list / search performance indexes
+
+Candidate indexes from the architecture performance audit. Prefer applying after `EXPLAIN` on staging/local confirms benefit. Do **not** auto-run.
+
+### Preview
+
+```sql
+SHOW INDEX FROM donation_orders WHERE Key_name IN (
+  'donation_orders_utm_campaign_index',
+  'donation_orders_receipt_number_index'
+);
+SHOW INDEX FROM link_tracking_visits WHERE Key_name = 'link_tracking_visits_sid_created_at_index';
+```
+
+### Apply
+
+```sql
+ALTER TABLE donation_orders
+    ADD INDEX donation_orders_utm_campaign_index (utm_campaign),
+    ADD INDEX donation_orders_receipt_number_index (receipt_number);
+
+ALTER TABLE link_tracking_visits
+    ADD INDEX link_tracking_visits_sid_created_at_index (sid, created_at);
+```
+
+### Rollback
+
+```sql
+ALTER TABLE donation_orders
+    DROP INDEX donation_orders_utm_campaign_index,
+    DROP INDEX donation_orders_receipt_number_index;
+
+ALTER TABLE link_tracking_visits
+    DROP INDEX link_tracking_visits_sid_created_at_index;
+```

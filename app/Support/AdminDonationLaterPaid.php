@@ -41,101 +41,138 @@ class AdminDonationLaterPaid
      */
     public static function warm(iterable $orders): void
     {
-        foreach (collect($orders) as $order) {
-            if (! $order instanceof DonationOrder || ! $order->isFailed()) {
-                continue;
-            }
+        $failed = collect($orders)
+            ->filter(fn ($order) => $order instanceof DonationOrder && $order->isFailed())
+            ->values();
 
+        if ($failed->isEmpty()) {
+            return;
+        }
+
+        $pending = $failed->filter(function (DonationOrder $order): bool {
             if (array_key_exists($order->id, self::$cacheByOrderId)) {
-                continue;
+                return false;
             }
 
-            self::$cacheByOrderId[$order->id] = self::resolveOne($order);
-        }
-    }
+            if (! self::hasMatchableIdentity($order) || self::failureMoment($order) === null) {
+                self::$cacheByOrderId[$order->id] = null;
 
-    /**
-     * @return array{uuid: string, payment_id: string, url: string}|null
-     */
-    private static function resolveOne(DonationOrder $failed): ?array
-    {
-        if (! self::hasMatchableIdentity($failed)) {
-            return null;
-        }
+                return false;
+            }
 
-        $failedAt = self::failureMoment($failed);
+            return true;
+        })->values();
 
-        if ($failedAt === null) {
-            return null;
+        if ($pending->isEmpty()) {
+            return;
         }
 
-        $windowEnd = $failedAt->copy()->addHours(self::WINDOW_HOURS);
+        $windowStart = $pending
+            ->map(fn (DonationOrder $order) => self::failureMoment($order))
+            ->filter()
+            ->min();
+        $windowEnd = $pending
+            ->map(fn (DonationOrder $order) => self::failureMoment($order)?->copy()->addHours(self::WINDOW_HOURS))
+            ->filter()
+            ->max();
 
-        $query = DonationOrder::query()
+        if ($windowStart === null || $windowEnd === null) {
+            foreach ($pending as $order) {
+                self::$cacheByOrderId[$order->id] = null;
+            }
+
+            return;
+        }
+
+        $donorIds = $pending->pluck('donor_id')->filter()->unique()->values()->all();
+        $phones = $pending
+            ->map(fn (DonationOrder $order) => self::normalizedPhone($order->donor_phone))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+        $emails = $pending
+            ->map(fn (DonationOrder $order) => self::normalizedEmail($order->donor_email))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $paidCandidates = DonationOrder::query()
             ->where('status', DonationOrder::STATUS_PAID)
-            ->where('id', '!=', $failed->id)
-            ->where(function ($q) use ($failedAt, $windowEnd): void {
-                $q->where(function ($paidAtQuery) use ($failedAt, $windowEnd): void {
+            ->whereNotIn('id', $pending->pluck('id'))
+            ->where(function ($q) use ($windowStart, $windowEnd): void {
+                $q->where(function ($paidAtQuery) use ($windowStart, $windowEnd): void {
                     $paidAtQuery->whereNotNull('paid_at')
-                        ->where('paid_at', '>', $failedAt)
+                        ->where('paid_at', '>', $windowStart)
                         ->where('paid_at', '<=', $windowEnd);
-                })->orWhere(function ($createdQuery) use ($failedAt, $windowEnd): void {
+                })->orWhere(function ($createdQuery) use ($windowStart, $windowEnd): void {
                     $createdQuery->whereNull('paid_at')
-                        ->where('created_at', '>', $failedAt)
+                        ->where('created_at', '>', $windowStart)
                         ->where('created_at', '<=', $windowEnd);
                 });
-            });
+            })
+            ->where(function ($q) use ($donorIds, $phones, $emails): void {
+                $hasConstraint = false;
 
-        self::applyDonorConstraint($query, $failed);
-
-        $match = $query
-            ->orderByRaw('COALESCE(paid_at, created_at) asc')
-            ->orderBy('id')
-            ->first(['id', 'order_uuid', 'donor_id', 'donor_phone', 'donor_email', 'provider_payment_id', 'provider_order_id', 'paid_at', 'created_at', 'status']);
-
-        if (! $match || ! self::isLaterPaidMatch($failed, $match)) {
-            return null;
-        }
-
-        return [
-            'uuid' => $match->order_uuid,
-            'payment_id' => $match->provider_payment_id ?: $match->provider_order_id ?: (string) $match->id,
-            'url' => route('admin.donations.show', $match),
-        ];
-    }
-
-    /**
-     * @param  \Illuminate\Database\Eloquent\Builder<DonationOrder>  $query
-     */
-    private static function applyDonorConstraint($query, DonationOrder $failed): void
-    {
-        if (filled($failed->donor_id)) {
-            $query->where('donor_id', $failed->donor_id);
-
-            return;
-        }
-
-        $phone = self::normalizedPhone($failed->donor_phone);
-
-        if ($phone !== null) {
-            $raw = trim((string) $failed->donor_phone);
-            $query->where(function ($q) use ($phone, $raw): void {
-                $q->where('donor_phone', $phone);
-
-                if ($raw !== '' && $raw !== $phone) {
-                    $q->orWhere('donor_phone', $raw);
+                if ($donorIds !== []) {
+                    $q->whereIn('donor_id', $donorIds);
+                    $hasConstraint = true;
                 }
 
-                $q->orWhere('donor_phone', 'like', '%'.$phone);
-            });
+                foreach ($phones as $phone) {
+                    $method = $hasConstraint ? 'orWhere' : 'where';
+                    $q->{$method}(function ($phoneQuery) use ($phone): void {
+                        $phoneQuery->where('donor_phone', $phone)
+                            ->orWhere('donor_phone', 'like', '%'.$phone);
+                    });
+                    $hasConstraint = true;
+                }
 
-            return;
-        }
+                if ($emails !== []) {
+                    $method = $hasConstraint ? 'orWhere' : 'where';
+                    $q->{$method}(function ($emailQuery) use ($emails): void {
+                        foreach ($emails as $index => $email) {
+                            $emailMethod = $index === 0 ? 'whereRaw' : 'orWhereRaw';
+                            $emailQuery->{$emailMethod}('LOWER(donor_email) = ?', [$email]);
+                        }
+                    });
+                    $hasConstraint = true;
+                }
 
-        $email = self::normalizedEmail($failed->donor_email);
+                if (! $hasConstraint) {
+                    $q->whereRaw('0 = 1');
+                }
+            })
+            ->get([
+                'id',
+                'order_uuid',
+                'donor_id',
+                'donor_phone',
+                'donor_email',
+                'provider_payment_id',
+                'provider_order_id',
+                'paid_at',
+                'created_at',
+                'status',
+            ]);
 
-        if ($email !== null) {
-            $query->whereRaw('LOWER(donor_email) = ?', [$email]);
+        foreach ($pending as $failed) {
+            $match = $paidCandidates
+                ->filter(fn (DonationOrder $paid) => self::isLaterPaidMatch($failed, $paid))
+                ->sortBy([
+                    fn (DonationOrder $paid) => ($paid->paid_at ?? $paid->created_at)?->getTimestamp() ?? 0,
+                    fn (DonationOrder $paid) => $paid->id,
+                ])
+                ->first();
+
+            self::$cacheByOrderId[$failed->id] = $match
+                ? [
+                    'uuid' => $match->order_uuid,
+                    'payment_id' => $match->provider_payment_id ?: $match->provider_order_id ?: (string) $match->id,
+                    'url' => route('admin.donations.show', $match),
+                ]
+                : null;
         }
     }
 

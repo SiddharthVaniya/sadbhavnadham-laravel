@@ -8,11 +8,11 @@ use App\Models\LinkTrackingSummary;
 use App\Models\LinkTrackingVisit;
 use App\Models\User;
 use App\Services\DonationAttributionService;
-use App\Support\AdminInertiaData;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class MarketerPerformanceData
@@ -868,38 +868,28 @@ class MarketerPerformanceData
     {
         $ordersQuery = self::attributedPaidOrders($user, $range);
         self::applyDonationDeviceFilter($ordersQuery, $filters);
-        $orders = $ordersQuery
-            ->whereNotNull('paid_at')
-            ->get(['paid_at', 'total_amount']);
+        $ordersQuery->whereNotNull('paid_at');
 
-        $timezone = config('app.timezone');
-        $buckets = [];
-
-        for ($hour = 0; $hour < 24; $hour++) {
-            $buckets[(string) $hour] = [
-                'donations' => 0,
-                'amount' => 0.0,
-            ];
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            $hourExpression = "CAST(strftime('%H', paid_at) AS INTEGER)";
+        } else {
+            $hourExpression = 'HOUR(paid_at)';
         }
 
-        foreach ($orders as $order) {
-            $paidAt = $order->paid_at?->timezone($timezone);
-
-            if ($paidAt === null) {
-                continue;
-            }
-
-            $key = (string) (int) $paidAt->format('G');
-            $buckets[$key]['donations']++;
-            $buckets[$key]['amount'] += (float) $order->total_amount;
-        }
+        $rows = $ordersQuery
+            ->selectRaw("{$hourExpression} as hour")
+            ->selectRaw('COUNT(*) as donations')
+            ->selectRaw('SUM(total_amount) as amount')
+            ->groupByRaw($hourExpression)
+            ->get()
+            ->keyBy(fn ($row) => (string) (int) $row->hour);
 
         $points = collect(range(0, 23))
             ->map(fn (int $hour) => [
                 'key' => (string) $hour,
                 'label' => self::hourAxisLabel($hour),
-                'donations' => $buckets[(string) $hour]['donations'],
-                'amount' => round($buckets[(string) $hour]['amount'], 2),
+                'donations' => (int) ($rows->get((string) $hour)->donations ?? 0),
+                'amount' => round((float) ($rows->get((string) $hour)->amount ?? 0), 2),
             ])
             ->values()
             ->all();
@@ -1004,11 +994,22 @@ class MarketerPerformanceData
     {
         $ordersQuery = self::attributedPaidOrders($user, $range);
         self::applyDonationDeviceFilter($ordersQuery, $filters);
-        $orders = $ordersQuery
-            ->whereNotNull('paid_at')
-            ->get(['paid_at', 'utm_campaign', 'total_amount']);
+        $ordersQuery->whereNotNull('paid_at');
 
-        if ($orders->isEmpty()) {
+        if (DB::connection()->getDriverName() === 'sqlite') {
+            $hourExpression = "CAST(strftime('%H', paid_at) AS INTEGER)";
+        } else {
+            $hourExpression = 'HOUR(paid_at)';
+        }
+
+        $rows = $ordersQuery
+            ->selectRaw("{$hourExpression} as bucket")
+            ->selectRaw("COALESCE(NULLIF(utm_campaign, ''), 'Untitled') as campaign")
+            ->selectRaw('SUM(total_amount) as amount')
+            ->groupByRaw("{$hourExpression}, COALESCE(NULLIF(utm_campaign, ''), 'Untitled')")
+            ->get();
+
+        if ($rows->isEmpty()) {
             return [
                 'granularity' => 'hour',
                 'labels' => [],
@@ -1024,15 +1025,12 @@ class MarketerPerformanceData
             ->values()
             ->all();
 
-        $topCampaigns = self::topCampaignNamesFromOrders($orders);
-        $revenueByHourCampaign = self::campaignRevenueBucketsFromOrders($orders, fn (Carbon $paidAt) => (string) (int) $paidAt->format('G'));
-
-        $series = self::campaignRevenueSeriesFromBuckets($labels, $topCampaigns, $revenueByHourCampaign);
+        [$topCampaigns, $revenueBuckets] = self::campaignBucketsFromGroupedRows($rows);
 
         return [
             'granularity' => 'hour',
             'labels' => $labels,
-            'series' => $series,
+            'series' => self::campaignRevenueSeriesFromBuckets($labels, $topCampaigns, $revenueBuckets),
         ];
     }
 
@@ -1043,28 +1041,18 @@ class MarketerPerformanceData
      */
     private static function donationCampaignRevenueTrendDaily(User $user, array $range, array $filters = []): array
     {
+        $timezone = config('app.timezone');
+        $end = ($range['end'] ?? now())->copy()->timezone($timezone)->startOfDay();
+        $start = $range['start']?->copy()->timezone($timezone)->startOfDay();
+
         $ordersQuery = self::attributedPaidOrders($user, $range);
         self::applyDonationDeviceFilter($ordersQuery, $filters);
-        $orders = $ordersQuery
-            ->whereNotNull('paid_at')
-            ->get(['paid_at', 'utm_campaign', 'total_amount']);
-
-        if ($orders->isEmpty()) {
-            return [
-                'granularity' => 'day',
-                'labels' => [],
-                'series' => [],
-            ];
-        }
-
-        $timezone = config('app.timezone');
-        $start = $range['start']?->copy()->timezone($timezone)->startOfDay();
-        $end = ($range['end'] ?? now())->copy()->timezone($timezone)->startOfDay();
+        $ordersQuery->whereNotNull('paid_at');
 
         if ($start === null) {
-            $firstPaidAt = $orders->pluck('paid_at')->filter()->min();
-            $start = $firstPaidAt instanceof Carbon
-                ? $firstPaidAt->copy()->timezone($timezone)->startOfDay()
+            $firstPaidAt = (clone $ordersQuery)->min('paid_at');
+            $start = $firstPaidAt !== null
+                ? Carbon::parse((string) $firstPaidAt, $timezone)->startOfDay()
                 : now($timezone)->startOfDay();
         }
 
@@ -1074,6 +1062,28 @@ class MarketerPerformanceData
 
         if ($start->diffInDays($end) > 90) {
             $start = $end->copy()->subDays(89)->startOfDay();
+        }
+
+        $scopedQuery = self::attributedPaidOrders($user, [
+            'start' => $start,
+            'end' => $end->copy()->endOfDay(),
+        ]);
+        self::applyDonationDeviceFilter($scopedQuery, $filters);
+        $scopedQuery->whereNotNull('paid_at');
+
+        $rows = $scopedQuery
+            ->selectRaw('DATE(paid_at) as bucket')
+            ->selectRaw("COALESCE(NULLIF(utm_campaign, ''), 'Untitled') as campaign")
+            ->selectRaw('SUM(total_amount) as amount')
+            ->groupByRaw("DATE(paid_at), COALESCE(NULLIF(utm_campaign, ''), 'Untitled')")
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return [
+                'granularity' => 'day',
+                'labels' => [],
+                'series' => [],
+            ];
         }
 
         $labels = [];
@@ -1087,18 +1097,12 @@ class MarketerPerformanceData
             $cursor->addDay();
         }
 
-        $topCampaigns = self::topCampaignNamesFromOrders($orders);
-        $revenueByDayCampaign = self::campaignRevenueBucketsFromOrders(
-            $orders,
-            fn (Carbon $paidAt) => $paidAt->timezone($timezone)->toDateString(),
-        );
-
-        $series = self::campaignRevenueSeriesFromBuckets($labels, $topCampaigns, $revenueByDayCampaign);
+        [$topCampaigns, $revenueBuckets] = self::campaignBucketsFromGroupedRows($rows);
 
         return [
             'granularity' => 'day',
             'labels' => $labels,
-            'series' => $series,
+            'series' => self::campaignRevenueSeriesFromBuckets($labels, $topCampaigns, $revenueBuckets),
         ];
     }
 
@@ -1128,46 +1132,26 @@ class MarketerPerformanceData
     }
 
     /**
-     * @param  Collection<int, DonationOrder>  $orders
-     * @return list<string>
+     * @param  Collection<int, object{bucket: mixed, campaign: mixed, amount: mixed}>  $rows
+     * @return array{0: list<string>, 1: array<int|string, array<string, float>>}
      */
-    private static function topCampaignNamesFromOrders(Collection $orders): array
+    private static function campaignBucketsFromGroupedRows(Collection $rows): array
     {
-        return $orders
-            ->groupBy(fn (DonationOrder $order) => filled($order->utm_campaign)
-                ? (string) $order->utm_campaign
-                : 'Untitled')
-            ->map(fn (Collection $group) => round((float) $group->sum('total_amount'), 2))
-            ->sortDesc()
-            ->take(5)
-            ->keys()
-            ->values()
-            ->all();
-    }
+        $totalsByCampaign = [];
+        $revenueBuckets = [];
 
-    /**
-     * @param  Collection<int, DonationOrder>  $orders
-     * @param  callable(Carbon): (int|string)  $bucketKeyResolver
-     * @return array<int|string, array<string, float>>
-     */
-    private static function campaignRevenueBucketsFromOrders(Collection $orders, callable $bucketKeyResolver): array
-    {
-        $timezone = config('app.timezone');
-        $buckets = [];
-
-        foreach ($orders as $order) {
-            $paidAt = $order->paid_at?->timezone($timezone);
-
-            if ($paidAt === null) {
-                continue;
-            }
-
-            $bucket = $bucketKeyResolver($paidAt);
-            $campaign = filled($order->utm_campaign) ? (string) $order->utm_campaign : 'Untitled';
-            $buckets[$bucket][$campaign] = ($buckets[$bucket][$campaign] ?? 0) + (float) $order->total_amount;
+        foreach ($rows as $row) {
+            $bucket = (string) $row->bucket;
+            $campaign = (string) $row->campaign;
+            $amount = (float) $row->amount;
+            $totalsByCampaign[$campaign] = ($totalsByCampaign[$campaign] ?? 0) + $amount;
+            $revenueBuckets[$bucket][$campaign] = ($revenueBuckets[$bucket][$campaign] ?? 0) + $amount;
         }
 
-        return $buckets;
+        arsort($totalsByCampaign);
+        $topCampaigns = array_slice(array_keys($totalsByCampaign), 0, 5);
+
+        return [$topCampaigns, $revenueBuckets];
     }
 
     /**
@@ -1286,18 +1270,20 @@ class MarketerPerformanceData
      */
     private static function donationFilterOptions(User $user): array
     {
-        return [
-            'utm_campaign' => self::distinctDonationColumn($user, 'utm_campaign'),
-            'utm_medium' => self::distinctDonationColumn($user, 'utm_medium'),
-            'utm_content' => self::distinctDonationColumn($user, 'utm_content'),
-            'city' => self::distinctDonationColumn($user, 'city'),
-            'state' => self::distinctDonationColumn($user, 'state'),
-            'cause' => self::distinctDonationCauses($user),
-            'title' => self::distinctDonationTitles($user),
-            'device_type' => self::distinctDonationDevices($user),
-            'source' => DonationAttributionService::trafficSourceOptions(),
-            'platform' => DonationAttributionService::platformOptions(),
-        ];
+        return self::rememberMarketerFilterOptions($user, 'donations', function () use ($user): array {
+            return [
+                'utm_campaign' => self::distinctDonationColumn($user, 'utm_campaign'),
+                'utm_medium' => self::distinctDonationColumn($user, 'utm_medium'),
+                'utm_content' => self::distinctDonationColumn($user, 'utm_content'),
+                'city' => self::distinctDonationColumn($user, 'city'),
+                'state' => self::distinctDonationColumn($user, 'state'),
+                'cause' => self::distinctDonationCauses($user),
+                'title' => self::distinctDonationTitles($user),
+                'device_type' => self::distinctDonationDevices($user),
+                'source' => DonationAttributionService::trafficSourceOptions(),
+                'platform' => DonationAttributionService::platformOptions(),
+            ];
+        });
     }
 
     /**
@@ -1757,27 +1743,52 @@ class MarketerPerformanceData
      */
     private static function visitFilterOptions(User $user): array
     {
-        return [
-            'utm_source' => self::distinctVisitColumn($user, 'utm_source'),
-            'utm_medium' => self::distinctVisitColumn($user, 'utm_medium'),
-            'utm_campaign' => self::distinctVisitColumn($user, 'utm_campaign'),
-            'utm_content' => self::distinctVisitColumn($user, 'utm_content'),
-            'utm_id' => self::distinctVisitColumn($user, 'utm_id'),
-            'utm_term' => self::distinctVisitColumn($user, 'utm_term'),
-            'page_path' => self::distinctVisitColumn($user, 'page_path'),
-            'referrer' => self::distinctVisitColumn($user, 'referrer'),
-            'aid' => self::distinctVisitAids($user),
-            'device_type' => self::distinctVisitDevices($user),
-            'ip_country_code' => self::distinctVisitColumn($user, 'ip_country_code'),
-            'ip_city' => self::distinctVisitColumn($user, 'ip_city'),
-            'ip_isp' => self::distinctVisitColumn($user, 'ip_isp'),
-            'source' => DonationAttributionService::trafficSourceOptions(),
-            'platform' => DonationAttributionService::platformOptions(),
-            'cause' => self::distinctDonationCauses($user),
-            'title' => self::distinctDonationTitles($user),
-            'city' => self::distinctDonationColumn($user, 'city'),
-            'state' => self::distinctDonationColumn($user, 'state'),
-        ];
+        return self::rememberMarketerFilterOptions($user, 'visits', function () use ($user): array {
+            return [
+                'utm_source' => self::distinctVisitColumn($user, 'utm_source'),
+                'utm_medium' => self::distinctVisitColumn($user, 'utm_medium'),
+                'utm_campaign' => self::distinctVisitColumn($user, 'utm_campaign'),
+                'utm_content' => self::distinctVisitColumn($user, 'utm_content'),
+                'utm_id' => self::distinctVisitColumn($user, 'utm_id'),
+                'utm_term' => self::distinctVisitColumn($user, 'utm_term'),
+                'page_path' => self::distinctVisitColumn($user, 'page_path'),
+                'referrer' => self::distinctVisitColumn($user, 'referrer'),
+                'aid' => self::distinctVisitAids($user),
+                'device_type' => self::distinctVisitDevices($user),
+                'ip_country_code' => self::distinctVisitColumn($user, 'ip_country_code'),
+                'ip_city' => self::distinctVisitColumn($user, 'ip_city'),
+                'ip_isp' => self::distinctVisitColumn($user, 'ip_isp'),
+                'source' => DonationAttributionService::trafficSourceOptions(),
+                'platform' => DonationAttributionService::platformOptions(),
+                'cause' => self::distinctDonationCauses($user),
+                'title' => self::distinctDonationTitles($user),
+                'city' => self::distinctDonationColumn($user, 'city'),
+                'state' => self::distinctDonationColumn($user, 'state'),
+            ];
+        });
+    }
+
+    /**
+     * @param  callable(): array<string, mixed>  $callback
+     * @return array<string, mixed>
+     */
+    private static function rememberMarketerFilterOptions(User $user, string $surface, callable $callback): array
+    {
+        if (app()->runningUnitTests()) {
+            return $callback();
+        }
+
+        $ttl = max(0, (int) config('donation.admin_dashboard_cache_ttl', 90));
+
+        if ($ttl <= 0) {
+            return $callback();
+        }
+
+        return Cache::remember(
+            'marketer.filter_options.'.$surface.'.'.$user->id,
+            $ttl,
+            $callback
+        );
     }
 
     /**
