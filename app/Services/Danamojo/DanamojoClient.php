@@ -65,7 +65,7 @@ class DanamojoClient
                 'Accept' => 'application/json',
             ])
                 ->timeout((int) config('danamojo.timeout', 30))
-                ->retry(3, 1000)
+                ->retry(3, 1000, throw: false)
                 ->get($url, [
                     'fromDate' => $fromDate->toDateString(),
                     // Danamojo treats toDate as exclusive, so add a day to include the end date.

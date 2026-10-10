@@ -123,13 +123,14 @@ class MarketerPerformanceData
                 'average_donation' => $donations > 0 ? round($revenue / $donations, 2) : 0,
                 'donors' => self::countDistinctDonors($orders),
             ],
-            'statusCounts' => self::statusCounts($allOrders),
+            'statusCounts' => self::statusCountsWithQr($user, $allOrders, $range),
             'monthlyBudget' => MarketerMonthlyBudgetService::forUserMonth($user),
             'target' => self::donationTargetProgress($user),
             'dailyTrend' => self::donationDailyCollectionTrend($user, $range, $duration, $filters),
             'campaignRevenueTrend' => self::donationCampaignRevenueTrend($user, $range, $duration, $filters),
             'topCampaigns' => self::donationTopCampaignBreakdown($user, $range, $filters),
             'donations' => self::recentAttributedDonations($user, $range, 12, $filters),
+            'qrDonations' => self::qrDonationsDashboard($user, $range, $filters),
         ];
     }
 
@@ -177,7 +178,7 @@ class MarketerPerformanceData
                 'average_donation' => $donations > 0 ? round($revenue / $donations, 2) : 0,
                 'donors' => self::countDistinctDonors($paid),
             ],
-            'statusCounts' => self::statusCounts($paidScope),
+            'statusCounts' => self::statusCountsWithQr($user, $paidScope, $range),
             'donations' => AdminInertiaResources::paginated(
                 $paginator,
                 fn (DonationOrder $order) => self::marketerDonationRow($order),
@@ -537,6 +538,62 @@ class MarketerPerformanceData
      *
      * @param  array{start: ?Carbon, end: ?Carbon, label?: string}  $range
      */
+    /**
+     * Razorpay QR scan payments attributed to this marketer.
+     *
+     * @param  array{start: ?Carbon, end: ?Carbon, label?: string}  $range
+     */
+    private static function marketerQrOrdersQuery(User $user, array $range): Builder
+    {
+        $query = self::attributedOrders($user, $range);
+        self::applyQrChannelFilter($query);
+
+        return $query;
+    }
+
+    private static function applyQrChannelFilter(Builder $query): void
+    {
+        $query->where(function (Builder $inner): void {
+            $inner->where('payment_provider', DonationOrder::PROVIDER_RAZORPAY_QR)
+                ->orWhere('provider_order_id', 'like', 'qr-%');
+        });
+    }
+
+    /**
+     * @param  array{start: ?Carbon, end: ?Carbon, label?: string}  $range
+     * @param  array<string, string>  $filters
+     * @return array{summary: array{total: int, paid: int, amount: float}, data: list<array<string, mixed>>}
+     */
+    private static function qrDonationsDashboard(User $user, array $range, array $filters = []): array
+    {
+        $query = self::marketerQrOrdersQuery($user, $range);
+        self::applyDonationDeviceFilter($query, $filters);
+
+        $paidQuery = (clone $query)->where('status', DonationOrder::STATUS_PAID);
+
+        $orders = (clone $query)
+            ->with(['items.causeModel'])
+            ->orderByRaw('COALESCE(paid_at, created_at) desc')
+            ->orderByDesc('id')
+            ->limit(200)
+            ->get();
+
+        AdminInertiaData::clearQrLookupCache();
+        AdminInertiaData::warmQrLookups($orders);
+
+        return [
+            'summary' => [
+                'total' => (int) (clone $query)->count(),
+                'paid' => (int) (clone $paidQuery)->count(),
+                'amount' => round((float) (clone $paidQuery)->sum('total_amount'), 2),
+            ],
+            'data' => $orders
+                ->map(fn (DonationOrder $order) => self::marketerDonationRow($order))
+                ->values()
+                ->all(),
+        ];
+    }
+
     private static function attributedOrders(User $user, array $range): Builder
     {
         $query = DonationOrder::query();
@@ -587,6 +644,18 @@ class MarketerPerformanceData
     /**
      * @return array<string, int>
      */
+    /**
+     * @param  array{start: ?Carbon, end: ?Carbon, label?: string}  $range
+     * @return array<string, int>
+     */
+    private static function statusCountsWithQr(User $user, Builder $orders, array $range): array
+    {
+        return [
+            ...self::statusCounts($orders),
+            'qr' => (int) self::marketerQrOrdersQuery($user, $range)->count(),
+        ];
+    }
+
     private static function statusCounts(Builder $orders): array
     {
         $byStatus = (clone $orders)->reorder()
@@ -626,7 +695,7 @@ class MarketerPerformanceData
     {
         $filters = self::donationFilters($request);
 
-        foreach (['utm_campaign', 'utm_medium', 'utm_content', 'cause', 'title', 'city', 'state', 'status', 'payment_type', 'source', 'platform'] as $key) {
+        foreach (['utm_campaign', 'utm_medium', 'utm_content', 'cause', 'title', 'city', 'state', 'status', 'payment_type', 'source', 'platform', 'channel'] as $key) {
             $filters[$key] = trim((string) $request->input($key, ''));
         }
 
@@ -679,6 +748,10 @@ class MarketerPerformanceData
 
         if (($filters['platform'] ?? '') !== '') {
             DonationAttributionService::applyPlatformFilter($query, $filters['platform']);
+        }
+
+        if (($filters['channel'] ?? '') === 'qr') {
+            self::applyQrChannelFilter($query);
         }
 
         foreach (['utm_campaign', 'utm_medium', 'utm_content', 'city', 'state'] as $column) {

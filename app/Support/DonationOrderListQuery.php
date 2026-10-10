@@ -130,6 +130,24 @@ class DonationOrderListQuery
         return $query;
     }
 
+    public function telecallerByPhone(string $phone): Builder
+    {
+        $normalized = AdminDonationLaterPaid::normalizedPhone($phone);
+
+        if ($normalized === null) {
+            return DonationOrder::query()->whereRaw('0 = 1');
+        }
+
+        return DonationOrder::query()
+            ->with(['items.causeModel', 'items.package', 'subscription', 'partner'])
+            ->where(function (Builder $query) use ($normalized): void {
+                $query
+                    ->where('donor_phone', $normalized)
+                    ->orWhere('donor_phone', 'like', '%'.$normalized)
+                    ->orWhere('donor_phone', 'like', '%91'.$normalized);
+            });
+    }
+
     public function resolveTelecallerDuration(Request $request): string
     {
         if ($request->filled('from_date') || $request->filled('to_date')) {

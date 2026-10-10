@@ -987,6 +987,57 @@ it('marks an attachable visit converted when paid order has partner_user_id', fu
     Carbon::setTestNow();
 });
 
+it('includes qr payments on the marketer dashboard', function () {
+    $ashvini = digitalMarketer([
+        'referral_code' => 'ashvini',
+        'email' => 'ashvini-qr-dashboard@example.com',
+    ]);
+
+    $qr = \App\Models\RazorpayQrCode::factory()->create([
+        'name' => 'Event QR',
+        'razorpay_qr_code_id' => 'qr_marketer_dashboard_1',
+        'partner_user_id' => $ashvini->id,
+        'partner_code' => 'ashvini',
+    ]);
+
+    $order = DonationOrder::query()->create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY_QR,
+        'provider_order_id' => 'qr-marketer-dashboard-order',
+        'provider_payment_id' => 'pay_qr_marketer_dashboard_1',
+        'donor_name' => 'QR Dashboard Donor',
+        'donor_email' => 'qrdash@example.com',
+        'donor_phone' => '9876500888',
+        'currency' => 'INR',
+        'total_amount' => 750,
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'partner_user_id' => $ashvini->id,
+        'partner_code' => 'ashvini',
+    ]);
+
+    \App\Models\PaymentEvent::query()->create([
+        'donation_order_id' => $order->id,
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY_QR,
+        'event' => 'payment.captured',
+        'provider_payment_id' => 'pay_qr_marketer_dashboard_1',
+        'amount' => 750,
+        'payload' => ['qr_code_id' => $qr->razorpay_qr_code_id],
+        'created_at' => now(),
+    ]);
+
+    \App\Support\AdminInertiaData::clearQrLookupCache();
+
+    actingAs($ashvini)
+        ->get(route('marketer.dashboard', ['duration' => 'all']))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->component('Marketer/Dashboard')
+            ->where('qrDonations.summary.total', 1)
+            ->where('qrDonations.summary.paid', 1)
+            ->has('qrDonations.data', 1)
+            ->where('statusCounts.qr', 1));
+});
+
 it('lists a marketer-attributed qr donation with the qr channel label', function () {
     $ashvini = digitalMarketer([
         'referral_code' => 'ashvini',

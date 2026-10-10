@@ -83,6 +83,25 @@ it('redirects telecallers away from offline donations', function () {
         ->assertRedirect(route('admin.donations.telecaller', TelecallerPortal::homeRouteParameters()));
 });
 
+it('finds donations by mobile on the telecaller search page', function () {
+    $user = createTelecallerUser();
+
+    $phone = '9876543210';
+    createTelecallerDonation(DonationOrder::STATUS_FAILED, 'Mobile Donor A');
+    DonationOrder::query()->latest('id')->first()?->update(['donor_phone' => $phone]);
+
+    createTelecallerDonation(DonationOrder::STATUS_PAID, 'Mobile Donor B');
+    DonationOrder::query()->latest('id')->first()?->update(['donor_phone' => $phone]);
+
+    actingAs($user)
+        ->get(route('admin.donations.telecaller.search', ['phone' => $phone]))
+        ->assertSuccessful()
+        ->assertInertia(fn ($page) => $page
+            ->component('Admin/Telecaller/SearchByMobile')
+            ->where('normalizedPhone', $phone)
+            ->has('donations.data', 2));
+});
+
 it('forbids non-telecallers from the telecaller donations page', function () {
     Permission::findOrCreate('view donations');
     $role = Role::findOrCreate('admin');

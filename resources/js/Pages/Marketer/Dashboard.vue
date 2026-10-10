@@ -30,6 +30,7 @@ const props = defineProps({
     campaignRevenueTrend: { type: Object, default: () => ({ labels: [], series: [] }) },
     topCampaigns: { type: Array, default: () => [] },
     donations: { type: Object, default: () => ({ data: [], links: [], meta: {} }) },
+    qrDonations: { type: Object, default: () => ({ summary: { total: 0, paid: 0, amount: 0 }, data: [] }) },
     filters: { type: Object, default: () => ({}) },
     filterOptions: { type: Object, default: () => ({}) },
 });
@@ -59,6 +60,7 @@ const statusLinks = [
     { label: 'Failed', count: 'failed', params: { status: 'failed' } },
     { label: 'Refunded', count: 'refunded', params: { status: 'refunded' } },
     { label: 'Subscriptions', count: 'subscription', params: { payment_type: 'subscription' } },
+    { label: 'QR payments', count: 'qr', params: { channel: 'qr' }, customCount: true },
 ];
 const statusHref = (item) => '/marketer/donations?' + new URLSearchParams(listQueryParams(item.params)).toString();
 const donorCount = computed(() => Number(props.summary?.donors ?? 0));
@@ -84,6 +86,23 @@ const targetHint = computed(() => {
 const monthlySpendLabel = computed(() => formatMoney(props.monthlyBudget?.spend_amount || 0));
 
 const recentDonations = computed(() => (props.donations?.data || []).slice(0, 12));
+const qrRows = computed(() => props.qrDonations?.data || []);
+const qrSummary = computed(() => props.qrDonations?.summary || { total: 0, paid: 0, amount: 0 });
+
+const statusLinkCount = (item) => {
+    if (item.customCount && item.count === 'qr') {
+        return Number(qrSummary.value.total || 0);
+    }
+
+    return Number(props.statusCounts?.[item.count] ?? 0);
+};
+
+const qrStatusClass = (status) => ({
+    paid: 'bg-emerald-100 text-emerald-800',
+    pending: 'bg-amber-100 text-amber-800',
+    failed: 'bg-rose-100 text-rose-800',
+    refunded: 'bg-slate-200 text-slate-700',
+}[status] || 'bg-muted text-muted-foreground');
 
 const initialsFor = (row) => {
     const source = String(row.cause || row.campaign || row.title || 'DN').trim();
@@ -251,9 +270,73 @@ const exportUrl = (format) => {
                 class="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium hover:bg-muted"
             >
                 {{ item.label }}
-                <span class="tabular-nums opacity-70">{{ formatNumber(statusCounts[item.count]) }}</span>
+                <span class="tabular-nums opacity-70">{{ formatNumber(statusLinkCount(item)) }}</span>
             </Link>
         </div>
+
+        <Card class="mb-6 shadow-none">
+            <CardHeader class="pb-2">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <CardTitle class="text-base font-semibold">QR code payments</CardTitle>
+                        <CardDescription>
+                            All Razorpay QR scans linked to your codes · {{ durationLabel }}
+                        </CardDescription>
+                    </div>
+                    <Link
+                        href="/marketer/donations?channel=qr&duration=all"
+                        class="text-xs font-medium text-muted-foreground hover:text-foreground"
+                    >
+                        View all QR entries
+                    </Link>
+                </div>
+                <p class="mt-2 text-sm text-muted-foreground">
+                    <span class="font-medium text-foreground">{{ formatNumber(qrSummary.total) }}</span> entries
+                    · <span class="font-medium text-emerald-700">{{ formatNumber(qrSummary.paid) }}</span> paid
+                    · <span class="font-medium text-foreground">{{ formatMoney(qrSummary.amount) }}</span> collected
+                </p>
+            </CardHeader>
+            <CardContent class="p-0">
+                <div class="admin-responsive-table max-h-[420px] overflow-auto">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 z-[1] border-b border-border bg-muted/80 backdrop-blur-sm">
+                            <tr class="text-left text-xs text-muted-foreground">
+                                <th class="px-4 py-2 font-medium">QR / cause</th>
+                                <th class="px-4 py-2 font-medium">Campaign</th>
+                                <th class="px-4 py-2 font-medium">Status</th>
+                                <th class="px-4 py-2 font-medium text-right">Amount</th>
+                                <th class="px-4 py-2 font-medium">Time</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="(row, index) in qrRows"
+                                :key="`${row.time}-${index}`"
+                                class="border-b border-border/70 last:border-0"
+                            >
+                                <td class="px-4 py-2.5">
+                                    <p class="font-medium text-foreground">{{ row.channel || 'QR payment' }}</p>
+                                    <p class="truncate text-xs text-muted-foreground">{{ row.cause }}</p>
+                                </td>
+                                <td class="px-4 py-2.5 text-muted-foreground">{{ row.campaign }}</td>
+                                <td class="px-4 py-2.5">
+                                    <span class="rounded-full px-2 py-0.5 text-[11px] font-semibold capitalize" :class="qrStatusClass(row.status)">
+                                        {{ row.status }}
+                                    </span>
+                                </td>
+                                <td class="px-4 py-2.5 text-right font-semibold tabular-nums">{{ formatMoney(row.amount) }}</td>
+                                <td class="px-4 py-2.5 text-xs text-muted-foreground">{{ row.time }}</td>
+                            </tr>
+                            <tr v-if="!qrRows.length">
+                                <td colspan="5" class="px-4 py-10 text-center text-muted-foreground">
+                                    No QR payments in this period yet.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </CardContent>
+        </Card>
 
         <div class="mb-6 grid gap-4 xl:grid-cols-12">
             <Card class="shadow-none xl:col-span-8">

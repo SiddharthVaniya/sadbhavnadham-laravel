@@ -41,11 +41,12 @@ const averageDonation = computed(() => Number(props.summary?.average_donation ??
 const donorCount = computed(() => Number(props.summary?.donors ?? 0));
 
 const statusTabs = computed(() => [
-    { key: '', label: 'All', count: props.statusCounts?.all ?? 0 },
-    { key: 'paid', label: 'Paid', count: props.statusCounts?.paid ?? 0 },
-    { key: 'pending', label: 'Pending', count: props.statusCounts?.pending ?? 0 },
-    { key: 'failed', label: 'Failed', count: props.statusCounts?.failed ?? 0 },
-    { key: 'refunded', label: 'Refunded', count: props.statusCounts?.refunded ?? 0 },
+    { key: '', label: 'All', count: props.statusCounts?.all ?? 0, param: 'status' },
+    { key: 'paid', label: 'Paid', count: props.statusCounts?.paid ?? 0, param: 'status' },
+    { key: 'pending', label: 'Pending', count: props.statusCounts?.pending ?? 0, param: 'status' },
+    { key: 'failed', label: 'Failed', count: props.statusCounts?.failed ?? 0, param: 'status' },
+    { key: 'refunded', label: 'Refunded', count: props.statusCounts?.refunded ?? 0, param: 'status' },
+    { key: 'qr', label: 'QR payments', count: props.statusCounts?.qr ?? 0, param: 'channel' },
 ]);
 
 const statusClass = (status) => ({
@@ -55,12 +56,24 @@ const statusClass = (status) => ({
     refunded: 'bg-slate-200 text-slate-700',
 }[status] || 'bg-muted text-muted-foreground');
 
-const setStatus = (status) => {
-    router.get('/marketer/donations', listQueryParams({ status }), {
+const setStatus = (tab) => {
+    const extra = tab.param === 'channel'
+        ? { channel: tab.key, status: '' }
+        : { status: tab.key, channel: '' };
+
+    router.get('/marketer/donations', listQueryParams(extra), {
         preserveState: true,
         preserveScroll: true,
         replace: true,
     });
+};
+
+const isTabActive = (tab) => {
+    if (tab.param === 'channel') {
+        return (props.filters?.channel || '') === tab.key;
+    }
+
+    return (props.filters?.status || '') === tab.key && !(props.filters?.channel || '');
 };
 
 const deviceLabel = (value) => {
@@ -227,11 +240,11 @@ const donationRows = computed(() => (props.donations?.data || []).map((row) => (
         <div class="mb-4 flex flex-wrap gap-2">
             <button
                 v-for="tab in statusTabs"
-                :key="tab.key"
+                :key="`${tab.param}-${tab.key || 'all'}`"
                 type="button"
                 class="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition"
-                :class="(filters.status || '') === tab.key ? 'border-foreground bg-foreground text-background' : 'border-border bg-card text-foreground hover:bg-muted'"
-                @click="setStatus(tab.key)"
+                :class="isTabActive(tab) ? 'border-foreground bg-foreground text-background' : 'border-border bg-card text-foreground hover:bg-muted'"
+                @click="setStatus(tab)"
             >
                 {{ tab.label }}
                 <span class="tabular-nums opacity-70">{{ formatNumber(tab.count) }}</span>

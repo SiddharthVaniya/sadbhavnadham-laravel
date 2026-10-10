@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Support\AdminDonationLaterPaid;
 use App\Support\AdminInertiaData;
 use App\Support\DonationOrderListQuery;
 use App\Support\TelecallerPortal;
@@ -50,6 +51,38 @@ class AdminTelecallerDonationController extends Controller
                 'to_date' => $request->input('to_date'),
                 'search' => $request->input('search'),
             ],
+        ]);
+    }
+
+    public function search(Request $request): Response
+    {
+        $user = $request->user();
+
+        abort_unless($user && TelecallerPortal::usesFailedDonationWorkflow($user), 403);
+
+        $phone = trim((string) $request->input('phone', ''));
+        $normalized = AdminDonationLaterPaid::normalizedPhone($phone);
+        $hasSearch = $normalized !== null;
+
+        $donations = null;
+
+        if ($hasSearch) {
+            $query = $this->donationOrderListQuery->telecallerByPhone($phone);
+            [$sort, $dir] = $this->donationOrderListQuery->resolveSort($request);
+            $this->donationOrderListQuery->applySort($query, $sort, $dir);
+
+            $donations = AdminInertiaData::paginatedDonations(
+                $query->paginate(25)->withQueryString(),
+            );
+        }
+
+        return Inertia::render('Admin/Telecaller/SearchByMobile', [
+            'donations' => $donations,
+            'phone' => $phone,
+            'normalizedPhone' => $normalized,
+            'hasSearch' => $hasSearch,
+            'sort' => $request->input('sort', 'created_at_ts'),
+            'dir' => $request->input('dir', 'desc'),
         ]);
     }
 }

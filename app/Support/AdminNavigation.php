@@ -22,6 +22,10 @@ class AdminNavigation
                 'route' => 'admin.donations.telecaller',
                 'route_parameters' => TelecallerPortal::homeRouteParameters(),
             ];
+            $donationChildren[] = [
+                'label' => 'Search by mobile',
+                'route' => 'admin.donations.telecaller.search',
+            ];
         } elseif ($canViewAllDonations) {
             $donationChildren[] = ['label' => 'All donations', 'route' => 'admin.donations.index'];
             $donationChildren[] = ['label' => 'Recovery queue', 'route' => 'admin.donations.recovery'];
