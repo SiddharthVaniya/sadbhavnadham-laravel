@@ -61,6 +61,7 @@ class AttributionParameters
         'attr_placement',
         'partner_user_id',
         'partner_code',
+        'meta_pixel_code',
         'meta_campaign_id',
         'meta_adset_id',
         'meta_ad_id',
@@ -104,6 +105,8 @@ class AttributionParameters
             'utm_id',
             'aid',
             'pid',
+            'pixel_id',
+            'pixel_event',
         ];
     }
 

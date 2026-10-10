@@ -27,7 +27,7 @@ class MetaConversionsApiService
     {
         $order->refresh()->loadMissing('items');
 
-        foreach ($this->pixelRegistry->forPurchase() as $pixel) {
+        foreach ($this->pixelRegistry->forPurchaseForOrder($order) as $pixel) {
             $this->dispatchEvent($pixel, $order, self::EVENT_PURCHASE, $this->purchaseEventId($order));
         }
     }
@@ -36,7 +36,7 @@ class MetaConversionsApiService
     {
         $order->refresh()->loadMissing('items');
 
-        foreach ($this->pixelRegistry->forInitiateCheckout() as $pixel) {
+        foreach ($this->pixelRegistry->forInitiateCheckoutForOrder($order) as $pixel) {
             $this->dispatchEvent(
                 $pixel,
                 $order,

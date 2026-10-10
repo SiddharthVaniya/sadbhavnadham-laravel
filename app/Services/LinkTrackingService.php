@@ -31,6 +31,8 @@ class LinkTrackingService
         'ptype',
         'pid',
         'aid',
+        'pixel_id',
+        'pixel_event',
     ];
 
     /**
@@ -369,6 +371,8 @@ class LinkTrackingService
             'aid' => ['nullable', 'string', 'max:120'],
             'amt' => ['nullable', 'string', 'max:32'],
             'ptype' => ['nullable', 'string', 'max:32'],
+            'pixel_id' => ['nullable', 'string', 'max:32'],
+            'pixel_event' => ['nullable', 'string', 'max:32'],
             'landing_url' => ['nullable', 'string', 'max:2048'],
             'page_path' => ['nullable', 'string', 'max:255'],
             'source_channel' => ['nullable', 'string', 'max:32'],
@@ -386,8 +390,8 @@ class LinkTrackingService
         $extra = is_array($payload['extra_params'] ?? null) ? $payload['extra_params'] : [];
         unset($extra['pid']);
 
-        foreach (['aid'] as $key) {
-            $value = $this->nullableString($payload[$key] ?? null, 120);
+        foreach (['aid', 'pixel_id', 'pixel_event'] as $key) {
+            $value = $this->nullableString($payload[$key] ?? null, $key === 'aid' ? 120 : 32);
             if ($value !== null) {
                 $extra[$key] = $value;
             }

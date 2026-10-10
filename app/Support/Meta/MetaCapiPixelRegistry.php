@@ -2,6 +2,7 @@
 
 namespace App\Support\Meta;
 
+use App\Models\DonationOrder;
 use App\Models\MetaPixel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Schema;
@@ -58,9 +59,43 @@ class MetaCapiPixelRegistry
     /**
      * @return Collection<int, MetaCapiPixel>
      */
+    public function forPurchaseForOrder(DonationOrder $order): Collection
+    {
+        return $this->forOrderEvent($order, sendsPurchase: true);
+    }
+
+    /**
+     * @return Collection<int, MetaCapiPixel>
+     */
     public function forInitiateCheckout(): Collection
     {
         return $this->all()->filter(fn (MetaCapiPixel $pixel) => $pixel->sendsInitiateCheckout());
+    }
+
+    /**
+     * @return Collection<int, MetaCapiPixel>
+     */
+    public function forInitiateCheckoutForOrder(DonationOrder $order): Collection
+    {
+        return $this->forOrderEvent($order, sendsPurchase: false);
+    }
+
+    /**
+     * @return Collection<int, MetaCapiPixel>
+     */
+    private function forOrderEvent(DonationOrder $order, bool $sendsPurchase): Collection
+    {
+        $targetId = MetaPixelCatalog::resolveNumericIdForOrder($order);
+
+        return $this->all()
+            ->filter(function (MetaCapiPixel $pixel) use ($targetId, $sendsPurchase): bool {
+                if ($pixel->pixelId() !== $targetId) {
+                    return false;
+                }
+
+                return $sendsPurchase ? $pixel->sendsPurchase() : $pixel->sendsInitiateCheckout();
+            })
+            ->values();
     }
 
     /**
@@ -82,6 +117,7 @@ class MetaCapiPixelRegistry
             $rows[] = [
                 'slot' => $index + 1,
                 'label' => $label,
+                'pixel_code' => strtolower(trim((string) ($config['code'] ?? ''))) ?: null,
                 'pixel_id' => $pixelId,
                 'is_active' => (bool) ($config['is_active'] ?? true),
                 'send_purchase' => (bool) ($config['send_purchase'] ?? true),

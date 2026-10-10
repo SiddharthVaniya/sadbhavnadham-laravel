@@ -134,6 +134,7 @@ const removePixel = (pixel) => {
                         <TableRow>
                             <TableHead>Slot</TableHead>
                             <TableHead>Label</TableHead>
+                            <TableHead>Code</TableHead>
                             <TableHead>Pixel ID</TableHead>
                             <TableHead>Events</TableHead>
                             <TableHead>Token</TableHead>
@@ -144,6 +145,7 @@ const removePixel = (pixel) => {
                         <TableRow v-for="row in envPixels" :key="row.pixel_id">
                             <TableCell>{{ row.slot }}</TableCell>
                             <TableCell class="font-medium">{{ row.label }}</TableCell>
+                            <TableCell class="font-mono text-xs">{{ row.pixel_code || '—' }}</TableCell>
                             <TableCell class="font-mono text-sm">{{ row.pixel_id }}</TableCell>
                             <TableCell class="text-sm">
                                 <span v-if="row.send_purchase">Purchase</span>
@@ -160,7 +162,7 @@ const removePixel = (pixel) => {
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="!envPixels.length">
-                            <TableCell colspan="6" class="text-center text-muted-foreground">
+                            <TableCell colspan="7" class="text-center text-muted-foreground">
                                 Set META_CAPI_PIXEL_1_ID and META_CAPI_PIXEL_1_TOKEN in .env (see .env.example).
                             </TableCell>
                         </TableRow>
@@ -332,6 +334,7 @@ const removePixel = (pixel) => {
                             <TableHead>Pixel</TableHead>
                             <TableHead>Event</TableHead>
                             <TableHead>SID (marketer)</TableHead>
+                            <TableHead>Pixel code</TableHead>
                             <TableHead>Order</TableHead>
                             <TableHead>Status</TableHead>
                         </TableRow>
@@ -351,6 +354,7 @@ const removePixel = (pixel) => {
                                 </template>
                                 <span v-else class="text-muted-foreground">—</span>
                             </TableCell>
+                            <TableCell class="font-mono text-xs">{{ log.meta_pixel_code || '—' }}</TableCell>
                             <TableCell class="font-mono text-xs">{{ log.order_uuid || '—' }}</TableCell>
                             <TableCell class="text-sm">
                                 <span :class="log.status === 'success' ? 'text-emerald-700' : 'text-rose-700'">
@@ -361,7 +365,7 @@ const removePixel = (pixel) => {
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="!(eventLogs.data || []).length">
-                            <TableCell colspan="6" class="text-center text-muted-foreground">No CAPI events match these filters.</TableCell>
+                            <TableCell colspan="7" class="text-center text-muted-foreground">No CAPI events match these filters.</TableCell>
                         </TableRow>
                     </TableBody>
                 </Table>

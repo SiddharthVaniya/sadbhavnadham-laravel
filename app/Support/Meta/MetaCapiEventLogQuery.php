@@ -170,6 +170,8 @@ class MetaCapiEventLogQuery
             'sid' => $sid,
             'partner_name' => $partnerName,
             'partner_user_id' => $order?->partner_user_id,
+            'meta_pixel_code' => $order?->meta_pixel_code
+                ?? ($order ? MetaPixelCatalog::resolveCodeForOrder($order) : null),
             'sent_at' => $when?->timezone($timezone)->toDateTimeString(),
         ];
     }

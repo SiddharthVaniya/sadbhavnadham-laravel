@@ -1143,6 +1143,29 @@ ALTER TABLE meta_pixels
     MODIFY access_token TEXT NOT NULL;
 ```
 
+## 2026-10-10 - Donation order Meta pixel code (CAPI + link tracking)
+
+Matches Next.js `pixel_id` on marketer links (`sadbhavna_d` / `sadbhavna_1`). Server CAPI sends to **one** pixel per order.
+
+**Preview:**
+
+```sql
+SHOW COLUMNS FROM donation_orders LIKE 'meta_pixel_code';
+```
+
+**Apply:**
+
+```sql
+ALTER TABLE donation_orders
+    ADD COLUMN meta_pixel_code VARCHAR(32) NULL DEFAULT NULL AFTER partner_code;
+```
+
+**Rollback:**
+
+```sql
+ALTER TABLE donation_orders DROP COLUMN meta_pixel_code;
+```
+
 ## 2026-10-10 - Meta ad delivery status (Active / Not active filter)
 
 **Preview:**

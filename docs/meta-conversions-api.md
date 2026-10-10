@@ -6,6 +6,8 @@ Browser Meta pixels on the public donate site are **not** changed. Donation **Pu
 
 Pixel IDs and access tokens belong in **`.env`** only (see `.env.example` → `META_CAPI_*`).
 
+**One pixel per donation** (same as the public site): link/query `pixel_id=sadbhavna_d` or `sadbhavna_1` is stored on `donation_orders.meta_pixel_code` at checkout; CAPI Purchase / InitiateCheckout go only to that pixel.
+
 | Variable | Purpose |
 | --- | --- |
 | `META_CAPI_ENABLED` | Master switch (default `true`) |

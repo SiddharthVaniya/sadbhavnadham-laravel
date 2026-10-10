@@ -60,6 +60,8 @@ class StoreDonationRequest extends FormRequest
             'aid' => ['nullable', 'string', 'max:120'],
             'amt' => ['nullable', 'string', 'max:32'],
             'ptype' => ['nullable', 'string', 'max:32'],
+            'pixel_id' => ['nullable', 'string', 'max:32'],
+            'pixel_event' => ['nullable', 'string', 'max:32'],
             'landing_url' => ['nullable', 'string', 'max:2048'],
             'landing_path' => ['nullable', 'string', 'max:255'],
             'referrer' => ['nullable', 'string', 'max:512'],

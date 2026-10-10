@@ -9,6 +9,7 @@ use App\Support\AdminAnalyticsData;
 use App\Support\Attribution\AttributionNormalizer;
 use App\Support\Attribution\AttributionParameters;
 use App\Support\Attribution\AttributionTaxonomy;
+use App\Support\Meta\MetaPixelCatalog;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
@@ -520,7 +521,7 @@ class DonationAttributionService
             'landing_path' => $landingPath,
         ]));
 
-        return array_merge($payload, AttributionParameters::columnsFromPayload([
+        $payload = array_merge($payload, AttributionParameters::columnsFromPayload([
             'sid' => $snapshot['sid'] ?? $snapshot['pid'] ?? null,
             'pid' => $snapshot['pid'] ?? null,
             'utm_id' => $snapshot['utm_id'] ?? null,
@@ -529,6 +530,10 @@ class DonationAttributionService
             'utm_source' => $payload['utm_source'] ?? null,
             'utm_content' => $payload['utm_content'] ?? null,
         ]));
+
+        $payload['meta_pixel_code'] = MetaPixelCatalog::resolveCodeFromCheckoutSnapshot($snapshot);
+
+        return $payload;
     }
 
     /**

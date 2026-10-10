@@ -20,8 +20,12 @@ return [
      */
     'allow_database_pixels' => filter_var(env('META_CAPI_ALLOW_DATABASE_PIXELS', false), FILTER_VALIDATE_BOOL),
 
+    /** Matches Next.js `DEFAULT_PIXEL_CODE` / `pixel_id` query param (e.g. sadbhavna_d). */
+    'default_pixel_code' => env('META_CAPI_DEFAULT_PIXEL_CODE', 'sadbhavna_d'),
+
     'pixels' => [
         [
+            'code' => env('META_CAPI_PIXEL_1_CODE', 'sadbhavna_d'),
             'label' => env('META_CAPI_PIXEL_1_LABEL', 'Primary pixel'),
             'pixel_id' => env('META_CAPI_PIXEL_1_ID'),
             'access_token' => env('META_CAPI_PIXEL_1_TOKEN'),
@@ -31,6 +35,7 @@ return [
             'test_event_code' => env('META_CAPI_PIXEL_1_TEST_EVENT_CODE'),
         ],
         [
+            'code' => env('META_CAPI_PIXEL_2_CODE', 'sadbhavna_1'),
             'label' => env('META_CAPI_PIXEL_2_LABEL', 'Secondary pixel'),
             'pixel_id' => env('META_CAPI_PIXEL_2_ID'),
             'access_token' => env('META_CAPI_PIXEL_2_TOKEN'),

@@ -35,11 +35,23 @@ function capiTestConfig(): void
     config([
         'meta_capi.enabled' => true,
         'meta_capi.allow_database_pixels' => true,
+        'meta_capi.default_pixel_code' => 'sadbhavna_d',
         'meta_capi.pixels' => [
             [
-                'label' => 'Env test pixel',
+                'code' => 'sadbhavna_d',
+                'label' => 'Env test pixel A',
                 'pixel_id' => '111222333',
-                'access_token' => 'env-test-token',
+                'access_token' => 'env-test-token-a',
+                'is_active' => true,
+                'send_purchase' => true,
+                'send_initiate_checkout' => true,
+                'test_event_code' => null,
+            ],
+            [
+                'code' => 'sadbhavna_1',
+                'label' => 'Env test pixel B',
+                'pixel_id' => '444555666',
+                'access_token' => 'env-test-token-b',
                 'is_active' => true,
                 'send_purchase' => true,
                 'send_initiate_checkout' => true,
@@ -80,6 +92,7 @@ it('sends purchase events to meta capi using env pixel credentials', function ()
     capiTestConfig();
 
     $order = DonationOrder::query()->create([
+        'meta_pixel_code' => 'sadbhavna_d',
         'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
         'provider_order_id' => 'order_capi_test_1',
         'donor_name' => 'Test Donor',
@@ -119,6 +132,44 @@ it('sends purchase events to meta capi using env pixel credentials', function ()
     $pixel = MetaPixel::query()->where('pixel_id', '111222333')->first();
     expect($pixel)->not->toBeNull()
         ->and($pixel->hasAccessToken())->toBeFalse();
+});
+
+it('sends purchase to only the order pixel matching marketer link pixel_id', function () {
+    capiTestConfig();
+
+    $order = DonationOrder::query()->create([
+        'meta_pixel_code' => 'sadbhavna_1',
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'order_capi_pixel_b',
+        'donor_name' => 'Pixel B Donor',
+        'donor_email' => 'b@example.com',
+        'donor_phone' => '919876543212',
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'total_amount' => 250,
+        'currency' => 'INR',
+        'landing_path' => '/donate/tree',
+    ]);
+
+    DonationItem::query()->create([
+        'donation_order_id' => $order->id,
+        'cause' => 'tree',
+        'title' => 'Tree',
+        'quantity' => 1,
+        'unit_amount' => 250,
+        'amount' => 250,
+    ]);
+
+    Http::fake([
+        'graph.facebook.com/*' => Http::response(['events_received' => 1], 200),
+    ]);
+
+    app(MetaConversionsApiService::class)->sendPurchase($order);
+
+    Http::assertSentCount(1);
+
+    $log = MetaCapiEventLog::query()->first();
+    expect($log?->pixel?->pixel_id)->toBe('444555666');
 });
 
 it('filters capi event logs by pixel event and marketer sid', function () {
