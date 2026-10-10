@@ -1054,6 +1054,91 @@ ALTER TABLE users
 
 Example: `UPDATE users SET meta_ad_aliases = 'Ashwini' WHERE id = 12;` then run Meta sync + re-attribute (sync does this automatically).
 
+## 2026-10-10 - Meta Conversions API (pixels + event logs)
+
+**Preview:**
+
+```sql
+SHOW TABLES LIKE 'meta_pixels';
+SHOW TABLES LIKE 'meta_capi_event_logs';
+```
+
+**Apply:**
+
+```sql
+CREATE TABLE IF NOT EXISTS meta_pixels (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    label VARCHAR(255) NOT NULL,
+    pixel_id VARCHAR(32) NOT NULL,
+    access_token TEXT NOT NULL,
+    is_active TINYINT(1) NOT NULL DEFAULT 1,
+    send_purchase TINYINT(1) NOT NULL DEFAULT 1,
+    send_initiate_checkout TINYINT(1) NOT NULL DEFAULT 1,
+    test_event_code VARCHAR(64) NULL DEFAULT NULL,
+    last_event_at TIMESTAMP NULL DEFAULT NULL,
+    last_event_status VARCHAR(32) NULL DEFAULT NULL,
+    last_event_error VARCHAR(1000) NULL DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT NULL,
+    updated_at TIMESTAMP NULL DEFAULT NULL,
+    UNIQUE KEY meta_pixels_pixel_id_unique (pixel_id),
+    INDEX meta_pixels_is_active_pixel_id_index (is_active, pixel_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS meta_capi_event_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    meta_pixel_id BIGINT UNSIGNED NOT NULL,
+    donation_order_id BIGINT UNSIGNED NULL DEFAULT NULL,
+    event_name VARCHAR(64) NOT NULL,
+    event_id VARCHAR(128) NOT NULL,
+    status VARCHAR(16) NOT NULL,
+    http_status SMALLINT UNSIGNED NULL DEFAULT NULL,
+    error_message VARCHAR(1000) NULL DEFAULT NULL,
+    response_json JSON NULL,
+    sent_at TIMESTAMP NULL DEFAULT NULL,
+    created_at TIMESTAMP NULL DEFAULT NULL,
+    updated_at TIMESTAMP NULL DEFAULT NULL,
+    UNIQUE KEY meta_capi_event_logs_pixel_event_unique (meta_pixel_id, event_id),
+    INDEX meta_capi_event_logs_donation_order_id_event_name_index (donation_order_id, event_name),
+    CONSTRAINT meta_capi_event_logs_meta_pixel_id_foreign
+        FOREIGN KEY (meta_pixel_id) REFERENCES meta_pixels (id) ON DELETE CASCADE,
+    CONSTRAINT meta_capi_event_logs_donation_order_id_foreign
+        FOREIGN KEY (donation_order_id) REFERENCES donation_orders (id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+```
+
+Configure pixel IDs and tokens in **`.env`** (`META_CAPI_PIXEL_*`; see `.env.example` and `docs/meta-conversions-api.md`). Admin **Pixels (CAPI)** shows env pixels and logs. Queue workers must be running for async jobs.
+
+**Rollback:**
+
+```sql
+DROP TABLE IF EXISTS meta_capi_event_logs;
+DROP TABLE IF EXISTS meta_pixels;
+```
+
+## 2026-10-10 - Meta CAPI: nullable `meta_pixels.access_token` (env-only tokens)
+
+**Preview:**
+
+```sql
+SHOW COLUMNS FROM meta_pixels LIKE 'access_token';
+```
+
+**Apply:**
+
+```sql
+ALTER TABLE meta_pixels
+    MODIFY access_token TEXT NULL DEFAULT NULL;
+
+UPDATE meta_pixels SET access_token = NULL WHERE access_token IS NOT NULL;
+```
+
+**Rollback:**
+
+```sql
+ALTER TABLE meta_pixels
+    MODIFY access_token TEXT NOT NULL;
+```
+
 ## 2026-10-10 - Meta ad delivery status (Active / Not active filter)
 
 **Preview:**

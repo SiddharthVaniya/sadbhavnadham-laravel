@@ -162,6 +162,7 @@ class AdminNavigation
                     ['label' => 'Analytics', 'route' => 'admin.meta.analytics'],
                     ['label' => 'Ad insights', 'route' => 'admin.meta.insights'],
                     ['label' => 'Accounts', 'route' => 'admin.meta.accounts'],
+                    ['label' => 'Pixels (CAPI)', 'route' => 'admin.meta.pixels'],
                 ],
             ],
             [

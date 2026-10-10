@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
-         bootstrap="vendor/autoload.php"
+         bootstrap="tests/bootstrap.php"
          colors="true"
 >
     <testsuites>
@@ -35,5 +35,11 @@
         <env name="AISENSY_OTP_API_KEY" value=""/>
         <env name="AISENSY_OTP_CAMPAIGN" value=""/>
         <env name="RAZORPAY_QR_IDS" value=""/>
+        <env name="META_CAPI_ENABLED" value="true"/>
+        <env name="META_CAPI_ALLOW_DATABASE_PIXELS" value="false"/>
+        <env name="META_CAPI_PIXEL_1_ID" value=""/>
+        <env name="META_CAPI_PIXEL_1_TOKEN" value=""/>
+        <env name="META_CAPI_PIXEL_2_ID" value=""/>
+        <env name="META_CAPI_PIXEL_2_TOKEN" value=""/>
     </php>
 </phpunit>

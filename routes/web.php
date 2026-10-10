@@ -15,6 +15,7 @@ use App\Http\Controllers\Admin\AdminDonorController;
 use App\Http\Controllers\Admin\AdminDonorCrmController;
 use App\Http\Controllers\Admin\AdminMarketerBudgetController;
 use App\Http\Controllers\Admin\AdminMetaAdController;
+use App\Http\Controllers\Admin\AdminMetaPixelController;
 use App\Http\Controllers\Admin\AdminPartnerReportsController;
 use App\Http\Controllers\Admin\AdminRazorpayQrCodeController;
 use App\Http\Controllers\Admin\AdminReportsController;
@@ -533,6 +534,18 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::post('meta/sync', [AdminMetaAdController::class, 'sync'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
         ->name('meta.sync');
+    Route::get('meta/pixels', [AdminMetaPixelController::class, 'index'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('meta.pixels');
+    Route::post('meta/pixels', [AdminMetaPixelController::class, 'store'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('meta.pixels.store');
+    Route::put('meta/pixels/{metaPixel}', [AdminMetaPixelController::class, 'update'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('meta.pixels.update');
+    Route::delete('meta/pixels/{metaPixel}', [AdminMetaPixelController::class, 'destroy'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::USER_EDIT))
+        ->name('meta.pixels.destroy');
 
     // Legacy Marketers → Meta URLs
     Route::redirect('marketers/meta', '/admin/meta')->name('marketers.meta');

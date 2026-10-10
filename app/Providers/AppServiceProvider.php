@@ -8,6 +8,7 @@ use App\Support\BrandingStore;
 use App\Support\DonateCheckoutRateLimiter;
 use App\Support\DonorOtpRateLimiter;
 use App\Support\DonorPortalSession;
+use App\Support\Meta\MetaCapiPixelRegistry;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Gate;
@@ -47,6 +48,10 @@ class AppServiceProvider extends ServiceProvider
 
         DonateCheckoutRateLimiter::register();
         DonorOtpRateLimiter::register();
+
+        if (! $this->app->runningUnitTests()) {
+            $this->app->make(MetaCapiPixelRegistry::class)->syncEnvMetadataToDatabase();
+        }
 
         View::composer('*', function ($view): void {
             BrandingStore::applyToConfig();

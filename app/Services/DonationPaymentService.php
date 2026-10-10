@@ -7,6 +7,7 @@ use App\Jobs\LogDonationToSheetJob;
 use App\Jobs\LogFailedDonationFollowUpSheetJob;
 use App\Jobs\SendCertificateWhatsAppJob;
 use App\Jobs\SendDonationReceiptJob;
+use App\Jobs\SendMetaCapiPurchaseJob;
 use App\Jobs\SendReceiptWhatsAppJob;
 use App\Jobs\SendThankYouWhatsAppJob;
 use App\Models\DonationOrder;
@@ -214,6 +215,8 @@ class DonationPaymentService
         $this->analytics->trackDonationPaid($order->fresh());
 
         $this->linkTracking->markConverted($order->fresh());
+
+        dispatch(new SendMetaCapiPurchaseJob($order->id));
 
         dispatch(new LogDonationToSheetJob($order));
 

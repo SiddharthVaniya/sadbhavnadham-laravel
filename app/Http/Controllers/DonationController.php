@@ -6,6 +6,7 @@ use App\Helpers\DonationRequestLogContext;
 use App\Http\Requests\CheckPanRequirementRequest;
 use App\Http\Requests\StoreDonationRequest;
 use App\Http\Requests\StoreRecurringDonationRequest;
+use App\Jobs\SendMetaCapiInitiateCheckoutJob;
 use App\Models\Cause;
 use App\Models\DonationItem;
 use App\Models\DonationOrder;
@@ -190,6 +191,11 @@ class DonationController extends Controller
 
         $this->analytics->trackCheckoutStarted($request, $order->fresh());
         $this->linkTracking->attachToOrder($order->fresh(), $request->all(), $request);
+
+        dispatch(new SendMetaCapiInitiateCheckoutJob(
+            $order->id,
+            substr((string) $request->userAgent(), 0, 512) ?: null,
+        ));
 
         /** Return Razorpay payload */
         return response()->json([
