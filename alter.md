@@ -1234,3 +1234,88 @@ ALTER TABLE donation_orders
 ALTER TABLE link_tracking_visits
     DROP INDEX link_tracking_visits_sid_created_at_index;
 ```
+
+## 2026-10-10 - Telecaller role and failed-donation list performance
+
+No new tables. Ensure the `telecaller` role exists and users have **`view donations`** only (do **not** need `view all donations` for the telecaller UI; the app scopes failed checkouts in code).
+
+Optional index to speed telecaller date filters (`COALESCE(failed_at, created_at)`).
+
+### Preview
+
+```sql
+SELECT id, name, guard_name FROM roles WHERE name = 'telecaller';
+SELECT u.id, u.name, u.email, r.name AS role_name
+FROM users u
+JOIN model_has_roles mhr ON mhr.model_id = u.id AND mhr.model_type LIKE '%User%'
+JOIN roles r ON r.id = mhr.role_id
+WHERE r.name = 'telecaller';
+SELECT status, COUNT(*) AS c
+FROM donation_orders
+WHERE status = 'failed'
+GROUP BY status;
+SHOW INDEX FROM donation_orders WHERE Key_name = 'donation_orders_failed_at_index';
+```
+
+### Apply — role + permission (run once per environment)
+
+```sql
+INSERT INTO permissions (name, guard_name, created_at, updated_at)
+SELECT 'view donations', 'web', NOW(), NOW()
+FROM DUAL
+WHERE NOT EXISTS (
+    SELECT 1 FROM permissions WHERE name = 'view donations' AND guard_name = 'web'
+);
+
+INSERT INTO roles (name, guard_name, created_at, updated_at)
+SELECT 'Telecaller', 'web', NOW(), NOW()
+FROM DUAL
+WHERE NOT EXISTS (
+    SELECT 1 FROM roles WHERE name IN ('Telecaller', 'telecaller') AND guard_name = 'web'
+);
+
+INSERT INTO role_has_permissions (permission_id, role_id)
+SELECT p.id, r.id
+FROM permissions p
+JOIN roles r ON r.name IN ('Telecaller', 'telecaller') AND r.guard_name = 'web'
+WHERE p.name = 'view donations' AND p.guard_name = 'web'
+  AND NOT EXISTS (
+      SELECT 1 FROM role_has_permissions rhp
+      WHERE rhp.permission_id = p.id AND rhp.role_id = r.id
+  );
+```
+
+Assign role to a user (example: replace email):
+
+```sql
+INSERT INTO model_has_roles (role_id, model_type, model_id)
+SELECT r.id, 'App\\\\Models\\\\User', u.id
+FROM roles r
+JOIN users u ON u.email = 'dhruvi@example.com'
+WHERE r.name = 'telecaller' AND r.guard_name = 'web'
+  AND NOT EXISTS (
+      SELECT 1 FROM model_has_roles mhr
+      WHERE mhr.role_id = r.id AND mhr.model_id = u.id
+          AND mhr.model_type = 'App\\\\Models\\\\User'
+  );
+```
+
+Optional index:
+
+```sql
+ALTER TABLE donation_orders
+    ADD INDEX donation_orders_failed_at_index (failed_at);
+```
+
+### Rollback
+
+```sql
+-- Remove telecaller role from one user (example email)
+DELETE mhr FROM model_has_roles mhr
+JOIN roles r ON r.id = mhr.role_id
+JOIN users u ON u.id = mhr.model_id
+WHERE r.name = 'telecaller' AND u.email = 'dhruvi@example.com';
+
+ALTER TABLE donation_orders
+    DROP INDEX donation_orders_failed_at_index;
+```

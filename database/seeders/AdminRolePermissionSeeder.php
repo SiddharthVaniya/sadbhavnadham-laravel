@@ -3,6 +3,7 @@
 namespace Database\Seeders;
 
 use App\Support\AdminPermissions;
+use App\Support\TelecallerPortal;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
@@ -27,6 +28,7 @@ class AdminRolePermissionSeeder extends Seeder
         $manager = Role::firstOrCreate(['name' => 'manager']);
         $user = Role::firstOrCreate(['name' => 'user']);
         $digitalMarketer = Role::firstOrCreate(['name' => 'digital_marketer']);
+        $telecaller = Role::firstOrCreate(['name' => 'Telecaller', 'guard_name' => 'web']);
 
         $superAdmin->syncPermissions(Permission::all());
 
@@ -89,6 +91,10 @@ class AdminRolePermissionSeeder extends Seeder
             AdminPermissions::PACKAGE_VIEW,
             AdminPermissions::PACKAGE_COPY_LINKS,
             AdminPermissions::REFERRAL_VIEW,
+        ]);
+
+        $telecaller->syncPermissions([
+            AdminPermissions::DONATION_VIEW,
         ]);
     }
 }

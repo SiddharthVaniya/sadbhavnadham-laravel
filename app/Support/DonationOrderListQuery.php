@@ -18,14 +18,14 @@ class DonationOrderListQuery
 
         DonationVisibility::apply($query, $request->user());
 
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
         if ($duration === 'custom') {
             $this->applyCreatedAtDateRange($query, $request->input('from_date'), $request->input('to_date'));
         } else {
             $this->applyDurationFilter($query, $duration);
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
         }
 
         if ($request->filled('min_amount') && is_numeric($request->input('min_amount'))) {
@@ -98,6 +98,99 @@ class DonationOrderListQuery
         }
 
         return $query;
+    }
+
+    public function telecallerFailed(Request $request): Builder
+    {
+        $duration = $this->resolveTelecallerDuration($request);
+        $query = DonationOrder::query()->with(['items.causeModel', 'items.package', 'subscription', 'partner']);
+
+        $query->where('status', DonationOrder::STATUS_FAILED);
+
+        if ($duration === 'custom') {
+            $this->applyTelecallerDateRange($query, $request->input('from_date'), $request->input('to_date'));
+        } elseif ($duration !== 'all') {
+            $this->applyDurationFilter($query, $duration, true);
+        }
+
+        if ($this->hasSearchTerm($request)) {
+            $search = trim((string) $request->input('search'));
+
+            $query->where(function ($subQuery) use ($search) {
+                $subQuery
+                    ->where('donor_name', 'like', "%{$search}%")
+                    ->orWhere('donor_email', 'like', "%{$search}%")
+                    ->orWhere('donor_phone', 'like', "%{$search}%")
+                    ->orWhere('provider_order_id', 'like', "%{$search}%")
+                    ->orWhere('provider_payment_id', 'like', "%{$search}%")
+                    ->orWhere('receipt_number', 'like', "%{$search}%");
+            });
+        }
+
+        return $query;
+    }
+
+    public function resolveTelecallerDuration(Request $request): string
+    {
+        if ($request->filled('from_date') || $request->filled('to_date')) {
+            return 'custom';
+        }
+
+        $duration = (string) $request->input('duration', TelecallerPortal::DEFAULT_DURATION);
+
+        if ($this->hasSearchTerm($request) && in_array($duration, ['today', TelecallerPortal::DEFAULT_DURATION], true)) {
+            return 'all';
+        }
+
+        return $duration;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function durationOptions(): array
+    {
+        return [
+            'today' => 'Today',
+            'yesterday' => 'Yesterday',
+            'this_week' => 'This week',
+            'last_week' => 'Previous week',
+            'this_month' => 'This month',
+            'last_month' => 'Previous month',
+            'last_7_days' => 'Last 7 days',
+            'last_30_days' => 'Last 30 days',
+            'last_90_days' => 'Last 90 days',
+            'all' => 'All time',
+            'custom' => 'Custom range',
+        ];
+    }
+
+    public function overviewDateLabel(Request $request, string $duration, array $durationOptions): string
+    {
+        if ($duration === 'custom') {
+            $fromDate = $request->filled('from_date')
+                ? Carbon::parse((string) $request->from_date)->format('d M Y')
+                : null;
+            $toDate = $request->filled('to_date')
+                ? Carbon::parse((string) $request->to_date)->format('d M Y')
+                : null;
+
+            if ($fromDate && $toDate) {
+                return $fromDate.' – '.$toDate;
+            }
+
+            if ($fromDate) {
+                return 'From '.$fromDate;
+            }
+
+            if ($toDate) {
+                return 'Until '.$toDate;
+            }
+
+            return $durationOptions['custom'] ?? 'Custom range';
+        }
+
+        return $durationOptions[$duration] ?? 'All time';
     }
 
     /**
@@ -278,41 +371,85 @@ class DonationOrderListQuery
         });
     }
 
-    private function applyDurationFilter(Builder $query, string $duration): void
+    private function applyDurationFilter(Builder $query, string $duration, bool $telecallerWorkflow = false): void
     {
         $now = now();
 
         if ($duration === 'today') {
-            $this->applyActivityDateRange(
-                $query,
-                $now->copy()->startOfDay(),
-                $now->copy()->endOfDay()
-            );
+            $start = $now->copy()->startOfDay();
+            $end = $now->copy()->endOfDay();
+            if ($telecallerWorkflow) {
+                $this->applyTelecallerActivityDateRange($query, $start, $end);
+            } else {
+                $this->applyActivityDateRange($query, $start, $end);
+            }
 
             return;
         }
 
         if ($calendar = PeriodRange::forKey($duration)) {
-            $this->applyActivityDateRange($query, $calendar['start'], $calendar['end']);
+            if ($telecallerWorkflow) {
+                $this->applyTelecallerActivityDateRange($query, $calendar['start'], $calendar['end']);
+            } else {
+                $this->applyActivityDateRange($query, $calendar['start'], $calendar['end']);
+            }
 
             return;
         }
 
         if ($duration === 'last_7_days') {
-            $this->applyActivityDateLowerBound($query, $now->copy()->subDays(6)->startOfDay());
+            $start = $now->copy()->subDays(6)->startOfDay();
+            if ($telecallerWorkflow) {
+                $this->applyTelecallerActivityDateLowerBound($query, $start);
+            } else {
+                $this->applyActivityDateLowerBound($query, $start);
+            }
 
             return;
         }
 
         if ($duration === 'last_30_days') {
-            $this->applyActivityDateLowerBound($query, $now->copy()->subDays(29)->startOfDay());
+            $start = $now->copy()->subDays(29)->startOfDay();
+            if ($telecallerWorkflow) {
+                $this->applyTelecallerActivityDateLowerBound($query, $start);
+            } else {
+                $this->applyActivityDateLowerBound($query, $start);
+            }
 
             return;
         }
 
         if ($duration === 'last_90_days') {
-            $this->applyActivityDateLowerBound($query, $now->copy()->subDays(89)->startOfDay());
+            $start = $now->copy()->subDays(89)->startOfDay();
+            if ($telecallerWorkflow) {
+                $this->applyTelecallerActivityDateLowerBound($query, $start);
+            } else {
+                $this->applyActivityDateLowerBound($query, $start);
+            }
         }
+    }
+
+    private function applyTelecallerDateRange(Builder $query, mixed $fromDate, mixed $toDate): void
+    {
+        if (! empty($fromDate)) {
+            $start = Carbon::parse((string) $fromDate)->startOfDay();
+            $query->whereRaw('COALESCE(failed_at, created_at) >= ?', [$start]);
+        }
+
+        if (! empty($toDate)) {
+            $end = Carbon::parse((string) $toDate)->endOfDay();
+            $query->whereRaw('COALESCE(failed_at, created_at) <= ?', [$end]);
+        }
+    }
+
+    private function applyTelecallerActivityDateRange(Builder $query, Carbon $start, Carbon $end): void
+    {
+        $query->whereRaw('COALESCE(failed_at, created_at) BETWEEN ? AND ?', [$start, $end]);
+    }
+
+    private function applyTelecallerActivityDateLowerBound(Builder $query, Carbon $start): void
+    {
+        $query->whereRaw('COALESCE(failed_at, created_at) >= ?', [$start]);
     }
 
     private function applyActivityDateRange(Builder $query, Carbon $start, Carbon $end): void

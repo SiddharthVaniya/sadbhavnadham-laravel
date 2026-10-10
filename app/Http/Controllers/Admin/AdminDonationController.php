@@ -22,6 +22,7 @@ use App\Support\AdminInertiaData;
 use App\Support\AdminInertiaResources;
 use App\Support\DonationOrderListQuery;
 use App\Support\DonationVisibility;
+use App\Support\TelecallerPortal;
 use App\Support\PanRequirementService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -41,8 +42,12 @@ class AdminDonationController extends Controller
         private DonationOrderListQuery $donationOrderListQuery,
     ) {}
 
-    public function index(Request $request): Response
+    public function index(Request $request): Response|RedirectResponse
     {
+        if (TelecallerPortal::usesFailedDonationWorkflow($request->user())) {
+            return redirect()->route('admin.donations.telecaller', $request->query());
+        }
+
         $duration = $this->donationOrderListQuery->resolveDuration($request);
         $query = $this->donationOrderListQuery->filtered($request, $duration);
 
@@ -938,8 +943,12 @@ class AdminDonationController extends Controller
         }
     }
 
-    public function offline(Request $request): Response
+    public function offline(Request $request): Response|RedirectResponse
     {
+        if (TelecallerPortal::usesFailedDonationWorkflow($request->user())) {
+            return redirect()->route('admin.donations.telecaller', TelecallerPortal::homeRouteParameters());
+        }
+
         // Manual entries use "manual-" provider_order_id; Razorpay multi-use QR
         // payments are auto-created with provider razorpay_qr (and qr-* ids).
         $query = DonationOrder::query()

@@ -8,6 +8,7 @@ use App\Support\AdminDashboardData;
 use App\Support\AdminInertiaResources;
 use App\Support\AdminPermissions;
 use App\Support\DonationVisibility;
+use App\Support\TelecallerPortal;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -21,6 +22,13 @@ class AdminDashboardController extends Controller
 
         if (! $user) {
             abort(403);
+        }
+
+        if (TelecallerPortal::usesFailedDonationWorkflow($user)) {
+            return redirect()->route(
+                TelecallerPortal::homeRouteName(),
+                TelecallerPortal::homeRouteParameters(),
+            );
         }
 
         // Receipt clerks / limited donation staff land on receipts instead of org-wide analytics.

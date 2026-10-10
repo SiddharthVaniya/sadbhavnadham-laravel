@@ -25,6 +25,10 @@ class DonationVisibility
             return true;
         }
 
+        if (TelecallerPortal::usesFailedDonationWorkflow($user)) {
+            return true;
+        }
+
         return (int) $order->created_by === (int) $user->id;
     }
 
@@ -35,10 +39,11 @@ class DonationVisibility
 
     public static function apply(Builder $query, ?User $user): Builder
     {
-        if (! $user || self::userCanViewAll($user)) {
+        if (! $user || self::userCanViewAll($user) || TelecallerPortal::usesFailedDonationWorkflow($user)) {
             return $query;
         }
 
         return $query->where('created_by', $user->id);
     }
+
 }

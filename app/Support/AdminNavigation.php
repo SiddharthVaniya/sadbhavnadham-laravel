@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Models\DonationOrder;
 use App\Models\User;
 
 class AdminNavigation
@@ -11,17 +12,24 @@ class AdminNavigation
         $canViewAllDonations = AdminPermissions::userCan($user, AdminPermissions::DONATION_VIEW_ALL);
         $canViewDonations = AdminPermissions::userCan($user, AdminPermissions::DONATION_VIEW);
         $canCreateDonations = AdminPermissions::userCan($user, AdminPermissions::DONATION_CREATE);
+        $telecallerWorkflow = TelecallerPortal::usesFailedDonationWorkflow($user);
 
         $donationChildren = [];
 
-        if ($canViewAllDonations) {
+        if ($telecallerWorkflow) {
+            $donationChildren[] = [
+                'label' => 'Failed donations',
+                'route' => 'admin.donations.telecaller',
+                'route_parameters' => TelecallerPortal::homeRouteParameters(),
+            ];
+        } elseif ($canViewAllDonations) {
             $donationChildren[] = ['label' => 'All donations', 'route' => 'admin.donations.index'];
             $donationChildren[] = ['label' => 'Recovery queue', 'route' => 'admin.donations.recovery'];
-        } elseif ($canViewDonations) {
+        } elseif ($canViewDonations && ! $telecallerWorkflow) {
             $donationChildren[] = ['label' => 'My receipts', 'route' => 'admin.donations.offline'];
         }
 
-        if ($canViewDonations) {
+        if ($canViewDonations && ! $telecallerWorkflow) {
             $donationChildren[] = [
                 'label' => 'Offline',
                 'route' => 'admin.donations.offline',
@@ -29,7 +37,7 @@ class AdminNavigation
             ];
         }
 
-        if ($canCreateDonations) {
+        if ($canCreateDonations && ! $telecallerWorkflow) {
             $donationChildren[] = [
                 'label' => 'Record offline',
                 'route' => 'admin.donations.create',
@@ -80,7 +88,9 @@ class AdminNavigation
             ],
             [
                 'label' => 'Donations',
-                'route' => $canViewAllDonations ? 'admin.donations.index' : 'admin.donations.offline',
+                'route' => $telecallerWorkflow
+                    ? 'admin.donations.telecaller'
+                    : ($canViewAllDonations ? 'admin.donations.index' : 'admin.donations.offline'),
                 'permissions_any' => [
                     AdminPermissions::DONATION_VIEW,
                     AdminPermissions::DONATION_CREATE,
@@ -210,7 +220,11 @@ class AdminNavigation
         ];
 
         return collect($items)
-            ->filter(function (array $item) use ($user) {
+            ->filter(function (array $item) use ($user, $telecallerWorkflow) {
+                if ($telecallerWorkflow && ($item['label'] ?? '') !== 'Donations') {
+                    return false;
+                }
+
                 if (isset($item['permissions_any'])) {
                     return AdminPermissions::userCanAny($user, $item['permissions_any']);
                 }
@@ -221,8 +235,10 @@ class AdminNavigation
 
                 return AdminPermissions::userCan($user, $item['permission']);
             })
-            ->map(function (array $item) use ($user) {
-                $item['href'] = route($item['route']);
+            ->map(function (array $item) use ($user, $telecallerWorkflow) {
+                $item['href'] = $telecallerWorkflow && $item['route'] === 'admin.donations.telecaller'
+                    ? route('admin.donations.telecaller', TelecallerPortal::homeRouteParameters())
+                    : route($item['route']);
 
                 if (! isset($item['children'])) {
                     return $item;
@@ -231,7 +247,7 @@ class AdminNavigation
                 $item['children'] = collect($item['children'])
                     ->filter(fn (array $child) => ! ($child['permission'] ?? null) || AdminPermissions::userCan($user, $child['permission']))
                     ->map(function (array $child) {
-                        $child['href'] = route($child['route']);
+                        $child['href'] = route($child['route'], $child['route_parameters'] ?? []);
 
                         return $child;
                     })

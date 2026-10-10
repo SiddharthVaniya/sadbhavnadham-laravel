@@ -11,6 +11,7 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDonationCampaignController;
 use App\Http\Controllers\Admin\AdminDonationController;
 use App\Http\Controllers\Admin\AdminDonationTelecallerNoteController;
+use App\Http\Controllers\Admin\AdminTelecallerDonationController;
 use App\Http\Controllers\Admin\AdminDonorController;
 use App\Http\Controllers\Admin\AdminDonorCrmController;
 use App\Http\Controllers\Admin\AdminMarketerBudgetController;
@@ -259,6 +260,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::get('/donations', [AdminDonationController::class, 'index'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_VIEW))
         ->name('donations.index');
+    Route::get('/donations/telecaller', [AdminTelecallerDonationController::class, 'index'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_VIEW))
+        ->name('donations.telecaller');
     Route::get('/donations/export', [AdminDonationController::class, 'export'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_EXPORT))
         ->name('donations.export');

@@ -112,6 +112,8 @@ const statusTabs = computed(() => [
     { key: 'refunded', label: 'Refunded', count: props.statusCounts.refunded ?? 0 },
 ]);
 
+const activeStatusTab = computed(() => form.status || '');
+
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const isCustomRange = computed(() => form.duration === 'custom');
@@ -304,13 +306,13 @@ const exportUrl = computed(() => {
         </div>
 
         <div class="rounded-xl border border-border bg-card shadow-none">
-            <div class="flex flex-wrap gap-2 border-b border-border px-4 py-3">
+            <div v-if="statusTabs.length" class="flex flex-wrap gap-2 border-b border-border px-4 py-3">
                 <button
                     v-for="tab in statusTabs"
                     :key="tab.key || 'all'"
                     type="button"
                     class="rounded-lg px-3 py-1.5 text-sm font-medium transition"
-                    :class="(form.status || '') === tab.key
+                    :class="activeStatusTab === tab.key
                         ? 'bg-foreground text-background'
                         : 'bg-muted text-muted-foreground hover:bg-muted'"
                     @click="setStatus(tab.key)"
