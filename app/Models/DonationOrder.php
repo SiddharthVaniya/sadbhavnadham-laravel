@@ -40,6 +40,7 @@ class DonationOrder extends Model
         'partner_user_id',
         'partner_code',
         'meta_pixel_code',
+        'meta_pixel_event',
         'meta_campaign_id',
         'meta_adset_id',
         'meta_ad_id',

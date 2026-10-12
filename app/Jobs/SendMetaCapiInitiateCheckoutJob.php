@@ -22,7 +22,11 @@ class SendMetaCapiInitiateCheckoutJob implements ShouldQueue
     {
         $order = DonationOrder::query()->find($this->donationOrderId);
 
-        if (! $order) {
+        if (
+            ! $order
+            || ! $order->isPending()
+            || round((float) $order->total_amount, 2) <= 0
+        ) {
             return;
         }
 

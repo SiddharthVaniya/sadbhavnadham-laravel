@@ -89,6 +89,65 @@ class MetaPixelCatalog
     }
 
     /**
+     * Mirrors Next.js {@see conversionEventName()} in meta-pixel.ts.
+     */
+    public static function conversionEventName(?string $pixelEvent): string
+    {
+        $name = strtolower(trim((string) ($pixelEvent ?? '')));
+
+        return in_array($name, ['donation', 'donate'], true) ? 'Donate' : 'Purchase';
+    }
+
+    public static function normalizePixelEvent(?string $value): ?string
+    {
+        $normalized = strtolower(trim((string) ($value ?? '')));
+
+        return $normalized !== '' ? $normalized : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $snapshot
+     */
+    public static function resolvePixelEventFromCheckoutSnapshot(array $snapshot): ?string
+    {
+        return self::normalizePixelEvent(
+            is_string($snapshot['pixel_event'] ?? null) ? $snapshot['pixel_event'] : null,
+        );
+    }
+
+    public static function conversionEventNameForOrder(DonationOrder $order): string
+    {
+        if (filled($order->meta_pixel_event)) {
+            return self::conversionEventName((string) $order->meta_pixel_event);
+        }
+
+        $visit = LinkTrackingVisit::query()
+            ->where('donation_order_id', $order->id)
+            ->orderByDesc('id')
+            ->first();
+
+        if ($visit === null && filled($order->partner_code)) {
+            $visit = LinkTrackingVisit::query()
+                ->where('sid', (string) $order->partner_code)
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        if ($visit !== null) {
+            $extra = is_array($visit->extra_params) ? $visit->extra_params : [];
+            $fromVisit = self::normalizePixelEvent(
+                is_string($extra['pixel_event'] ?? null) ? $extra['pixel_event'] : null,
+            );
+
+            if ($fromVisit !== null) {
+                return self::conversionEventName($fromVisit);
+            }
+        }
+
+        return 'Purchase';
+    }
+
+    /**
      * @return array<string, string> lowercase code => numeric Meta pixel id
      */
     public static function codeToIdMap(): array

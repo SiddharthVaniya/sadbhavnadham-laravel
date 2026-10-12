@@ -7,6 +7,7 @@ use App\Models\MetaCapiEventLog;
 use App\Support\Meta\MetaCapiPixel;
 use App\Support\Meta\MetaCapiPixelRegistry;
 use App\Support\Meta\MetaCapUserDataBuilder;
+use App\Support\Meta\MetaPixelCatalog;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -14,6 +15,8 @@ use Illuminate\Support\Str;
 class MetaConversionsApiService
 {
     public const EVENT_PURCHASE = 'Purchase';
+
+    public const EVENT_DONATE = 'Donate';
 
     public const EVENT_INITIATE_CHECKOUT = 'InitiateCheckout';
 
@@ -25,15 +28,24 @@ class MetaConversionsApiService
 
     public function sendPurchase(DonationOrder $order): void
     {
+        if (! $this->shouldSendPurchase($order)) {
+            return;
+        }
+
         $order->refresh()->loadMissing('items');
+        $eventName = MetaPixelCatalog::conversionEventNameForOrder($order);
 
         foreach ($this->pixelRegistry->forPurchaseForOrder($order) as $pixel) {
-            $this->dispatchEvent($pixel, $order, self::EVENT_PURCHASE, $this->purchaseEventId($order));
+            $this->dispatchEvent($pixel, $order, $eventName, $this->purchaseEventId($order));
         }
     }
 
     public function sendInitiateCheckout(DonationOrder $order, ?string $clientUserAgent = null): void
     {
+        if (! $this->shouldSendInitiateCheckout($order)) {
+            return;
+        }
+
         $order->refresh()->loadMissing('items');
 
         foreach ($this->pixelRegistry->forInitiateCheckoutForOrder($order) as $pixel) {
@@ -132,9 +144,31 @@ class MetaConversionsApiService
         }
     }
 
+    private function shouldSendPurchase(DonationOrder $order): bool
+    {
+        if (! $order->isPaid()) {
+            return false;
+        }
+
+        if ($order->isFailed() || $order->isRefunded()) {
+            return false;
+        }
+
+        return round((float) $order->total_amount, 2) > 0;
+    }
+
+    private function shouldSendInitiateCheckout(DonationOrder $order): bool
+    {
+        if (! $order->isPending()) {
+            return false;
+        }
+
+        return round((float) $order->total_amount, 2) > 0;
+    }
+
     private function eventTime(DonationOrder $order, string $eventName): int
     {
-        if ($eventName === self::EVENT_PURCHASE) {
+        if ($eventName === self::EVENT_PURCHASE || $eventName === self::EVENT_DONATE) {
             $paidAt = $order->paid_at ?? now();
 
             return $paidAt instanceof Carbon ? $paidAt->getTimestamp() : now()->getTimestamp();
@@ -161,7 +195,10 @@ class MetaConversionsApiService
             'order_id' => (string) ($order->order_uuid ?? $order->id),
         ];
 
-        if ($eventName === self::EVENT_PURCHASE && filled($order->provider_payment_id)) {
+        if (
+            ($eventName === self::EVENT_PURCHASE || $eventName === self::EVENT_DONATE)
+            && filled($order->provider_payment_id)
+        ) {
             $data['transaction_id'] = (string) $order->provider_payment_id;
         }
 

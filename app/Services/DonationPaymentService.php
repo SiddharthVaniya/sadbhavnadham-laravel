@@ -639,6 +639,8 @@ class DonationPaymentService
 
         $this->linkTracking->markConverted($order);
 
+        dispatch(new SendMetaCapiPurchaseJob($order->id));
+
         dispatch(new LogDonationToSheetJob($order));
 
         if ($sendEmail) {

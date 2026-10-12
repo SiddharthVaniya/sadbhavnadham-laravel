@@ -533,6 +533,11 @@ class DonationAttributionService
 
         $payload['meta_pixel_code'] = MetaPixelCatalog::resolveCodeFromCheckoutSnapshot($snapshot);
 
+        $pixelEvent = MetaPixelCatalog::resolvePixelEventFromCheckoutSnapshot($snapshot);
+        if ($pixelEvent !== null) {
+            $payload['meta_pixel_event'] = $pixelEvent;
+        }
+
         return $payload;
     }
 

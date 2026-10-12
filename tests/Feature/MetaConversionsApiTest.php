@@ -134,6 +134,109 @@ it('sends purchase events to meta capi using env pixel credentials', function ()
         ->and($pixel->hasAccessToken())->toBeFalse();
 });
 
+it('sends donate capi event when order meta_pixel_event is donate', function () {
+    capiTestConfig();
+
+    $order = DonationOrder::query()->create([
+        'meta_pixel_code' => 'sadbhavna_d',
+        'meta_pixel_event' => 'donate',
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'order_capi_donate_event',
+        'donor_name' => 'Donate Event Donor',
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'total_amount' => 600,
+        'currency' => 'INR',
+        'donor_email' => 'donate@example.com',
+        'donor_phone' => '919876543219',
+        'landing_path' => '/donate?pixel_event=donate',
+    ]);
+
+    DonationItem::query()->create([
+        'donation_order_id' => $order->id,
+        'cause' => 'old-age-home',
+        'title' => 'Monthly support',
+        'quantity' => 1,
+        'unit_amount' => 600,
+        'amount' => 600,
+    ]);
+
+    Http::fake([
+        'graph.facebook.com/*' => Http::response(['events_received' => 1], 200),
+    ]);
+
+    app(MetaConversionsApiService::class)->sendPurchase($order);
+
+    $log = MetaCapiEventLog::query()->first();
+    expect($log?->event_name)->toBe('Donate');
+});
+
+it('does not send purchase capi for failed orders', function () {
+    capiTestConfig();
+
+    $order = DonationOrder::query()->create([
+        'meta_pixel_code' => 'sadbhavna_d',
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'order_capi_failed',
+        'donor_name' => 'Failed Donor',
+        'status' => DonationOrder::STATUS_FAILED,
+        'failed_at' => now(),
+        'total_amount' => 500,
+        'currency' => 'INR',
+        'donor_email' => 'failed@example.com',
+        'donor_phone' => '919876543218',
+    ]);
+
+    Http::fake([
+        'graph.facebook.com/*' => Http::response(['events_received' => 1], 200),
+    ]);
+
+    app(MetaConversionsApiService::class)->sendPurchase($order);
+
+    Http::assertNothingSent();
+    expect(MetaCapiEventLog::query()->count())->toBe(0);
+});
+
+it('does not send initiate checkout capi for paid or failed orders', function () {
+    capiTestConfig();
+
+    $paid = DonationOrder::query()->create([
+        'meta_pixel_code' => 'sadbhavna_d',
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'order_ic_paid',
+        'donor_name' => 'Paid',
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'total_amount' => 100,
+        'currency' => 'INR',
+        'donor_email' => 'paid@example.com',
+        'donor_phone' => '919876543217',
+    ]);
+
+    $failed = DonationOrder::query()->create([
+        'meta_pixel_code' => 'sadbhavna_d',
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'order_ic_failed',
+        'donor_name' => 'Failed',
+        'status' => DonationOrder::STATUS_FAILED,
+        'failed_at' => now(),
+        'total_amount' => 100,
+        'currency' => 'INR',
+        'donor_email' => 'failed2@example.com',
+        'donor_phone' => '919876543216',
+    ]);
+
+    Http::fake([
+        'graph.facebook.com/*' => Http::response(['events_received' => 1], 200),
+    ]);
+
+    $service = app(MetaConversionsApiService::class);
+    $service->sendInitiateCheckout($paid);
+    $service->sendInitiateCheckout($failed);
+
+    Http::assertNothingSent();
+});
+
 it('sends purchase to only the order pixel matching marketer link pixel_id', function () {
     capiTestConfig();
 

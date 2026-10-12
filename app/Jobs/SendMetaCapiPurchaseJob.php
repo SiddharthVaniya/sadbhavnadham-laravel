@@ -21,7 +21,13 @@ class SendMetaCapiPurchaseJob implements ShouldQueue
     {
         $order = DonationOrder::query()->find($this->donationOrderId);
 
-        if (! $order || ! $order->isPaid()) {
+        if (
+            ! $order
+            || ! $order->isPaid()
+            || $order->isFailed()
+            || $order->isRefunded()
+            || round((float) $order->total_amount, 2) <= 0
+        ) {
             return;
         }
 
