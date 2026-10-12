@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\DonationOrder;
+use App\Models\DonationTelecallerNote;
 use App\Models\User;
 use App\Support\AdminNavigation;
 use App\Support\TelecallerPortal;
@@ -100,6 +101,68 @@ it('finds donations by mobile on the telecaller search page', function () {
             ->component('Admin/Telecaller/SearchByMobile')
             ->where('normalizedPhone', $phone)
             ->has('donations.data', 2));
+});
+
+it('returns quick-response outcomes with default messages for telecaller notes', function () {
+    $user = createTelecallerUser();
+    $order = createTelecallerDonation(DonationOrder::STATUS_FAILED, 'Outcome Donor');
+
+    actingAs($user)
+        ->getJson(route('admin.donations.telecaller-notes.index', $order))
+        ->assertOk()
+        ->assertJsonPath('outcomes.0.value', 'not_receive')
+        ->assertJsonPath('outcomes.0.default_message', 'Not receive')
+        ->assertJsonPath('outcomes.3.value', 'paid');
+});
+
+it('stores a telecaller note with a quick-response outcome', function () {
+    $user = createTelecallerUser();
+    $order = createTelecallerDonation(DonationOrder::STATUS_FAILED, 'Note Donor');
+
+    actingAs($user)
+        ->postJson(route('admin.donations.telecaller-notes.store', $order), [
+            'speaker' => 'telecaller',
+            'message' => 'Busy',
+            'outcome' => 'busy',
+        ])
+        ->assertCreated()
+        ->assertJsonPath('notes.0.outcome_label', 'Busy')
+        ->assertJsonPath('notes.0.message', 'Busy');
+});
+
+it('filters failed donations by telecaller outcome', function () {
+    $user = createTelecallerUser();
+
+    $busy = createTelecallerDonation(DonationOrder::STATUS_FAILED, 'Busy Filter Donor');
+    $other = createTelecallerDonation(DonationOrder::STATUS_FAILED, 'Other Filter Donor');
+
+    DonationTelecallerNote::query()->create([
+        'donation_order_id' => $busy->id,
+        'user_id' => $user->id,
+        'telecaller_name' => $user->name,
+        'speaker' => DonationTelecallerNote::SPEAKER_TELECALLER,
+        'message' => 'Busy',
+        'outcome' => 'busy',
+    ]);
+
+    DonationTelecallerNote::query()->create([
+        'donation_order_id' => $other->id,
+        'user_id' => $user->id,
+        'telecaller_name' => $user->name,
+        'speaker' => DonationTelecallerNote::SPEAKER_TELECALLER,
+        'message' => 'Paid',
+        'outcome' => 'paid',
+    ]);
+
+    actingAs($user)
+        ->get(route('admin.donations.telecaller', [
+            'duration' => 'all',
+            'telecaller_outcome' => 'busy',
+        ]))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page
+            ->has('donations.data', 1)
+            ->where('donations.data.0.donor_name', 'Busy Filter Donor'));
 });
 
 it('forbids non-telecallers from the telecaller donations page', function () {

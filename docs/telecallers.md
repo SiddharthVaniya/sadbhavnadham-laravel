@@ -94,7 +94,8 @@ On either list, use the **message** icon or click the latest note in the **Notes
 
 - **I said** — what you told the donor.  
 - **Donor said** — what the donor replied (for a clear thread).  
-- **Outcome** (optional) — pick from the predefined list.  
+- **Quick response** chips — tap **Not receive**, **Busy**, **Send QR**, **Paid**, etc.; the note text fills automatically (you can edit before sending).
+- **Outcome** dropdown — same options as the chips.  
 - **Follow-up** (optional) — date/time for a callback.  
 - Press **Enter** to send (Shift+Enter for a new line).
 

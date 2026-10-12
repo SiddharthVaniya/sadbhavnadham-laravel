@@ -20,8 +20,10 @@ use App\Services\PostalCodeLookupService;
 use App\Services\RazorpayRefundService;
 use App\Support\AdminInertiaData;
 use App\Support\AdminInertiaResources;
+use App\Support\DonationOrderCsvExport;
 use App\Support\DonationOrderListQuery;
 use App\Support\DonationVisibility;
+use App\Support\TelecallerOutcomeFilter;
 use App\Support\TelecallerPortal;
 use App\Support\PanRequirementService;
 use Illuminate\Database\Eloquent\Builder;
@@ -110,6 +112,7 @@ class AdminDonationController extends Controller
             $request->filled('utm_campaign'),
             $request->filled('utm_content'),
             $request->filled('partner_user_id'),
+            $request->filled('telecaller_outcome'),
         ])->filter()->count();
 
         [$sort, $dir] = $this->donationOrderListQuery->resolveSort($request);
@@ -201,6 +204,7 @@ class AdminDonationController extends Controller
                 ->values(),
             'campaignOptions' => $campaignOptions,
             'employeeOptions' => $employeeOptions,
+            'telecallerOutcomeOptions' => TelecallerOutcomeFilter::optionsForUi(),
             'causes' => Cause::query()->orderBy('title')->get(['id', 'title']),
             'packages' => CausePackage::query()
                 ->with('cause:id,title')
@@ -233,6 +237,7 @@ class AdminDonationController extends Controller
                 'utm_campaign' => $request->input('utm_campaign'),
                 'utm_content' => $request->input('utm_content'),
                 'partner_user_id' => $request->input('partner_user_id'),
+                'telecaller_outcome' => $request->input('telecaller_outcome'),
                 'min_amount' => $request->input('min_amount'),
                 'max_amount' => $request->input('max_amount'),
                 'sort' => $sort,
@@ -249,62 +254,7 @@ class AdminDonationController extends Controller
             ? trim((string) $request->input('cause_title'))
             : null;
 
-        $filename = 'donations_'.now()->format('Y-m-d_His').'.csv';
-
-        $headers = [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
-        ];
-
-        $qualifiedKey = (new DonationOrder)->getQualifiedKeyName();
-        $keyName = (new DonationOrder)->getKeyName();
-
-        $callback = function () use ($exportQuery, $causeTitleFilter, $qualifiedKey, $keyName): void {
-            $file = fopen('php://output', 'w');
-            fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
-
-            fputcsv($file, [
-                'Order UUID',
-                'Payment ID',
-                'Donor Name',
-                'Donor Email',
-                'Donor Phone',
-                'Cause',
-                'Cause title',
-                'Amount (INR)',
-                'Status',
-                'Payment Provider',
-                'Receipt Number',
-                'Created At',
-                'Paid At',
-            ]);
-
-            $exportQuery->chunkById(500, function ($orders) use ($file, $causeTitleFilter): void {
-                foreach ($orders as $order) {
-                    foreach (AdminInertiaData::donationTableRows($order, $causeTitleFilter) as $row) {
-                        fputcsv($file, [
-                            $row['uuid'],
-                            $row['payment_id'],
-                            $row['donor_name'],
-                            $row['donor_email'],
-                            $row['donor_phone'],
-                            $row['cause'] === '—' ? '' : $row['cause'],
-                            $row['cause_title'] === '—' ? '' : $row['cause_title'],
-                            $row['total_amount'],
-                            $row['status'],
-                            $order->payment_provider,
-                            $order->hasReceipt() ? $order->receiptNumberFormatted() : '',
-                            $order->created_at?->format('Y-m-d H:i:s'),
-                            $order->paid_at?->format('Y-m-d H:i:s'),
-                        ]);
-                    }
-                }
-            }, $qualifiedKey, $keyName);
-
-            fclose($file);
-        };
-
-        return response()->stream($callback, 200, $headers);
+        return DonationOrderCsvExport::stream($exportQuery, $causeTitleFilter);
     }
 
     protected function formatOverviewDateLabel(Request $request, string $duration, array $durationOptions): string

@@ -1319,3 +1319,29 @@ WHERE r.name = 'telecaller' AND u.email = 'dhruvi@example.com';
 ALTER TABLE donation_orders
     DROP INDEX donation_orders_failed_at_index;
 ```
+
+---
+
+## 2026-10-12 — Widen `donation_telecaller_notes.outcome`
+
+Long outcome slugs (e.g. telecaller quick responses) can exceed a short `VARCHAR` and fail on insert.
+
+### Preview
+
+```sql
+SHOW COLUMNS FROM donation_telecaller_notes LIKE 'outcome';
+```
+
+### Apply
+
+```sql
+ALTER TABLE donation_telecaller_notes
+    MODIFY outcome VARCHAR(64) NULL;
+```
+
+### Rollback
+
+```sql
+ALTER TABLE donation_telecaller_notes
+    MODIFY outcome VARCHAR(20) NULL;
+```

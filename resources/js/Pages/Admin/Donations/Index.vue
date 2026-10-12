@@ -51,6 +51,7 @@ const props = defineProps({
     sort: { type: String, default: 'created_at_ts' },
     dir: { type: String, default: 'desc' },
     filters: { type: Object, default: () => ({}) },
+    telecallerOutcomeOptions: { type: Array, default: () => [] },
 });
 
 const form = reactive({
@@ -68,6 +69,7 @@ const form = reactive({
     utm_campaign: props.filters.utm_campaign ?? '',
     utm_content: props.filters.utm_content ?? '',
     partner_user_id: props.filters.partner_user_id ?? '',
+    telecaller_outcome: props.filters.telecaller_outcome ?? '',
     sort: props.sort ?? 'created_at_ts',
     dir: props.dir ?? 'desc',
 });
@@ -206,6 +208,15 @@ const setStatus = (status) => {
     submit();
 };
 
+const telecallerResponseChips = computed(() => (
+    props.telecallerOutcomeOptions.filter((option) => option.value !== '')
+));
+
+const setTelecallerOutcome = (value) => {
+    form.telecaller_outcome = value;
+    submit();
+};
+
 const toggleSort = (key) => {
     if (form.sort === key) {
         form.dir = form.dir === 'asc' ? 'desc' : 'asc';
@@ -321,12 +332,53 @@ const exportUrl = computed(() => {
                 </button>
             </div>
 
+            <div
+                v-if="telecallerResponseChips.length"
+                class="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5"
+            >
+                <span class="text-xs font-medium text-muted-foreground">Telecaller:</span>
+                <button
+                    type="button"
+                    class="rounded-full px-2.5 py-1 text-xs font-medium transition"
+                    :class="!form.telecaller_outcome
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-muted text-muted-foreground hover:bg-muted'"
+                    @click="setTelecallerOutcome('')"
+                >
+                    All responses
+                </button>
+                <button
+                    v-for="chip in telecallerResponseChips"
+                    :key="chip.value"
+                    type="button"
+                    class="rounded-full px-2.5 py-1 text-xs font-medium transition"
+                    :class="form.telecaller_outcome === chip.value
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-muted text-muted-foreground hover:bg-muted'"
+                    @click="setTelecallerOutcome(chip.value)"
+                >
+                    {{ chip.label }}
+                </button>
+            </div>
+
             <form class="grid gap-2 border-b border-border px-4 py-3 md:grid-cols-12" @submit.prevent="submit()">
                 <div v-if="isCustomRange" class="md:col-span-2">
                     <FormDatePicker v-model="form.from_date" label="From" placeholder="From date" />
                 </div>
                 <div v-if="isCustomRange" class="md:col-span-2">
                     <FormDatePicker v-model="form.to_date" label="To" placeholder="To date" />
+                </div>
+                <div class="md:col-span-2">
+                    <label class="admin-label !mb-1 !text-xs">Telecaller response</label>
+                    <select v-model="form.telecaller_outcome" class="admin-input !py-2">
+                        <option
+                            v-for="option in telecallerOutcomeOptions"
+                            :key="option.value || 'all'"
+                            :value="option.value"
+                        >
+                            {{ option.label }}
+                        </option>
+                    </select>
                 </div>
                 <div class="md:col-span-2">
                     <label class="admin-label !mb-1 !text-xs">Provider</label>
@@ -497,15 +549,15 @@ const exportUrl = computed(() => {
                             class="block w-40 truncate text-left"
                             @click="openTelecaller(row)"
                         >
-                            <span class="block truncate text-sm font-medium text-foreground">
-                                {{ row.last_telecaller_note.name || 'Telecaller' }}
-                            </span>
                             <span
-                                v-if="row.last_telecaller_note.message"
-                                class="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground"
-                                :title="row.last_telecaller_note.message"
+                                class="block truncate text-sm font-medium text-foreground"
+                                :title="row.last_telecaller_note.outcome_label || row.last_telecaller_note.message"
                             >
-                                {{ row.last_telecaller_note.message }}
+                                {{ row.last_telecaller_note.outcome_label || row.last_telecaller_note.message }}
+                            </span>
+                            <span class="mt-0.5 block truncate text-[11px] leading-tight text-muted-foreground">
+                                {{ row.last_telecaller_note.name || 'Telecaller' }}
+                                <template v-if="row.last_telecaller_note.at"> · {{ row.last_telecaller_note.at }}</template>
                             </span>
                         </button>
                         <span v-else class="text-xs text-muted-foreground">—</span>

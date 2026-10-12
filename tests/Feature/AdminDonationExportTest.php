@@ -4,6 +4,7 @@ use App\Models\Cause;
 use App\Models\CausePackage;
 use App\Models\DonationItem;
 use App\Models\DonationOrder;
+use App\Models\DonationTelecallerNote;
 use App\Models\User;
 use App\Support\Attribution\AttributionTaxonomy;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -44,6 +45,70 @@ function csvDataLines(string $csv): array
 
     return array_values(array_filter($lines, fn (string $line) => $line !== ''));
 }
+
+it('exports csv rows filtered by telecaller outcome on the latest note', function () {
+    $user = createDonationExportAdmin();
+    $telecaller = User::factory()->create(['name' => 'Export Telecaller']);
+
+    $busyOrder = DonationOrder::create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'export-busy-order',
+        'provider_payment_id' => 'pay_export_busy',
+        'donor_name' => 'Busy Outcome Donor',
+        'donor_email' => 'busy.outcome@example.com',
+        'donor_phone' => '9111111201',
+        'currency' => 'INR',
+        'total_amount' => 500,
+        'status' => DonationOrder::STATUS_FAILED,
+    ]);
+
+    $otherOrder = DonationOrder::create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'provider_order_id' => 'export-other-order',
+        'provider_payment_id' => 'pay_export_other',
+        'donor_name' => 'Other Outcome Donor',
+        'donor_email' => 'other.outcome@example.com',
+        'donor_phone' => '9111111202',
+        'currency' => 'INR',
+        'total_amount' => 600,
+        'status' => DonationOrder::STATUS_FAILED,
+    ]);
+
+    DonationTelecallerNote::query()->create([
+        'donation_order_id' => $busyOrder->id,
+        'user_id' => $telecaller->id,
+        'telecaller_name' => $telecaller->name,
+        'speaker' => DonationTelecallerNote::SPEAKER_TELECALLER,
+        'message' => 'Busy',
+        'outcome' => 'busy',
+    ]);
+
+    DonationTelecallerNote::query()->create([
+        'donation_order_id' => $otherOrder->id,
+        'user_id' => $telecaller->id,
+        'telecaller_name' => $telecaller->name,
+        'speaker' => DonationTelecallerNote::SPEAKER_TELECALLER,
+        'message' => 'Not receive',
+        'outcome' => 'not_receive',
+    ]);
+
+    actingAs($user);
+
+    $response = get(route('admin.donations.export', [
+        'duration' => 'all',
+        'status' => DonationOrder::STATUS_FAILED,
+        'telecaller_outcome' => 'busy',
+    ]));
+
+    $response->assertOk();
+    $csv = $response->streamedContent();
+
+    expect(csvDataLines($csv))->toHaveCount(1)
+        ->and($csv)->toContain('Telecaller response')
+        ->and($csv)->toContain('Busy Outcome Donor')
+        ->and($csv)->toContain('Busy')
+        ->and($csv)->not->toContain('Other Outcome Donor');
+});
 
 it('exports csv rows matching every applied list filter', function () {
     $user = createDonationExportAdmin();

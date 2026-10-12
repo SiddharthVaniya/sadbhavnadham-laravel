@@ -63,7 +63,7 @@ class AdminDonationTelecallerNoteController extends Controller
                 'telecaller_name' => $note->telecaller_name,
                 'message' => $note->message,
                 'outcome' => $note->outcome,
-                'outcome_label' => DonationTelecallerNote::OUTCOMES[$note->outcome] ?? null,
+                'outcome_label' => DonationTelecallerNote::outcomeLabel($note->outcome),
                 'follow_up_at' => $note->follow_up_at?->format('d M Y, h:i A'),
                 'created_at' => $note->created_at?->format('d M Y, h:i A'),
                 'created_date' => $note->created_at?->format('d M Y'),
@@ -76,7 +76,11 @@ class AdminDonationTelecallerNoteController extends Controller
             'status' => $order->status,
             'amount' => (float) $order->total_amount,
             'outcomes' => collect(DonationTelecallerNote::OUTCOMES)
-                ->map(fn (string $label, string $value): array => ['value' => $value, 'label' => $label])
+                ->map(fn (string $label, string $value): array => [
+                    'value' => $value,
+                    'label' => $label,
+                    'default_message' => DonationTelecallerNote::outcomeDefaultMessage($value) ?? $label,
+                ])
                 ->values(),
             'notes' => $notes,
         ];

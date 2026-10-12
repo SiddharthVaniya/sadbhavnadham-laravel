@@ -22,13 +22,34 @@ class AdminInertiaData
     private static array $qrSummaryByOrderId = [];
 
     /**
-     * @var array<int, array{speaker: string, name: string, message: string, at: ?string}>
+     * @var array<int, array{speaker: string, name: string, message: string, outcome: ?string, outcome_label: ?string, at: ?string}>
      */
     private static array $lastTelecallerNoteByOrderId = [];
 
     /**
      * @param  iterable<DonationOrder>  $orders
      */
+    public static function clearTelecallerNoteCache(): void
+    {
+        self::$lastTelecallerNoteByOrderId = [];
+    }
+
+    /**
+     * @param  iterable<DonationOrder>  $orders
+     */
+    public static function prepareTelecallerNotesForOrders(iterable $orders): void
+    {
+        self::warmLastTelecallerNotes($orders);
+    }
+
+    /**
+     * @return array{speaker: string, name: string, message: string, outcome: ?string, outcome_label: ?string, at: ?string}|null
+     */
+    public static function lastTelecallerNoteForOrder(int $orderId): ?array
+    {
+        return self::$lastTelecallerNoteByOrderId[$orderId] ?? null;
+    }
+
     private static function warmLastTelecallerNotes(iterable $orders): void
     {
         self::$lastTelecallerNoteByOrderId = [];
@@ -55,6 +76,8 @@ class AdminInertiaData
                 'speaker' => $note->speaker,
                 'name' => (string) $note->telecaller_name,
                 'message' => $note->message,
+                'outcome' => $note->outcome,
+                'outcome_label' => DonationTelecallerNote::outcomeLabel($note->outcome),
                 'at' => $note->created_at?->format('d M, h:i A'),
             ];
         });

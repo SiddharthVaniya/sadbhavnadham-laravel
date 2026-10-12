@@ -13,7 +13,13 @@ const emitLast = () => {
     const notes = data.value.notes ?? [];
     const last = notes[notes.length - 1];
     emit('saved', last
-        ? { speaker: last.speaker, name: last.telecaller_name, message: last.message, at: last.created_at }
+        ? {
+            speaker: last.speaker,
+            name: last.telecaller_name,
+            message: last.message,
+            outcome_label: last.outcome_label,
+            at: last.created_at,
+        }
         : null);
 };
 
@@ -26,6 +32,32 @@ const saving = ref(false);
 const error = ref('');
 const data = ref({ notes: [], outcomes: [] });
 const scroller = ref(null);
+const messageInput = ref(null);
+
+const outcomeOptions = computed(() => data.value.outcomes ?? []);
+
+const applyOutcomeToMessage = (value) => {
+    if (!value) {
+        return;
+    }
+
+    const match = outcomeOptions.value.find((o) => o.value === value);
+    const text = match?.default_message || match?.label;
+
+    if (text) {
+        message.value = text;
+    }
+};
+
+const pickQuickOutcome = (value) => {
+    outcome.value = value;
+    applyOutcomeToMessage(value);
+    nextTick(() => messageInput.value?.focus());
+};
+
+watch(outcome, (value) => {
+    applyOutcomeToMessage(value);
+});
 
 const csrf = () => document.querySelector('meta[name="csrf-token"]')?.content ?? '';
 const baseUrl = computed(() => `/admin/donations/${props.donation?.uuid}/telecaller-notes`);
@@ -184,15 +216,37 @@ const showDay = (index) => index === 0
                             Donor said
                         </button>
                     </div>
+                    <div class="space-y-1.5">
+                        <p class="text-[11px] font-medium text-muted-foreground">Quick response</p>
+                        <div class="flex flex-wrap gap-1.5">
+                            <button
+                                v-for="o in outcomeOptions"
+                                :key="o.value"
+                                type="button"
+                                class="rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors"
+                                :class="outcome === o.value
+                                    ? 'border-emerald-600 bg-emerald-600 text-white'
+                                    : 'border-border bg-background text-foreground hover:border-emerald-300 hover:bg-emerald-50'"
+                                @click="pickQuickOutcome(o.value)"
+                            >
+                                {{ o.label }}
+                            </button>
+                        </div>
+                    </div>
                     <div class="flex gap-2">
-                        <select v-model="outcome" class="h-8 flex-1 rounded-md border bg-background px-2 text-xs">
+                        <select
+                            v-model="outcome"
+                            class="h-8 flex-1 rounded-md border bg-background px-2 text-xs"
+                            @change="applyOutcomeToMessage(outcome)"
+                        >
                             <option value="">Outcome (optional)</option>
-                            <option v-for="o in data.outcomes" :key="o.value" :value="o.value">{{ o.label }}</option>
+                            <option v-for="o in outcomeOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
                         </select>
                         <input v-model="followUpAt" type="datetime-local" class="h-8 flex-1 rounded-md border bg-background px-2 text-xs" title="Follow-up (optional)">
                     </div>
                     <div class="flex items-end gap-2">
                         <textarea
+                            ref="messageInput"
                             v-model="message"
                             rows="2"
                             maxlength="2000"

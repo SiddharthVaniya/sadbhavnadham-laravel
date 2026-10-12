@@ -266,6 +266,9 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin.portal'])->gr
     Route::get('/donations/telecaller/search', [AdminTelecallerDonationController::class, 'search'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_VIEW))
         ->name('donations.telecaller.search');
+    Route::get('/donations/telecaller/export', [AdminTelecallerDonationController::class, 'export'])
+        ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_VIEW))
+        ->name('donations.telecaller.export');
     Route::get('/donations/export', [AdminDonationController::class, 'export'])
         ->middleware(AdminPermissions::middleware(AdminPermissions::DONATION_EXPORT))
         ->name('donations.export');

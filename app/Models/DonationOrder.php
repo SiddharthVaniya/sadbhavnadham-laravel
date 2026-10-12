@@ -199,6 +199,11 @@ class DonationOrder extends Model
         return $this->hasMany(DonationItem::class);
     }
 
+    public function telecallerNotes(): HasMany
+    {
+        return $this->hasMany(DonationTelecallerNote::class);
+    }
+
     public function donor(): BelongsTo
     {
         return $this->belongsTo(Donor::class);

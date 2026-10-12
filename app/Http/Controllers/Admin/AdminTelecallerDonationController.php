@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Support\AdminDonationLaterPaid;
 use App\Support\AdminInertiaData;
+use App\Support\DonationOrderCsvExport;
 use App\Support\DonationOrderListQuery;
+use App\Support\TelecallerOutcomeFilter;
 use App\Support\TelecallerPortal;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AdminTelecallerDonationController extends Controller
 {
@@ -46,12 +49,25 @@ class AdminTelecallerDonationController extends Controller
             'totalAmount' => $totalAmount,
             'sort' => $sort,
             'dir' => $dir,
+            'telecallerOutcomeOptions' => TelecallerOutcomeFilter::optionsForUi(),
             'filters' => [
                 'from_date' => $request->input('from_date'),
                 'to_date' => $request->input('to_date'),
                 'search' => $request->input('search'),
+                'telecaller_outcome' => $request->input('telecaller_outcome'),
             ],
         ]);
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $user = $request->user();
+
+        abort_unless($user && TelecallerPortal::usesFailedDonationWorkflow($user), 403);
+
+        $exportQuery = $this->donationOrderListQuery->telecallerFailed($request)->reorder();
+
+        return DonationOrderCsvExport::stream($exportQuery, null, 'failed_donations');
     }
 
     public function search(Request $request): Response

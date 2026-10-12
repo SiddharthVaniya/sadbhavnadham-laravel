@@ -212,7 +212,7 @@ const resultCount = computed(() => props.donations?.meta?.total ?? donationsList
                             class="max-w-[10rem] truncate text-left text-sm"
                             @click="openTelecaller(row)"
                         >
-                            {{ row.last_telecaller_note.message }}
+                            {{ row.last_telecaller_note.outcome_label || row.last_telecaller_note.message }}
                         </button>
                         <span v-else class="text-xs text-muted-foreground">—</span>
                     </template>

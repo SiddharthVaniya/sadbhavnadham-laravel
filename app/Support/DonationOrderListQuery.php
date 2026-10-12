@@ -97,6 +97,10 @@ class DonationOrderListQuery
             });
         }
 
+        if ($request->filled('telecaller_outcome')) {
+            TelecallerOutcomeFilter::apply($query, (string) $request->input('telecaller_outcome'));
+        }
+
         return $query;
     }
 
@@ -125,6 +129,10 @@ class DonationOrderListQuery
                     ->orWhere('provider_payment_id', 'like', "%{$search}%")
                     ->orWhere('receipt_number', 'like', "%{$search}%");
             });
+        }
+
+        if ($request->filled('telecaller_outcome')) {
+            TelecallerOutcomeFilter::apply($query, (string) $request->input('telecaller_outcome'));
         }
 
         return $query;

@@ -36,6 +36,7 @@ const props = defineProps({
     sort: { type: String, default: 'created_at_ts' },
     dir: { type: String, default: 'desc' },
     filters: { type: Object, default: () => ({}) },
+    telecallerOutcomeOptions: { type: Array, default: () => [] },
 });
 
 const form = reactive({
@@ -43,6 +44,7 @@ const form = reactive({
     from_date: props.filters.from_date ?? '',
     to_date: props.filters.to_date ?? '',
     search: props.filters.search ?? '',
+    telecaller_outcome: props.filters.telecaller_outcome ?? '',
     sort: props.sort ?? 'created_at_ts',
     dir: props.dir ?? 'desc',
 });
@@ -51,6 +53,22 @@ const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN
 
 const isCustomRange = computed(() => form.duration === 'custom');
 const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
+
+const telecallerResponseChips = computed(() => (
+    props.telecallerOutcomeOptions.filter((option) => option.value !== '')
+));
+
+const setTelecallerOutcome = (value) => {
+    form.telecaller_outcome = value;
+    submit();
+};
+
+const exportUrl = computed(() => {
+    const params = new URLSearchParams(listQueryParams());
+    const query = params.toString();
+
+    return query ? `/admin/donations/telecaller/export?${query}` : '/admin/donations/telecaller/export';
+});
 
 const listQueryParams = (extra = {}) => {
     const payload = { ...form, ...extra };
@@ -170,6 +188,13 @@ watch(() => props.duration, (value) => {
             :subtitle="`${totalCount.toLocaleString()} failed checkout(s) to follow up`"
         >
             <template #actions>
+                <a
+                    :href="exportUrl"
+                    class="admin-btn-secondary !py-2"
+                    title="Export filtered failed donations as CSV"
+                >
+                    Export CSV
+                </a>
                 <select
                     v-model="form.duration"
                     class="admin-input !w-auto min-w-[180px] py-2"
@@ -188,6 +213,35 @@ watch(() => props.duration, (value) => {
             </p>
         </div>
 
+        <div
+            v-if="telecallerResponseChips.length"
+            class="mb-4 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card px-4 py-2.5 shadow-none"
+        >
+            <span class="text-xs font-medium text-muted-foreground">Response:</span>
+            <button
+                type="button"
+                class="rounded-full px-2.5 py-1 text-xs font-medium transition"
+                :class="!form.telecaller_outcome
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted'"
+                @click="setTelecallerOutcome('')"
+            >
+                All
+            </button>
+            <button
+                v-for="chip in telecallerResponseChips"
+                :key="chip.value"
+                type="button"
+                class="rounded-full px-2.5 py-1 text-xs font-medium transition"
+                :class="form.telecaller_outcome === chip.value
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-muted text-muted-foreground hover:bg-muted'"
+                @click="setTelecallerOutcome(chip.value)"
+            >
+                {{ chip.label }}
+            </button>
+        </div>
+
         <div class="rounded-xl border border-border bg-card shadow-none">
             <form class="grid gap-2 border-b border-border px-4 py-3 md:grid-cols-12" @submit.prevent="submit()">
                 <div v-if="isCustomRange" class="md:col-span-2">
@@ -196,7 +250,19 @@ watch(() => props.duration, (value) => {
                 <div v-if="isCustomRange" class="md:col-span-2">
                     <FormDatePicker v-model="form.to_date" label="To" placeholder="To date" />
                 </div>
-                <div class="md:col-span-6">
+                <div class="md:col-span-3">
+                    <label class="admin-label !mb-1 !text-xs">Telecaller response</label>
+                    <select v-model="form.telecaller_outcome" class="admin-input !py-2">
+                        <option
+                            v-for="option in telecallerOutcomeOptions"
+                            :key="option.value || 'all'"
+                            :value="option.value"
+                        >
+                            {{ option.label }}
+                        </option>
+                    </select>
+                </div>
+                <div class="md:col-span-3">
                     <label class="admin-label !mb-1 !text-xs">Search</label>
                     <input
                         v-model="form.search"
@@ -263,8 +329,12 @@ watch(() => props.duration, (value) => {
                             class="block max-w-[10rem] truncate text-left"
                             @click="openTelecaller(row)"
                         >
-                            <span class="block truncate text-sm font-medium">{{ row.last_telecaller_note.name || 'You' }}</span>
-                            <span class="mt-0.5 block truncate text-[11px] text-muted-foreground">{{ row.last_telecaller_note.message }}</span>
+                            <span class="block truncate text-sm font-medium">
+                                {{ row.last_telecaller_note.outcome_label || row.last_telecaller_note.message }}
+                            </span>
+                            <span class="mt-0.5 block truncate text-[11px] text-muted-foreground">
+                                {{ row.last_telecaller_note.name || 'You' }}
+                            </span>
                         </button>
                         <span v-else class="text-xs text-muted-foreground">No notes</span>
                     </template>
