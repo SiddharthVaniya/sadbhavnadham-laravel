@@ -6,5 +6,9 @@
     "poppins": {
         "normal": "\/home\/sadbhavnadham-admin\/htdocs\/admin.sadbhavnadham.org\/storage\/fonts\/poppins_normal_6311ba9deed89610a89d1e5af6abcb24",
         "bold": "poppins_bold_2350158c6811eb412554ff76ddea3ee2"
+    },
+    "noto sans devanagari": {
+        "normal": "\/home\/sadbhavnadham-admin\/htdocs\/admin.sadbhavnadham.org\/storage\/fonts\/noto_sans_devanagari_normal_c7ce8f63221570efc303a6b2fe54c05e",
+        "bold": "noto_sans_devanagari_bold_1afb93fea29c0fee130742736f6cf451"
     }
 }
