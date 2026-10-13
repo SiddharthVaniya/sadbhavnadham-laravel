@@ -112,7 +112,9 @@ it('returns quick-response outcomes with default messages for telecaller notes',
         ->assertOk()
         ->assertJsonPath('outcomes.0.value', 'not_receive')
         ->assertJsonPath('outcomes.0.default_message', 'Not receive')
-        ->assertJsonPath('outcomes.3.value', 'paid');
+        ->assertJsonPath('outcomes.3.value', 'send_details')
+        ->assertJsonPath('outcomes.3.default_message', 'Send details')
+        ->assertJsonPath('outcomes.4.value', 'paid');
 });
 
 it('stores a telecaller note with a quick-response outcome', function () {

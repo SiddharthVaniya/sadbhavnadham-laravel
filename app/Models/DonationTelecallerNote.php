@@ -15,6 +15,7 @@ class DonationTelecallerNote extends Model
         'not_receive' => 'Not receive',
         'busy' => 'Busy',
         'send_qr' => 'Send QR',
+        'send_details' => 'Send details',
         'paid' => 'Paid',
         'switch_off' => 'Unavailable / cut call / switch off',
         'will_call_later' => 'I will call later',
