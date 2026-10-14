@@ -496,6 +496,7 @@ class AdminDashboardData
      *     active_partners: int,
      *     total_target: float,
      *     total_spend: float,
+     *     total_roas: ?float,
      *     referrals_href: string,
      *     partners: list<array{
      *         user_id: int,
@@ -505,6 +506,7 @@ class AdminDashboardData
      *         revenue: float,
      *         target_amount: ?int,
      *         spend_amount: float,
+     *         roas: ?float,
      *         referrals_href: string
      *     }>
      * }
@@ -538,6 +540,7 @@ class AdminDashboardData
      *     active_partners: int,
      *     total_target: float,
      *     total_spend: float,
+     *     total_roas: ?float,
      *     referrals_href: string,
      *     partners: list<array{
      *         user_id: int,
@@ -547,6 +550,7 @@ class AdminDashboardData
      *         revenue: float,
      *         target_amount: ?int,
      *         spend_amount: float,
+     *         roas: ?float,
      *         referrals_href: string
      *     }>
      * }
@@ -579,14 +583,18 @@ class AdminDashboardData
                     : ['target_amount' => null, 'spend_amount' => 0.0];
                 $stats = $statsByUserId[$user->id] ?? ['paid_orders' => 0, 'revenue' => 0.0];
 
+                $revenue = (float) $stats['revenue'];
+                $spendAmount = (float) $budget['spend_amount'];
+
                 return [
                     'user_id' => $user->id,
                     'name' => $user->name,
                     'code' => $code,
                     'paid_orders' => (int) $stats['paid_orders'],
-                    'revenue' => (float) $stats['revenue'],
+                    'revenue' => $revenue,
                     'target_amount' => $budget['target_amount'],
-                    'spend_amount' => (float) $budget['spend_amount'],
+                    'spend_amount' => $spendAmount,
+                    'roas' => $includeBudgets ? self::partnerReferralRoas($revenue, $spendAmount) : null,
                     'referrals_href' => route('admin.referrals.index', array_merge($hrefParams, [
                         'partner_user_id' => $user->id,
                     ])),
@@ -618,9 +626,24 @@ class AdminDashboardData
             'active_partners' => count(array_filter($partners, fn (array $row) => $row['paid_orders'] > 0)),
             'total_target' => $totalTarget,
             'total_spend' => $totalSpend,
+            'total_roas' => $includeBudgets
+                ? self::partnerReferralRoas($totals['revenue'], $totalSpend)
+                : null,
             'referrals_href' => route('admin.referrals.index', $hrefParams),
             'partners' => $partners,
         ];
+    }
+
+    /**
+     * Return on ad spend: collected revenue per rupee of partner spend.
+     */
+    public static function partnerReferralRoas(float $revenue, float $spend): ?float
+    {
+        if ($spend <= 0) {
+            return null;
+        }
+
+        return round($revenue / $spend, 2);
     }
 
     /**

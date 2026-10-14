@@ -64,6 +64,25 @@ const can = (permission) => permissions.value.includes(permission);
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
+const formatRoas = (roas) => {
+    if (roas === null || roas === undefined || roas === '') {
+        return '—';
+    }
+
+    const value = Number(roas);
+
+    if (! Number.isFinite(value)) {
+        return '—';
+    }
+
+    const formatted = value.toLocaleString('en-IN', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+    });
+
+    return `${formatted}×`;
+};
+
 const monthOptions = computed(() => props.monthFilter.options ?? []);
 const selectedMonth = ref(props.monthFilter.selectedKey ?? '');
 
@@ -333,6 +352,9 @@ const changeMonth = (value) => {
                     <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
                         {{ formatMoney(monthlyPartnerReferrals.total_spend) }} spend
                     </span>
+                    <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
+                        {{ formatRoas(monthlyPartnerReferrals.total_roas) }} ROAS
+                    </span>
                     <Button v-if="can('view staff referrals')" as-child size="sm" variant="outline">
                         <Link :href="monthlyPartnerReferrals.referrals_href">
                             Full report
@@ -351,6 +373,7 @@ const changeMonth = (value) => {
                             <TableHead class="text-right">Collected</TableHead>
                             <TableHead class="text-right">Target</TableHead>
                             <TableHead class="text-right">Spend</TableHead>
+                            <TableHead class="text-right">ROAS</TableHead>
                             <TableHead class="text-right">Actions</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -370,6 +393,9 @@ const changeMonth = (value) => {
                             <TableCell class="text-right tabular-nums text-muted-foreground">
                                 {{ formatMoney(partner.spend_amount) }}
                             </TableCell>
+                            <TableCell class="text-right tabular-nums font-medium">
+                                {{ formatRoas(partner.roas) }}
+                            </TableCell>
                             <TableCell class="text-right">
                                 <Button as-child size="sm" variant="ghost" class="h-8 gap-1.5 text-blue-600 hover:text-blue-700">
                                     <Link :href="partner.referrals_href">
@@ -380,7 +406,7 @@ const changeMonth = (value) => {
                             </TableCell>
                         </TableRow>
                         <TableRow v-if="! monthlyPartnerReferrals.partners.length">
-                            <TableCell colspan="7" class="py-8 text-center text-muted-foreground">
+                            <TableCell colspan="8" class="py-8 text-center text-muted-foreground">
                                 No staff members have referral codes yet.
                             </TableCell>
                         </TableRow>

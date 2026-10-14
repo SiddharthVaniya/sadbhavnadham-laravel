@@ -125,11 +125,13 @@ it('includes monthly partner referrals with target and spend on the dashboard', 
             ->where('monthlyPartnerReferrals.total_revenue', 3000)
             ->where('monthlyPartnerReferrals.total_target', 10000)
             ->where('monthlyPartnerReferrals.total_spend', 2500)
+            ->where('monthlyPartnerReferrals.total_roas', 1.2)
             ->where('monthlyPartnerReferrals.partners.0.name', 'Riya Patel')
             ->where('monthlyPartnerReferrals.partners.0.paid_orders', 1)
             ->where('monthlyPartnerReferrals.partners.0.revenue', 3000)
             ->where('monthlyPartnerReferrals.partners.0.target_amount', 10000)
-            ->where('monthlyPartnerReferrals.partners.0.spend_amount', 2500));
+            ->where('monthlyPartnerReferrals.partners.0.spend_amount', 2500)
+            ->where('monthlyPartnerReferrals.partners.0.roas', 1.2));
 });
 
 it('shows this month target and spend on the marketer dashboard', function () {
