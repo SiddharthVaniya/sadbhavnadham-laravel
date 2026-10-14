@@ -83,6 +83,59 @@ it('renders the minimal english receipt with cause and package', function () {
     $response->assertDontSee('ધર્માનુરાગીશ્રી', false);
 });
 
+it('formats donor locality on one line and shows pan below phone', function () {
+    Permission::firstOrCreate(['name' => 'manage receipts']);
+    Permission::firstOrCreate(['name' => 'view all donations']);
+    $role = Role::firstOrCreate(['name' => 'admin', 'guard_name' => 'web']);
+    $role->givePermissionTo(['manage receipts', 'view all donations']);
+
+    $admin = User::factory()->create();
+    $admin->assignRole($role);
+
+    $cause = Cause::factory()->create(['is_active' => true]);
+    $package = CausePackage::factory()->create([
+        'cause_id' => $cause->id,
+        'amount' => 500,
+        'is_active' => true,
+    ]);
+
+    $order = DonationOrder::create([
+        'payment_provider' => DonationOrder::PROVIDER_RAZORPAY,
+        'donor_name' => 'Amit Kansagara',
+        'donor_email' => 'amit@example.com',
+        'donor_phone' => '9033644442',
+        'pan_number' => 'ABCDE1234F',
+        'address' => 'A-501, Vedant Sky, Nikol',
+        'city' => 'Ahmedabad',
+        'state' => 'Gujarat',
+        'pincode' => '382350',
+        'country' => 'INDIA',
+        'total_amount' => 500,
+        'status' => DonationOrder::STATUS_PAID,
+        'paid_at' => now(),
+        'receipt_number' => 20453,
+    ]);
+
+    DonationItem::create([
+        'donation_order_id' => $order->id,
+        'cause_id' => $cause->id,
+        'cause_package_id' => $package->id,
+        'cause' => $cause->slug,
+        'title' => $package->title,
+        'quantity' => 1,
+        'unit_amount' => 500,
+        'amount' => 500,
+    ]);
+
+    actingAs($admin);
+
+    $this->get(route('admin.donations.receipt.preview', $order))
+        ->assertOk()
+        ->assertSee('A-501, Vedant Sky, Nikol', false)
+        ->assertSee('Ahmedabad, Gujarat, 382350, India', false)
+        ->assertSee('PAN <span style="font-weight:700;">ABCDE1234F</span>', false);
+});
+
 it('shows dedicated tree names on the english receipt', function () {
     Permission::firstOrCreate(['name' => 'manage receipts']);
     Permission::firstOrCreate(['name' => 'view all donations']);

@@ -16,13 +16,22 @@
         : (string) ($order->provider_payment_id ?: $order->order_uuid ?: 'ORD-'.$order->id);
     $phone = preg_replace('/\D+/', '', (string) $order->donor_phone) ?? '';
     $phoneDisplay = strlen($phone) === 10 ? '+91 '.$phone : (string) $order->donor_phone;
-    $donorAddressParts = array_filter([
-        $order->address ?: $order->donor?->address,
+    $donorStreetAddress = trim((string) ($order->address ?: $order->donor?->address ?? ''));
+    $donorCountry = trim((string) ($order->country ?: $order->donor?->country ?? ''));
+    if ($donorCountry !== '' && preg_match('/^[A-Z\s]+$/', $donorCountry) === 1) {
+        $donorCountry = ucwords(strtolower($donorCountry));
+    }
+    $donorLocalityParts = array_filter([
         $order->city ?: $order->donor?->city,
         $order->state ?: $order->donor?->state,
         $order->pincode ?: $order->donor?->pincode,
-        $order->country ?: $order->donor?->country,
+        $donorCountry !== '' ? $donorCountry : null,
     ], static fn ($value) => $value !== null && trim((string) $value) !== '');
+    $donorLocalityLine = implode(', ', array_map(
+        static fn ($value) => trim((string) $value),
+        $donorLocalityParts,
+    ));
+    $donorPan = strtoupper(trim((string) ($order->pan_number ?: $order->donor?->pan_number ?? '')));
     $lineItems = \App\Support\DonationReceiptLineItems::forOrder($order);
     $brand = \App\Support\Branding::shortName();
     $paymentMethod = \App\Models\DonationOrder::providerDisplayName($order->payment_provider);
@@ -169,13 +178,23 @@
                     @if ($phoneDisplay !== '')
                         <div class="party-detail" style="{{ $s['party_detail'] }}">{{ $phoneDisplay }}</div>
                     @endif
+                    @if ($donorPan !== '')
+                        <div class="party-detail" style="{{ $s['party_detail'] }}">
+                            <span style="font-weight:700;">PAN:</span> <span>{{ $donorPan }}</span>
+                        </div>
+                    @endif
                 </td>
                 <td valign="top" style="width: 52%; vertical-align: top;">
-                    @forelse ($donorAddressParts as $index => $part)
-                        <div class="party-detail" style="{{ $index === 0 ? $s['party_detail_first'] : $s['party_detail'] }}">{{ $part }}</div>
-                    @empty
+                    @if ($donorStreetAddress !== '' || $donorLocalityLine !== '')
+                        @if ($donorStreetAddress !== '')
+                            <div class="party-detail" style="{{ $s['party_detail_first'] }}">{{ $donorStreetAddress }}</div>
+                        @endif
+                        @if ($donorLocalityLine !== '')
+                            <div class="party-detail" style="{{ $donorStreetAddress !== '' ? $s['party_detail'] : $s['party_detail_first'] }}">{{ $donorLocalityLine }}</div>
+                        @endif
+                    @else
                         <div class="party-detail" style="{{ $s['party_detail_first'] }}">&nbsp;</div>
-                    @endforelse
+                    @endif
                 </td>
             </tr>
         </table>
@@ -262,7 +281,7 @@
         <table class="statutory receipt-statutory" width="100%" style="{{ $s['statutory_table'] }}">
             <tr>
                 <td valign="top" style="width:33.33%;vertical-align:top;">
-                    <div class="statutory-label" style="{{ $s['statutory_label'] }}">PAN</div>
+                    <div class="statutory-label" style="{{ $s['statutory_label'] }}">PAN: </div>
                     <div class="statutory-value" style="{{ $s['statutory_value'] }}">AADTM7770L</div>
                 </td>
                 <td valign="top" style="width:33.33%;vertical-align:top;text-align:center;">
