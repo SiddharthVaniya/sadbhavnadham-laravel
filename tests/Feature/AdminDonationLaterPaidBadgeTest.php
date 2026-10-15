@@ -30,7 +30,7 @@ function createLaterPaidBadgeAdmin(): User
     return $user;
 }
 
-it('marks failed donations that later paid on the admin index', function () {
+it('hides failed donations that later paid from the admin donations table', function () {
     $user = createLaterPaidBadgeAdmin();
 
     $failed = DonationOrder::create([
@@ -78,18 +78,15 @@ it('marks failed donations that later paid on the admin index', function () {
         ->assertOk()
         ->assertInertia(fn ($page) => $page
             ->component('Admin/Donations/Index')
-            ->where('donations.data', function ($rows) use ($failed, $paid) {
+            ->where('donations.data', function ($rows) use ($failed) {
                 $byUuid = collect($rows)->keyBy('uuid');
-                $failedRow = $byUuid->get($failed->order_uuid);
                 $other = collect($rows)->firstWhere('payment_id', 'pay_other_fail');
 
-                if (! is_array($failedRow) || ! is_array($other)) {
+                if (! is_array($other)) {
                     return false;
                 }
 
-                return ($failedRow['later_paid'] ?? false) === true
-                    && ($failedRow['later_paid_url'] ?? null) === route('admin.donations.show', $paid)
-                    && ($failedRow['later_paid_payment_id'] ?? null) === 'pay_later_paid_ok'
+                return ! $byUuid->has($failed->order_uuid)
                     && ($other['later_paid'] ?? true) === false;
             }));
 });

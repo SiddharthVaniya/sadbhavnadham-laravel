@@ -7,6 +7,7 @@ use App\Models\CausePackage;
 use App\Models\DonationOrder;
 use App\Models\Donor;
 use App\Models\User;
+use App\Support\Attribution\AttributionTaxonomy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -607,14 +608,24 @@ class AdminDashboardData
         // Legacy name matching can match one order to more than one partner, so the
         // period total is counted over distinct orders instead of summing partner rows.
         $totals = self::distinctPartnerOrderTotals($start, $end, $users);
+        $overallTotals = self::allPaidOrderTotals($start, $end);
+        $organicTotals = self::organicOrderTotals($start, $end, $users);
+
+        $organicRow = self::organicPartnerReferralRow($organicTotals, $hrefParams, $includeBudgets);
+        $partners[] = $organicRow;
+
+        $partnerRows = array_values(array_filter(
+            $partners,
+            static fn (array $row): bool => ! ($row['is_organic'] ?? false),
+        ));
 
         $totalTarget = array_sum(array_map(
             static fn (array $row): float => (float) ($row['target_amount'] ?? 0),
-            $partners,
+            $partnerRows,
         ));
         $totalSpend = array_sum(array_map(
             static fn (array $row): float => (float) ($row['spend_amount'] ?? 0),
-            $partners,
+            $partnerRows,
         ));
 
         return [
@@ -623,14 +634,56 @@ class AdminDashboardData
             'to_date' => $end->toDateString(),
             'total_revenue' => $totals['revenue'],
             'total_orders' => $totals['orders'],
-            'active_partners' => count(array_filter($partners, fn (array $row) => $row['paid_orders'] > 0)),
+            'active_partners' => count(array_filter(
+                $partnerRows,
+                fn (array $row) => $row['paid_orders'] > 0,
+            )),
             'total_target' => $totalTarget,
             'total_spend' => $totalSpend,
             'total_roas' => $includeBudgets
                 ? self::partnerReferralRoas($totals['revenue'], $totalSpend)
                 : null,
+            'overall_total_revenue' => $overallTotals['revenue'],
+            'overall_total_orders' => $overallTotals['orders'],
+            'organic_total_revenue' => $organicTotals['revenue'],
+            'organic_total_orders' => $organicTotals['orders'],
             'referrals_href' => route('admin.referrals.index', $hrefParams),
             'partners' => $partners,
+        ];
+    }
+
+    /**
+     * @param  array{orders: int, revenue: float}  $totals
+     * @param  array<string, mixed>  $hrefParams
+     * @return array{
+     *     user_id: null,
+     *     is_organic: true,
+     *     name: string,
+     *     code: string,
+     *     paid_orders: int,
+     *     revenue: float,
+     *     target_amount: null,
+     *     spend_amount: float,
+     *     roas: null,
+     *     referrals_href: string
+     * }
+     */
+    private static function organicPartnerReferralRow(array $totals, array $hrefParams, bool $includeBudgets): array
+    {
+        return [
+            'user_id' => null,
+            'is_organic' => true,
+            'name' => AttributionTaxonomy::sourceOptions()[AttributionTaxonomy::SOURCE_ORGANIC],
+            'code' => '—',
+            'paid_orders' => (int) $totals['orders'],
+            'revenue' => (float) $totals['revenue'],
+            'target_amount' => null,
+            'spend_amount' => 0.0,
+            'roas' => null,
+            'referrals_href' => route('admin.donations.index', array_merge($hrefParams, [
+                'status' => DonationOrder::STATUS_PAID,
+                'exclude_partner' => '1',
+            ])),
         ];
     }
 
@@ -735,20 +788,11 @@ class AdminDashboardData
             ->where('referral_code', '!=', '')
             ->get(['id', 'name', 'referral_code']);
 
-        if ($partners->isEmpty()) {
-            return ['orders' => 0, 'revenue' => 0.0];
-        }
-
         $query = DonationOrder::query()
             ->where('status', DonationOrder::STATUS_PAID)
-            ->whereBetween('paid_at', [$start, $end])
-            ->where(function (Builder $builder) use ($partners) {
-                foreach ($partners as $partner) {
-                    $builder->orWhere(function (Builder $partnerQuery) use ($partner) {
-                        AdminStaffReferralsData::applyPartnerAttributionFilter($partnerQuery, $partner);
-                    });
-                }
-            });
+            ->whereBetween('paid_at', [$start, $end]);
+
+        AdminStaffReferralsData::applyAnyPartnerAttributionScope($query, $partners);
 
         $row = (clone $query)
             ->selectRaw('COUNT(*) as orders, COALESCE(SUM(total_amount), 0) as revenue')
@@ -757,6 +801,40 @@ class AdminDashboardData
         return [
             'orders' => (int) ($row->orders ?? 0),
             'revenue' => (float) ($row->revenue ?? 0),
+        ];
+    }
+
+    /**
+     * @return array{orders: int, revenue: float}
+     */
+    private static function allPaidOrderTotals(Carbon $start, Carbon $end): array
+    {
+        $row = DonationOrder::query()
+            ->where('status', DonationOrder::STATUS_PAID)
+            ->whereBetween('paid_at', [$start, $end])
+            ->selectRaw('COUNT(*) as orders, COALESCE(SUM(total_amount), 0) as revenue')
+            ->first();
+
+        return [
+            'orders' => (int) ($row->orders ?? 0),
+            'revenue' => (float) ($row->revenue ?? 0),
+        ];
+    }
+
+    /**
+     * Paid orders in range that are not attributed to any staff partner.
+     *
+     * @param  Collection<int, User>  $partners
+     * @return array{orders: int, revenue: float}
+     */
+    private static function organicOrderTotals(Carbon $start, Carbon $end, Collection $partners): array
+    {
+        $overall = self::allPaidOrderTotals($start, $end);
+        $partner = self::distinctPartnerOrderTotals($start, $end, $partners);
+
+        return [
+            'orders' => max(0, $overall['orders'] - $partner['orders']),
+            'revenue' => max(0.0, round($overall['revenue'] - $partner['revenue'], 2)),
         ];
     }
 }

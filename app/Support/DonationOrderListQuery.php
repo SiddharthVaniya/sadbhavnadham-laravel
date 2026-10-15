@@ -80,6 +80,13 @@ class DonationOrderListQuery
             }
         }
 
+        if ($request->boolean('exclude_partner') || $request->input('exclude_partner') === '1') {
+            AdminStaffReferralsData::applyExcludeAnyPartnerAttributionScope(
+                $query,
+                AdminStaffReferralsData::referralPartners(),
+            );
+        }
+
         if ($this->hasSearchTerm($request)) {
             $search = trim((string) $request->input('search'));
 

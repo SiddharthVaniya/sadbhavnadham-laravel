@@ -23,6 +23,11 @@ class AdminDonationLaterPaid
     /**
      * @return array{uuid: string, payment_id: string, url: string}|null
      */
+    public static function shouldHideFromDonationIndexList(DonationOrder $order): bool
+    {
+        return $order->isFailed() && self::summaryFor($order) !== null;
+    }
+
     public static function summaryFor(DonationOrder $order): ?array
     {
         if (! $order->isFailed()) {

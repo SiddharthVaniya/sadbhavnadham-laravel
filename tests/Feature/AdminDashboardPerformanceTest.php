@@ -54,7 +54,8 @@ it('batches partner referral stats without per-partner count queries', function 
         ->and($payload['total_revenue'])->toBe(3000.0)
         ->and($payload['partners'][0]['name'])->toBe('Riya Patel')
         ->and($payload['partners'][0]['paid_orders'])->toBe(2)
-        ->and($payload['partners'][0]['revenue'])->toBe(3000.0);
+        ->and($payload['partners'][0]['revenue'])->toBe(3000.0)
+        ->and($payload['partners'][2]['name'])->toBe('Direct / organic');
 
     $partnerCountQueries = collect($queries)->filter(function (array $query): bool {
         $sql = strtolower($query['query']);

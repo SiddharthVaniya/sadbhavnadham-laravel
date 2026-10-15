@@ -495,9 +495,13 @@ class AdminInertiaData
             ? fn (DonationOrder $order) => self::offlineDonationTableRows($order, $causeTitleFilter)
             : fn (DonationOrder $order) => self::donationTableRows($order, $causeTitleFilter);
 
+        $visibleOrders = collect($paginator->items())
+            ->reject(fn (DonationOrder $order) => AdminDonationLaterPaid::shouldHideFromDonationIndexList($order))
+            ->values();
+
         try {
             return [
-                'data' => collect($paginator->items())->flatMap($mapper)->values()->all(),
+                'data' => $visibleOrders->flatMap($mapper)->values()->all(),
                 'links' => $paginator->linkCollection()->toArray(),
                 'meta' => [
                     'current_page' => $paginator->currentPage(),

@@ -9,6 +9,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 
 class AdminStaffReferralsData
 {
@@ -589,6 +590,55 @@ class AdminStaffReferralsData
                 });
             });
         });
+    }
+
+    /**
+     * Paid donations attributed to any staff partner (sid, QR, legacy UTM / name match).
+     *
+     * @param  Collection<int, User>  $partners
+     */
+    public static function applyAnyPartnerAttributionScope(Builder $query, Collection $partners): void
+    {
+        $query->where(function (Builder $builder) use ($partners) {
+            $builder->where(function (Builder $assigned) {
+                $assigned->whereNotNull('partner_user_id')
+                    ->orWhere(function (Builder $code) {
+                        $code->whereNotNull('partner_code')
+                            ->where('partner_code', '!=', '');
+                    });
+            });
+
+            foreach ($partners as $partner) {
+                $builder->orWhere(function (Builder $partnerQuery) use ($partner) {
+                    self::applyPartnerAttributionFilter($partnerQuery, $partner);
+                });
+            }
+        });
+    }
+
+    /**
+     * @param  Collection<int, User>  $partners
+     */
+    public static function applyExcludeAnyPartnerAttributionScope(Builder $query, Collection $partners): void
+    {
+        if ($partners->isEmpty()) {
+            return;
+        }
+
+        $query->whereNot(function (Builder $builder) use ($partners) {
+            self::applyAnyPartnerAttributionScope($builder, $partners);
+        });
+    }
+
+    /**
+     * @return Collection<int, User>
+     */
+    public static function referralPartners(): Collection
+    {
+        return User::query()
+            ->whereNotNull('referral_code')
+            ->where('referral_code', '!=', '')
+            ->get(['id', 'name', 'referral_code']);
     }
 
     /**

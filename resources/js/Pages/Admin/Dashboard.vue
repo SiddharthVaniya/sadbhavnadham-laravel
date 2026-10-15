@@ -264,15 +264,21 @@ const changeMonth = (value) => {
                         Today's partner referrals
                     </CardTitle>
                     <CardDescription>
-                        Paid donations via staff referral links · {{ dailyPartnerReferrals.date_label }}
+                        Paid donations · partners and organic · {{ dailyPartnerReferrals.date_label }}
                     </CardDescription>
                 </div>
                 <div class="flex flex-wrap gap-2 text-sm">
                     <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
-                        {{ formatMoney(dailyPartnerReferrals.total_revenue) }} collected
+                        {{ formatMoney(dailyPartnerReferrals.overall_total_revenue) }} total
                     </span>
                     <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
-                        {{ dailyPartnerReferrals.total_orders }} order{{ dailyPartnerReferrals.total_orders === 1 ? '' : 's' }}
+                        {{ dailyPartnerReferrals.overall_total_orders }} order{{ dailyPartnerReferrals.overall_total_orders === 1 ? '' : 's' }} total
+                    </span>
+                    <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
+                        {{ formatMoney(dailyPartnerReferrals.total_revenue) }} via partners
+                    </span>
+                    <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
+                        {{ formatMoney(dailyPartnerReferrals.organic_total_revenue) }} direct / organic
                     </span>
                     <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
                         {{ dailyPartnerReferrals.active_partners }} active partner{{ dailyPartnerReferrals.active_partners === 1 ? '' : 's' }}
@@ -297,7 +303,11 @@ const changeMonth = (value) => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="partner in dailyPartnerReferrals.partners" :key="partner.user_id">
+                        <TableRow
+                            v-for="partner in dailyPartnerReferrals.partners"
+                            :key="partner.is_organic ? 'organic' : partner.user_id"
+                            :class="partner.is_organic ? 'bg-muted/30' : ''"
+                        >
                             <TableCell class="font-medium">{{ partner.name }}</TableCell>
                             <TableCell>
                                 <span class="font-mono text-sm text-muted-foreground">{{ partner.code }}</span>
@@ -333,15 +343,21 @@ const changeMonth = (value) => {
                         This month partner referrals
                     </CardTitle>
                     <CardDescription>
-                        Paid donations via staff referral links · {{ monthlyPartnerReferrals.date_label }}
+                        Paid donations · partners and organic · {{ monthlyPartnerReferrals.date_label }}
                     </CardDescription>
                 </div>
                 <div class="flex flex-wrap gap-2 text-sm">
                     <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
-                        {{ formatMoney(monthlyPartnerReferrals.total_revenue) }} collected
+                        {{ formatMoney(monthlyPartnerReferrals.overall_total_revenue) }} total
                     </span>
                     <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
-                        {{ monthlyPartnerReferrals.total_orders }} order{{ monthlyPartnerReferrals.total_orders === 1 ? '' : 's' }}
+                        {{ monthlyPartnerReferrals.overall_total_orders }} order{{ monthlyPartnerReferrals.overall_total_orders === 1 ? '' : 's' }} total
+                    </span>
+                    <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
+                        {{ formatMoney(monthlyPartnerReferrals.total_revenue) }} via partners
+                    </span>
+                    <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
+                        {{ formatMoney(monthlyPartnerReferrals.organic_total_revenue) }} direct / organic
                     </span>
                     <span class="rounded-md border border-border bg-muted/40 px-2.5 py-1 tabular-nums">
                         {{ monthlyPartnerReferrals.active_partners }} active partner{{ monthlyPartnerReferrals.active_partners === 1 ? '' : 's' }}
@@ -378,7 +394,11 @@ const changeMonth = (value) => {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        <TableRow v-for="partner in monthlyPartnerReferrals.partners" :key="partner.user_id">
+                        <TableRow
+                            v-for="partner in monthlyPartnerReferrals.partners"
+                            :key="partner.is_organic ? 'organic' : partner.user_id"
+                            :class="partner.is_organic ? 'bg-muted/30' : ''"
+                        >
                             <TableCell class="font-medium">{{ partner.name }}</TableCell>
                             <TableCell>
                                 <span class="font-mono text-sm text-muted-foreground">{{ partner.code }}</span>
