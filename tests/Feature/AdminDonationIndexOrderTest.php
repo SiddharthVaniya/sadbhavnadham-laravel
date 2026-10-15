@@ -154,7 +154,15 @@ it('exports filtered donations as csv', function () {
 it('shows overview widgets and payment method split on donations index', function () {
     $user = createDonationsAdminUser();
 
-    DonationOrder::create([
+    $partner = User::factory()->create([
+        'name' => 'Overview Marketer',
+        'referral_code' => 'OVMARK',
+    ]);
+
+    $education = \App\Models\Cause::factory()->create(['title' => 'Education']);
+    $health = \App\Models\Cause::factory()->create(['title' => 'Health']);
+
+    $razorpayOrder = DonationOrder::create([
         'payment_provider' => 'razorpay',
         'provider_order_id' => 'overview-order-1',
         'donor_name' => 'Overview Paid Donor',
@@ -163,9 +171,21 @@ it('shows overview widgets and payment method split on donations index', functio
         'currency' => 'INR',
         'total_amount' => 1500,
         'status' => DonationOrder::STATUS_PAID,
+        'partner_user_id' => $partner->id,
+        'partner_code' => 'OVMARK',
     ]);
 
-    DonationOrder::create([
+    \App\Models\DonationItem::create([
+        'donation_order_id' => $razorpayOrder->id,
+        'cause_id' => $education->id,
+        'cause' => $education->title,
+        'title' => 'Education Gift',
+        'quantity' => 1,
+        'unit_amount' => 1500,
+        'amount' => 1500,
+    ]);
+
+    $qrOrder = DonationOrder::create([
         'payment_provider' => 'razorpay_qr',
         'provider_order_id' => 'overview-order-paid-qr',
         'donor_name' => 'Overview Paid QR Donor',
@@ -174,6 +194,17 @@ it('shows overview widgets and payment method split on donations index', functio
         'currency' => 'INR',
         'total_amount' => 500,
         'status' => DonationOrder::STATUS_PAID,
+        'utm_content' => 'field-agent-1',
+    ]);
+
+    \App\Models\DonationItem::create([
+        'donation_order_id' => $qrOrder->id,
+        'cause_id' => $health->id,
+        'cause' => $health->title,
+        'title' => 'Health Gift',
+        'quantity' => 1,
+        'unit_amount' => 500,
+        'amount' => 500,
     ]);
 
     DonationOrder::create([
@@ -209,7 +240,21 @@ it('shows overview widgets and payment method split on donations index', functio
                 $names = collect($breakdown)->pluck('name')->all();
 
                 return ! in_array('Offline', $names, true);
-            }));
+            })
+            ->has('causeBreakdown', 2)
+            ->where('causeBreakdown.0.name', 'Education')
+            ->where('causeBreakdown.0.amount', 1500)
+            ->where('causeBreakdown.0.percentage', 75)
+            ->where('causeBreakdown.1.name', 'Health')
+            ->where('causeBreakdown.1.amount', 500)
+            ->where('causeBreakdown.1.percentage', 25)
+            ->has('marketerBreakdown', 2)
+            ->where('marketerBreakdown.0.name', 'Overview Marketer')
+            ->where('marketerBreakdown.0.amount', 1500)
+            ->where('marketerBreakdown.0.percentage', 75)
+            ->where('marketerBreakdown.1.name', 'field-agent-1')
+            ->where('marketerBreakdown.1.amount', 500)
+            ->where('marketerBreakdown.1.percentage', 25));
 });
 
 it('includes paid donations in today view when payment completed today even if checkout started earlier', function () {

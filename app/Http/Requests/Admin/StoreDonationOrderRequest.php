@@ -41,7 +41,7 @@ class StoreDonationOrderRequest extends FormRequest
             'cause_package_id' => ['nullable', 'integer', 'exists:cause_packages,id'],
             'quantity' => ['nullable', 'integer', 'min:1', 'max:9999'],
             'item_title' => ['nullable', 'string', 'max:255'],
-            'donation_date' => ['nullable', 'date', 'before_or_equal:today'],
+            'donation_date' => ['nullable', 'date', 'before_or_equal:now'],
             'receipt_number' => ['nullable', 'integer', 'min:1'],
             'send_receipt_email' => ['sometimes', 'boolean'],
             'send_whatsapp_thank_you' => ['sometimes', 'boolean'],

@@ -20,7 +20,10 @@ const props = defineProps({
     next_receipt_formatted: { type: String, default: 'MSCT-OFF-1' },
 });
 
-const today = new Date().toISOString().slice(0, 10);
+const pad2 = (value) => String(value).padStart(2, '0');
+const nowLocal = new Date();
+const today = `${nowLocal.getFullYear()}-${pad2(nowLocal.getMonth() + 1)}-${pad2(nowLocal.getDate())}`;
+const todayWithTime = `${today} ${pad2(nowLocal.getHours())}:${pad2(nowLocal.getMinutes())}`;
 
 const form = useForm({
     donor_name: '',
@@ -35,7 +38,7 @@ const form = useForm({
     country: 'INDIA',
     donor_country_code: 'IN',
     date_of_birth: '',
-    donation_date: today,
+    donation_date: todayWithTime,
     payment_provider: 'offline',
     total_amount: '',
     receipt_number: '',
@@ -520,11 +523,12 @@ const submit = () => form.post('/admin/donations');
                 />
                 <FormDatePicker
                     v-model="form.donation_date"
-                    label="Donation date"
+                    label="Donation date & time"
                     :error="form.errors.donation_date"
                     :max="today"
-                    hint="Defaults to today. Choose a past date for older entries."
-                    placeholder="DD MMM YYYY"
+                    include-time
+                    hint="Defaults to now. Choose a past date/time for older entries."
+                    placeholder="DD MMM YYYY, hh:mm"
                 />
                 <FormInput
                     v-model="form.receipt_number"

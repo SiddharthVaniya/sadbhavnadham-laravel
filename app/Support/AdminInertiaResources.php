@@ -1138,7 +1138,7 @@ class AdminInertiaResources
             'country' => $order->country ?: 'INDIA',
             'donor_country_code' => $order->donor_country_code ?: 'IN',
             'date_of_birth' => $order->date_of_birth?->format('Y-m-d') ?? '',
-            'donation_date' => ($order->paid_at ?? $order->created_at)?->format('Y-m-d') ?? '',
+            'donation_date' => ($order->paid_at ?? $order->created_at)?->format('Y-m-d H:i') ?? '',
             'total_amount' => (float) $order->total_amount,
             'cause_id' => $item?->cause_id ?? '',
             'cause_package_id' => $item?->cause_package_id ?? '',
