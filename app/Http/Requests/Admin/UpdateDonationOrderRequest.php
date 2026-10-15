@@ -44,7 +44,7 @@ class UpdateDonationOrderRequest extends FormRequest
                 'cause_package_id' => ['nullable', 'integer', 'exists:cause_packages,id'],
                 'item_title' => ['nullable', 'string', 'max:255'],
                 'quantity' => ['nullable', 'integer', 'min:1', 'max:9999'],
-                'donation_date' => ['nullable', 'date', 'before_or_equal:now'],
+                'donation_date' => ['nullable', 'date', 'before_or_equal:today'],
             ];
         }
 

@@ -39,8 +39,6 @@ const props = defineProps({
     totalCount: { type: Number, required: true },
     statusCounts: { type: Object, default: () => ({}) },
     paymentMethodBreakdown: { type: Array, default: () => [] },
-    causeBreakdown: { type: Array, default: () => [] },
-    marketerBreakdown: { type: Array, default: () => [] },
     activeFilterCount: { type: Number, default: 0 },
     providerOptions: { type: Array, default: () => [] },
     sourceOptions: { type: Array, default: () => [] },
@@ -119,10 +117,6 @@ const statusTabs = computed(() => [
 const activeStatusTab = computed(() => form.status || '');
 
 const formatMoney = (amount) => `₹ ${Number(amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-
-const providerChartPalette = ['#18181b', '#f59e0b', '#10b981', '#6366f1', '#ec4899', '#0ea5e9'];
-const causeChartPalette = ['#0f766e', '#14b8a6', '#2dd4bf', '#059669', '#34d399', '#047857', '#99f6e4'];
-const marketerChartPalette = ['#1d4ed8', '#7c3aed', '#06b6d4', '#4f46e5', '#a855f7', '#0284c8', '#c4b5fd'];
 
 const isCustomRange = computed(() => form.duration === 'custom');
 const periodOptions = computed(() => mergeDurationOptions(props.durationOptions));
@@ -305,40 +299,20 @@ const exportUrl = computed(() => {
             </template>
         </PageHeader>
 
-        <div class="mb-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <div class="rounded-xl border border-border bg-card p-4 shadow-none">
+        <div class="mb-4 grid gap-4 lg:grid-cols-3">
+            <div class="rounded-xl border border-border bg-card p-4 lg:col-span-2 shadow-none">
                 <div class="text-xs font-medium uppercase tracking-wide text-muted-foreground">Paid collection</div>
-                <div class="mt-1 text-xl font-semibold leading-tight text-foreground sm:text-2xl">{{ formatMoney(paidAmount) }}</div>
-                <p class="mt-1 text-xs text-muted-foreground">Successful donations in current filter</p>
-                <div class="mt-3 flex flex-col gap-1.5 text-xs">
-                    <span class="rounded-lg bg-muted px-2.5 py-1 text-foreground">Attempts: {{ formatMoney(attemptVolume) }}</span>
-                    <span class="rounded-lg bg-muted px-2.5 py-1 text-foreground">{{ totalCount }} transaction(s)</span>
-                    <span class="rounded-lg bg-rose-50 px-2.5 py-1 text-rose-700">{{ failedCount }} failed</span>
+                <div class="mt-1 text-2xl font-semibold text-foreground">{{ formatMoney(paidAmount) }}</div>
+                <p class="text-xs text-muted-foreground">Successful donations in current filter</p>
+                <div class="mt-3 flex flex-wrap gap-2 text-xs">
+                    <span class="rounded-full bg-muted px-2.5 py-1 text-foreground">Attempts: {{ formatMoney(attemptVolume) }}</span>
+                    <span class="rounded-full bg-muted px-2.5 py-1 text-foreground">{{ totalCount }} transaction(s)</span>
+                    <span class="rounded-full bg-rose-50 px-2.5 py-1 text-rose-700">{{ failedCount }} failed</span>
                 </div>
             </div>
             <div class="rounded-xl border border-border bg-card p-4 shadow-none">
                 <div class="mb-2 text-sm font-semibold text-foreground">Payment methods</div>
-                <PaymentMethodPieChart
-                    :items="paymentMethodBreakdown"
-                    :palette="providerChartPalette"
-                    center-label="methods"
-                />
-            </div>
-            <div class="rounded-xl border border-border bg-card p-4 shadow-none">
-                <div class="mb-2 text-sm font-semibold text-foreground">Causes</div>
-                <PaymentMethodPieChart
-                    :items="causeBreakdown"
-                    :palette="causeChartPalette"
-                    center-label="causes"
-                />
-            </div>
-            <div class="rounded-xl border border-border bg-card p-4 shadow-none">
-                <div class="mb-2 text-sm font-semibold text-foreground">Marketers</div>
-                <PaymentMethodPieChart
-                    :items="marketerBreakdown"
-                    :palette="marketerChartPalette"
-                    center-label="marketers"
-                />
+                <PaymentMethodPieChart :items="paymentMethodBreakdown" />
             </div>
         </div>
 

@@ -554,26 +554,6 @@ it('stores an offline donation with package and a past donation date', function 
         ->and($order->items->first()->title)->toBe('Morning Breakfast');
 });
 
-it('stores an offline donation with an explicit donation date and time', function () {
-    $user = createOfflineDonationAdmin();
-
-    $donationDateTime = now()->subDays(3)->setTime(14, 35, 0);
-
-    $response = $this
-        ->actingAs($user)
-        ->post(route('admin.donations.store'), offlineDonationPayload([
-            'donation_date' => $donationDateTime->format('Y-m-d H:i'),
-        ]));
-
-    $response->assertRedirect(route('admin.donations.index'));
-
-    $order = DonationOrder::query()->where('donor_phone', '9876543210')->first();
-
-    expect($order)->not->toBeNull()
-        ->and($order->paid_at->format('Y-m-d H:i'))->toBe($donationDateTime->format('Y-m-d H:i'))
-        ->and($order->created_at->format('Y-m-d H:i'))->toBe($donationDateTime->format('Y-m-d H:i'));
-});
-
 it('rejects a donation date in the future', function () {
     $user = createOfflineDonationAdmin();
 

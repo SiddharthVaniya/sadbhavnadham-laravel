@@ -476,11 +476,10 @@ const submit = () => form.put(`/admin/donations/${props.donation.uuid}`);
                     <FormDatePicker
                         v-if="canEditAmount"
                         v-model="form.donation_date"
-                        label="Donation date & time"
+                        label="Donation date"
                         :error="form.errors.donation_date"
                         :max="today"
-                        include-time
-                        placeholder="DD MMM YYYY, hh:mm"
+                        placeholder="DD MMM YYYY"
                     />
                     <FormInput
                         v-if="canEditAmount"

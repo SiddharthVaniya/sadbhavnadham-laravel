@@ -23,9 +23,9 @@ use App\Support\AdminInertiaResources;
 use App\Support\DonationOrderCsvExport;
 use App\Support\DonationOrderListQuery;
 use App\Support\DonationVisibility;
-use App\Support\PanRequirementService;
 use App\Support\TelecallerOutcomeFilter;
 use App\Support\TelecallerPortal;
+use App\Support\PanRequirementService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -69,70 +69,34 @@ class AdminDonationController extends Controller
             ->groupBy('status')
             ->pluck('count', 'status');
 
-        $paidOverview = (clone $overviewBase)
+        $paymentMethodBreakdown = (clone $overviewBase)
             ->where('status', DonationOrder::STATUS_PAID)
-            ->setEagerLoads([]);
+            ->select(
+                DB::raw("COALESCE(NULLIF(payment_provider, ''), 'Unknown') as payment_provider"),
+                DB::raw('COUNT(*) as count'),
+                DB::raw('SUM(total_amount) as amount')
+            )
+            ->groupBy('payment_provider')
+            ->orderByDesc('amount')
+            ->get();
 
-        $paymentMethodBreakdown = $this->mapPaidBreakdownSlices(
-            (clone $paidOverview)
-                ->select(
-                    DB::raw("COALESCE(NULLIF(payment_provider, ''), 'Unknown') as label"),
-                    DB::raw('COUNT(*) as count'),
-                    DB::raw('SUM(total_amount) as amount')
-                )
-                ->groupBy('payment_provider')
-                ->orderByDesc('amount')
-                ->get()
-                ->map(fn ($row) => (object) [
-                    'label' => DonationOrder::providerDisplayName((string) $row->label),
+        $paidMethodTotal = (float) $paymentMethodBreakdown->sum(fn ($row) => (float) $row->amount);
+
+        $paymentMethodBreakdown = $paymentMethodBreakdown
+            ->map(function ($row) use ($paidMethodTotal) {
+                $amount = (float) $row->amount;
+                $percentage = $paidMethodTotal > 0
+                    ? round(($amount / $paidMethodTotal) * 100, 1)
+                    : 0.0;
+
+                return (object) [
+                    'name' => DonationOrder::providerDisplayName((string) $row->payment_provider),
                     'count' => (int) $row->count,
-                    'amount' => (float) $row->amount,
-                ]),
-        );
-
-        $causeBreakdown = $this->mapPaidBreakdownSlices(
-            DonationItem::query()
-                ->whereIn('donation_order_id', (clone $paidOverview)->select('donation_orders.id'))
-                ->leftJoin('causes', 'causes.id', '=', 'donation_items.cause_id')
-                ->select(
-                    DB::raw("COALESCE(NULLIF(causes.title, ''), NULLIF(donation_items.cause, ''), 'Unknown') as label"),
-                    DB::raw('COUNT(DISTINCT donation_items.donation_order_id) as count'),
-                    DB::raw('SUM(donation_items.amount) as amount')
-                )
-                ->groupByRaw("COALESCE(NULLIF(causes.title, ''), NULLIF(donation_items.cause, ''), 'Unknown')")
-                ->orderByDesc('amount')
-                ->get()
-                ->map(fn ($row) => (object) [
-                    'label' => (string) $row->label,
-                    'count' => (int) $row->count,
-                    'amount' => (float) $row->amount,
-                ]),
-        );
-
-        $marketerLabelSql = "COALESCE(
-            NULLIF(marketer_users.name, ''),
-            NULLIF(donation_orders.partner_code, ''),
-            NULLIF(donation_orders.utm_content, ''),
-            'Unattributed'
-        )";
-
-        $marketerBreakdown = $this->mapPaidBreakdownSlices(
-            (clone $paidOverview)
-                ->leftJoin('users as marketer_users', 'marketer_users.id', '=', 'donation_orders.partner_user_id')
-                ->select(
-                    DB::raw("{$marketerLabelSql} as label"),
-                    DB::raw('COUNT(*) as count'),
-                    DB::raw('SUM(donation_orders.total_amount) as amount')
-                )
-                ->groupByRaw($marketerLabelSql)
-                ->orderByDesc('amount')
-                ->get()
-                ->map(fn ($row) => (object) [
-                    'label' => (string) $row->label,
-                    'count' => (int) $row->count,
-                    'amount' => (float) $row->amount,
-                ]),
-        );
+                    'amount' => $amount,
+                    'percentage' => $percentage,
+                ];
+            })
+            ->values();
 
         $activeFilterCount = collect([
             $request->filled('from_date'),
@@ -212,9 +176,12 @@ class AdminDonationController extends Controller
                 'failed' => (int) ($statusCounts[DonationOrder::STATUS_FAILED] ?? 0),
                 'refunded' => (int) ($statusCounts[DonationOrder::STATUS_REFUNDED] ?? 0),
             ],
-            'paymentMethodBreakdown' => $paymentMethodBreakdown,
-            'causeBreakdown' => $causeBreakdown,
-            'marketerBreakdown' => $marketerBreakdown,
+            'paymentMethodBreakdown' => $paymentMethodBreakdown->map(fn (object $method) => [
+                'name' => $method->name,
+                'count' => $method->count,
+                'amount' => $method->amount,
+                'percentage' => $method->percentage,
+            ])->values(),
             'activeFilterCount' => $activeFilterCount,
             'providerOptions' => [
                 ['value' => DonationOrder::PROVIDER_RAZORPAY, 'label' => 'Razorpay (incl. QR)'],
@@ -444,7 +411,9 @@ class AdminDonationController extends Controller
 
         $donor = $this->resolveDonorFromSnapshot($donorSnapshot);
 
-        $donationDate = $this->resolveDonationDateTime($request->input('donation_date'));
+        $donationDate = Carbon::parse(
+            $request->input('donation_date') ?: now()->toDateString()
+        )->startOfDay();
 
         $paymentProvider = (string) ($request->input('payment_provider') ?: DonationOrder::PROVIDER_OFFLINE);
 
@@ -742,10 +711,9 @@ class AdminDonationController extends Controller
 
         $donor = $this->resolveDonorFromSnapshot($donorSnapshot);
 
-        $donationDate = $this->resolveDonationDateTime(
-            $request->input('donation_date'),
-            $donationOrder->paid_at ?? $donationOrder->created_at,
-        );
+        $donationDate = Carbon::parse(
+            $request->input('donation_date') ?: ($donationOrder->paid_at?->toDateString() ?? now()->toDateString())
+        )->startOfDay();
 
         $donationOrder->update([
             'donor_id' => $donor?->id ?? $donationOrder->donor_id,
@@ -766,15 +734,6 @@ class AdminDonationController extends Controller
 
         $donationOrder->created_at = $donationDate;
         $donationOrder->saveQuietly();
-    }
-
-    private function resolveDonationDateTime(mixed $value, ?Carbon $fallback = null): Carbon
-    {
-        if (filled($value)) {
-            return Carbon::parse((string) $value);
-        }
-
-        return ($fallback ?? now())->copy();
     }
 
     private function updateDonationDonorDetails(UpdateDonationOrderRequest $request, DonationOrder $donationOrder): void
@@ -1043,46 +1002,6 @@ class AdminDonationController extends Controller
     }
 
     /**
-     * @param  \Illuminate\Support\Collection<int, object{label: string, count: int, amount: float}>  $rows
-     * @return list<array{name: string, count: int, amount: float, percentage: float}>
+     * When staff search by donor/phone/etc., default "Today" must not hide older matches.
      */
-    private function mapPaidBreakdownSlices($rows, int $limit = 6): array
-    {
-        $sorted = collect($rows)
-            ->filter(fn ($row) => (float) ($row->amount ?? 0) > 0)
-            ->sortByDesc(fn ($row) => (float) $row->amount)
-            ->values();
-
-        $total = (float) $sorted->sum(fn ($row) => (float) $row->amount);
-
-        if ($total <= 0) {
-            return [];
-        }
-
-        $top = $sorted->take($limit);
-        $otherAmount = (float) $sorted->slice($limit)->sum(fn ($row) => (float) $row->amount);
-        $otherCount = (int) $sorted->slice($limit)->sum(fn ($row) => (int) $row->count);
-
-        if ($otherAmount > 0) {
-            $top = $top->push((object) [
-                'label' => 'Other',
-                'count' => $otherCount,
-                'amount' => $otherAmount,
-            ]);
-        }
-
-        return $top
-            ->map(function ($row) use ($total) {
-                $amount = (float) $row->amount;
-
-                return [
-                    'name' => (string) $row->label,
-                    'count' => (int) $row->count,
-                    'amount' => $amount,
-                    'percentage' => round(($amount / $total) * 100, 1),
-                ];
-            })
-            ->values()
-            ->all();
-    }
 }
